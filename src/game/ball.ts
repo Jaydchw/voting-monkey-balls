@@ -18,10 +18,25 @@ type BallGameObject = Phaser.GameObjects.Arc & {
   setVelocity: (x: number, y: number) => BallGameObject;
 };
 
-const BALL_RENDER_RADIUS = 20;
-const BALL_OUTLINE_WIDTH = 6;
-const BALL_COLLISION_RADIUS = BALL_RENDER_RADIUS + BALL_OUTLINE_WIDTH / 2;
+export const BALL_RENDER_RADIUS = 20;
+export const BALL_OUTLINE_WIDTH = 6;
+export const BALL_COLLISION_RADIUS =
+  BALL_RENDER_RADIUS + BALL_OUTLINE_WIDTH / 2;
+export const BALL_COLLISION_DIAMETER = BALL_COLLISION_RADIUS * 2;
+export const WALL_COLLISION_CATEGORY = 0x0001;
+export const RED_BALL_CATEGORY = 0x0002;
+export const BLUE_BALL_CATEGORY = 0x0004;
 const MIN_AXIS_ANGLE = 0.3;
+
+type GhostCollisionMode = "normal" | "linked-health" | "proxy-contact";
+
+type BallOptions = {
+  startsMoving?: boolean;
+  isStatic?: boolean;
+  alpha?: number;
+  collisionMode?: GhostCollisionMode;
+  receivesModifierPropagation?: boolean;
+};
 
 export class Ball {
   body: BallGameObject;
@@ -35,6 +50,8 @@ export class Ball {
   ghostBalls: Ball[] = [];
   /** True when this is a Mitosis ghost — delegates takeDamage to master. */
   isGhostBall: boolean = false;
+  collisionMode: GhostCollisionMode = "normal";
+  receivesModifierPropagation = true;
   /** Absorbs damage before HP. Set/cleared by ArmoredModifier. */
   shieldHP: number = 0;
   modifiers: BallModifier[] = [];
@@ -48,6 +65,7 @@ export class Ball {
   readonly arenaWidth: number;
   readonly arenaHeight: number;
   readonly wallThickness: number;
+  readonly isStaticBody: boolean;
   private readonly onHealthChange: (health: number) => void;
   private readonly onDied: (() => void) | null;
 
@@ -65,6 +83,7 @@ export class Ball {
     wallThickness: number,
     onHealthChange: (health: number) => void,
     onDied: (() => void) | null = null,
+    options: BallOptions = {},
   ) {
     this.id = id;
     this.speed = speed;
@@ -75,6 +94,10 @@ export class Ball {
     this.arenaWidth = arenaWidth;
     this.arenaHeight = arenaHeight;
     this.wallThickness = wallThickness;
+    this.isStaticBody = options.isStatic ?? false;
+    this.collisionMode = options.collisionMode ?? "normal";
+    this.receivesModifierPropagation =
+      options.receivesModifierPropagation ?? true;
     this.onHealthChange = onHealthChange;
     this.onDied = onDied;
     onHealthChange(health);
@@ -84,6 +107,7 @@ export class Ball {
     this.body = scene.matter.add.gameObject(circle, {
       shape: "circle",
       circleRadius: BALL_COLLISION_RADIUS,
+      isStatic: this.isStaticBody,
       friction: 0,
       frictionAir: 0,
       frictionStatic: 0,
@@ -91,6 +115,12 @@ export class Ball {
       mass: mass,
       ignoreGravity: true,
       inertia: Infinity,
+      collisionFilter: {
+        category: id === "red" ? RED_BALL_CATEGORY : BLUE_BALL_CATEGORY,
+        mask:
+          WALL_COLLISION_CATEGORY |
+          (id === "red" ? BLUE_BALL_CATEGORY : RED_BALL_CATEGORY),
+      },
     }) as BallGameObject;
 
     this.body.setBounce(1);
@@ -101,17 +131,25 @@ export class Ball {
       ballRef: this,
     };
 
-    const angle = Math.random() * Math.PI * 2;
-    const velocityX = Math.cos(angle) * speed;
-    const velocityY = Math.sin(angle) * speed;
+    if (options.alpha !== undefined) {
+      this.body.setAlpha(options.alpha);
+    }
 
-    this.body.setVelocity(velocityX, velocityY);
+    if (options.startsMoving ?? true) {
+      const angle = Math.random() * Math.PI * 2;
+      const velocityX = Math.cos(angle) * speed;
+      const velocityY = Math.sin(angle) * speed;
+
+      this.body.setVelocity(velocityX, velocityY);
+    }
   }
 
   takeDamage(rawAmount: number) {
-    // Ghost balls delegate to master so master's modifiers (Armored, etc.) apply
-    if (this.isGhostBall && this.linkedBall) {
+    if (this.collisionMode === "linked-health" && this.linkedBall) {
       this.linkedBall.takeDamage(rawAmount);
+      return;
+    }
+    if (this.collisionMode === "proxy-contact") {
       return;
     }
     const amount = this.modifiers.reduce(
@@ -146,6 +184,7 @@ export class Ball {
     // Propagate to ghost balls so they stay in sync; ghosts don't recurse further
     if (!this.isGhostBall && modifier.propagateToGhosts) {
       for (const ghost of this.ghostBalls) {
+        if (!ghost.receivesModifierPropagation) continue;
         const ModCtor = Object.getPrototypeOf(modifier)
           .constructor as new () => BallModifier;
         ghost.addModifier(new ModCtor());
@@ -219,6 +258,8 @@ export class Ball {
   }
 
   maintainSpeed() {
+    if (this.isStaticBody) return;
+
     const velocity = this.body.body.velocity;
     const magnitude = Math.hypot(velocity.x, velocity.y);
     const targetSpeed = this.effectiveSpeed();

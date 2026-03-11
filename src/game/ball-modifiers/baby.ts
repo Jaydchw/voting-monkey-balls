@@ -52,10 +52,10 @@ export class BabyModifier extends BallModifier {
       const sx = x + Math.cos(angle) * r;
       const sy = y + Math.sin(angle) * r;
       const a = 0.55 + 0.3 * Math.sin(this.sparkleT * Math.PI * 2 + i);
-      this.graphics.lineStyle(1.5, SPARKLE_OUTLINE, Math.min(1, a + 0.15));
+      this.graphics.lineStyle(2.25, SPARKLE_OUTLINE, Math.min(1, a + 0.15));
       this.graphics.fillStyle(SPARKLE_FILL, a);
-      this.graphics.fillCircle(sx, sy, 4);
-      this.graphics.strokeCircle(sx, sy, 4);
+      this.graphics.fillCircle(sx, sy, 5);
+      this.graphics.strokeCircle(sx, sy, 5);
     }
   }
 }

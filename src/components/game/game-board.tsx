@@ -2,7 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import * as Phaser from "phaser";
-import { Ball } from "@/game/ball";
+import {
+  Ball,
+  BLUE_BALL_CATEGORY,
+  RED_BALL_CATEGORY,
+  WALL_COLLISION_CATEGORY,
+} from "@/game/ball";
 import type { BallModifier } from "@/game/ball-modifier";
 import type { ArenaModifier, ArenaWalls } from "@/game/arena-modifier";
 
@@ -58,6 +63,10 @@ function createMainScene(
         frictionStatic: 0,
         frictionAir: 0,
         label: "arena-wall",
+        collisionFilter: {
+          category: WALL_COLLISION_CATEGORY,
+          mask: RED_BALL_CATEGORY | BLUE_BALL_CATEGORY,
+        },
       };
 
       // Walls sit flush with the canvas edges; half their thickness is outside
@@ -178,6 +187,9 @@ function createMainScene(
             const ballB = bodyB.plugin?.ballRef;
 
             if (aBall && bBall && ballA && ballB) {
+              if (ballA.id === ballB.id) {
+                return;
+              }
               ballA.takeDamage(1);
               ballB.takeDamage(1);
               for (const mod of ballA.modifiers) mod.onBallHitBall(ballB);
@@ -248,10 +260,13 @@ export default function GameBoard({
   const onBlueHealthChangeRef = useRef(onBlueHealthChange);
   const onBallDiedRef = useRef(onBallDied);
   const onGameReadyRef = useRef(onGameReady);
-  onRedHealthChangeRef.current = onRedHealthChange;
-  onBlueHealthChangeRef.current = onBlueHealthChange;
-  onBallDiedRef.current = onBallDied;
-  onGameReadyRef.current = onGameReady;
+
+  useEffect(() => {
+    onRedHealthChangeRef.current = onRedHealthChange;
+    onBlueHealthChangeRef.current = onBlueHealthChange;
+    onBallDiedRef.current = onBallDied;
+    onGameReadyRef.current = onGameReady;
+  }, [onRedHealthChange, onBlueHealthChange, onBallDied, onGameReady]);
 
   useEffect(() => {
     if (!gameRef.current) return;
@@ -288,7 +303,6 @@ export default function GameBoard({
     return () => {
       game.destroy(true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <div ref={gameRef} />;

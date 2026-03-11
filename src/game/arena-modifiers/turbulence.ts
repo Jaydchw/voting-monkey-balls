@@ -84,7 +84,7 @@ export class TurbulenceModifier extends ArenaModifier {
 
     // --- Ambient wavy lines (always visible) ---
     const ambientAlpha = 0.14 + 0.05 * Math.sin(this.globalT * 1.5);
-    this.graphics.lineStyle(2, AMBIENT_COLOR, ambientAlpha);
+    this.graphics.lineStyle(3, AMBIENT_COLOR, ambientAlpha);
     const rows = 7;
     for (let row = 0; row < rows; row++) {
       const baseY = (this.arenaHeight / rows) * (row + 0.5);
@@ -121,7 +121,7 @@ export class TurbulenceModifier extends ArenaModifier {
         // Chevron: two lines meeting at a tip
         const tip = 20;
         const arm = 14;
-        this.graphics.lineStyle(4, CHEVRON_COLOR, chevAlpha);
+        this.graphics.lineStyle(5, CHEVRON_COLOR, chevAlpha);
         this.graphics.beginPath();
         this.graphics.moveTo(
           ox - cos * tip + pc * arm,
@@ -173,10 +173,10 @@ export class TurbulenceModifier extends ArenaModifier {
       p.life -= delta;
       const progress = p.life / p.maxLife;
       const alpha = p.alpha * progress;
-      this.graphics.lineStyle(2.75, PARTICLE_COLOR, alpha);
+      this.graphics.lineStyle(3.5, PARTICLE_COLOR, alpha);
       this.graphics.beginPath();
       this.graphics.moveTo(p.x, p.y);
-      this.graphics.lineTo(p.x - p.vx * 8, p.y - p.vy * 8);
+      this.graphics.lineTo(p.x - p.vx * 10, p.y - p.vy * 10);
       this.graphics.strokePath();
     }
   }

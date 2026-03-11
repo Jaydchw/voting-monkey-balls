@@ -1,6 +1,6 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
-import type { Ball } from "../ball";
+import { Ball } from "../ball";
 
 export class MitosisModifier extends BallModifier {
   readonly name = "Mitosis";
@@ -24,14 +24,7 @@ export class MitosisModifier extends BallModifier {
     const spawnX = Math.max(50, Math.min(master.arenaWidth - 50, rawX));
     const spawnY = Math.max(50, Math.min(master.arenaHeight - 50, rawY));
 
-    // Access the Ball constructor through the prototype chain so we don't need
-    // a runtime import (which would pull Phaser into the SSR bundle).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const BallCtor = Object.getPrototypeOf(master).constructor as new (
-      ...args: any[]
-    ) => Ball;
-
-    this.ghost = new BallCtor(
+    this.ghost = new Ball(
       this.scene,
       spawnX,
       spawnY,
@@ -48,6 +41,7 @@ export class MitosisModifier extends BallModifier {
     );
 
     this.ghost.isGhostBall = true;
+    this.ghost.collisionMode = "linked-health";
     this.ghost.linkedBall = master;
     this.ghost.enemy = master.enemy;
     this.ghost.body.setAlpha(0.72);
@@ -79,7 +73,7 @@ export class MitosisModifier extends BallModifier {
     this.linkGraphics.destroy();
   }
 
-  update(_delta: number): void {
+  update(): void {
     if (!this.ghost) return;
 
     const mx = this.ball.body.x;

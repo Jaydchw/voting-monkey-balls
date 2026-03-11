@@ -74,8 +74,8 @@ export class VortexModifier extends ArenaModifier {
         const x = cx + Math.cos(a) * r;
         const y = cy + Math.sin(a) * r;
         const alpha = (0.18 + 0.14 * rampFactor) * (1 - t);
-        const size = 3 + 2.5 * (1 - t);
-        this.graphics.lineStyle(1.5, ARM_OUTLINE, Math.min(1, alpha + 0.18));
+        const size = 3.75 + 3 * (1 - t);
+        this.graphics.lineStyle(2.25, ARM_OUTLINE, Math.min(1, alpha + 0.18));
         this.graphics.fillStyle(ARM_FILL, alpha);
         this.graphics.fillCircle(x, y, size);
         this.graphics.strokeCircle(x, y, size);

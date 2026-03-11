@@ -36,7 +36,7 @@ export class SpeedBoostModifier extends ArenaModifier {
       const offset = ((this.t * 320 + i * 73) % (this.arenaWidth + 120)) - 60;
       const alpha = 0.12 + 0.05 * Math.sin(this.t * 4 + i);
       const length = 40 + 30 * Math.sin(this.t * 2 + i * 0.7);
-      this.graphics.lineStyle(2.5, STREAK_COLOR, alpha);
+      this.graphics.lineStyle(3.25, STREAK_COLOR, alpha);
       this.graphics.beginPath();
       this.graphics.moveTo(offset, y);
       this.graphics.lineTo(offset + length, y);

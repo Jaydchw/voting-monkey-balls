@@ -38,7 +38,7 @@ import { OverchargeModifier } from "@/game/ball-modifiers/overcharge";
 import { GrowthHormonesModifier } from "@/game/ball-modifiers/growth-hormones";
 import { BabyModifier } from "@/game/ball-modifiers/baby";
 import { MitosisModifier } from "@/game/ball-modifiers/mitosis";
-import { PoltergeistModifier } from "@/game/ball-modifiers/poltergeist";
+import { SnakeModifier } from "@/game/ball-modifiers/snake";
 import type { ArenaModifier } from "@/game/arena-modifier";
 import { SpeedBoostModifier } from "@/game/arena-modifiers/speed-boost";
 import { PortalModifier } from "@/game/arena-modifiers/portal";
@@ -78,7 +78,7 @@ const MODIFIER_RING_CLASS: Record<string, string> = {
   "Growth Hormones": "ring-4 ring-lime-400",
   Baby: "ring-4 ring-pink-300",
   Mitosis: "ring-4 ring-purple-400",
-  Poltergeist: "ring-4 ring-violet-400",
+  Snake: "ring-4 ring-violet-400",
   Spikes: "ring-4 ring-zinc-400",
 };
 
@@ -105,7 +105,7 @@ const MODIFIER_HEX_COLOR: Record<string, string> = {
   "Growth Hormones": "#a3e635",
   Baby: "#f9a8d4",
   Mitosis: "#c084fc",
-  Poltergeist: "#a78bfa",
+  Snake: "#a78bfa",
   Spikes: "#a1a1aa",
 };
 
@@ -160,9 +160,9 @@ const MODIFIERS: ModifierMeta[] = [
   { label: "Baby", icon: ArrowsIn, factory: () => new BabyModifier() },
   { label: "Mitosis", icon: GitFork, factory: () => new MitosisModifier() },
   {
-    label: "Poltergeist",
+    label: "Snake",
     icon: Ghost,
-    factory: () => new PoltergeistModifier(),
+    factory: () => new SnakeModifier(),
   },
 ];
 
