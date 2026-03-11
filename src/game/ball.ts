@@ -129,7 +129,8 @@ export class Ball {
 
     // If near a wall and still moving toward it, reflect that component.
     // This prevents the ball from getting embedded and axis-locking.
-    const safeMargin = BALL_COLLISION_RADIUS + this.wallThickness + 2;
+    // Walls now sit at the canvas edges, so the margin is just the ball radius.
+    const safeMargin = BALL_COLLISION_RADIUS + 2;
     if (this.body.x <= safeMargin && vx < 0) vx = Math.abs(vx);
     if (this.body.x >= this.arenaWidth - safeMargin && vx > 0)
       vx = -Math.abs(vx);

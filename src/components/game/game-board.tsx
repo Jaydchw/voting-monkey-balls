@@ -49,23 +49,6 @@ function createMainScene(
       callbacks.onRedHealthChange(STARTING_HEALTH);
       callbacks.onBlueHealthChange(STARTING_HEALTH);
 
-      const wallVisuals = this.add.graphics();
-      wallVisuals.fillStyle(0x2f2f2f, 1);
-      wallVisuals.fillRect(0, 0, ARENA_WIDTH, WALL_THICKNESS);
-      wallVisuals.fillRect(
-        0,
-        ARENA_HEIGHT - WALL_THICKNESS,
-        ARENA_WIDTH,
-        WALL_THICKNESS,
-      );
-      wallVisuals.fillRect(0, 0, WALL_THICKNESS, ARENA_HEIGHT);
-      wallVisuals.fillRect(
-        ARENA_WIDTH - WALL_THICKNESS,
-        0,
-        WALL_THICKNESS,
-        ARENA_HEIGHT,
-      );
-
       const wallOptions = {
         isStatic: true,
         restitution: 1,
@@ -75,29 +58,31 @@ function createMainScene(
         label: "arena-wall",
       };
 
+      // Walls sit flush with the canvas edges; half their thickness is outside
+      // the visible area so balls bounce off the very border of the canvas.
       this.matter.add.rectangle(
         ARENA_WIDTH / 2,
-        WALL_THICKNESS / 2,
+        -WALL_THICKNESS / 2,
         ARENA_WIDTH,
         WALL_THICKNESS,
         wallOptions,
       );
       this.matter.add.rectangle(
         ARENA_WIDTH / 2,
-        ARENA_HEIGHT - WALL_THICKNESS / 2,
+        ARENA_HEIGHT + WALL_THICKNESS / 2,
         ARENA_WIDTH,
         WALL_THICKNESS,
         wallOptions,
       );
       this.matter.add.rectangle(
-        WALL_THICKNESS / 2,
+        -WALL_THICKNESS / 2,
         ARENA_HEIGHT / 2,
         WALL_THICKNESS,
         ARENA_HEIGHT,
         wallOptions,
       );
       this.matter.add.rectangle(
-        ARENA_WIDTH - WALL_THICKNESS / 2,
+        ARENA_WIDTH + WALL_THICKNESS / 2,
         ARENA_HEIGHT / 2,
         WALL_THICKNESS,
         ARENA_HEIGHT,
