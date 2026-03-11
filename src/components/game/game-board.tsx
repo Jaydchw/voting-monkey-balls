@@ -211,7 +211,6 @@ export default function GameBoard({
       height: ARENA_HEIGHT,
       pixelArt: true,
       antialias: false,
-      resolution: 1,
       parent: gameRef.current,
       backgroundColor: "#ffffff",
       physics: {
