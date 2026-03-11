@@ -1,10 +1,38 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import type { Icon } from "@phosphor-icons/react";
+import {
+  Asterisk,
+  ArrowsIn,
+  ArrowsOut,
+  Drop,
+  Fire,
+  Ghost,
+  GitFork,
+  Heart,
+  Lightning,
+  Magnet,
+  Shield,
+} from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import type { GameApi } from "@/components/game/game-board";
+import type { BallModifier } from "@/game/ball-modifier";
+import { RegenModifier } from "@/game/ball-modifiers/regen";
+import { SpikesModifier } from "@/game/ball-modifiers/spikes";
+import { ArmoredModifier } from "@/game/ball-modifiers/armored";
+import { BerserkerModifier } from "@/game/ball-modifiers/berserker";
+import { MagneticModifier } from "@/game/ball-modifiers/magnetic";
+import { LeechModifier } from "@/game/ball-modifiers/leech";
+import { OverchargeModifier } from "@/game/ball-modifiers/overcharge";
+import { GrowthHormonesModifier } from "@/game/ball-modifiers/growth-hormones";
+import { BabyModifier } from "@/game/ball-modifiers/baby";
+import { MitosisModifier } from "@/game/ball-modifiers/mitosis";
+import { PoltergeistModifier } from "@/game/ball-modifiers/poltergeist";
 
 const GameBoard = dynamic(() => import("@/components/game/game-board"), {
   ssr: false,
@@ -13,10 +41,46 @@ const GameBoard = dynamic(() => import("@/components/game/game-board"), {
 const STARTING_HEALTH = 100;
 const ROUND_DURATION_SECONDS = 120;
 
+type ModifierMeta = { label: string; icon: Icon; factory: () => BallModifier };
+
+const MODIFIERS: ModifierMeta[] = [
+  { label: "Regen", icon: Heart, factory: () => new RegenModifier() },
+  { label: "Spikes", icon: Asterisk, factory: () => new SpikesModifier() },
+  { label: "Armored", icon: Shield, factory: () => new ArmoredModifier() },
+  { label: "Berserker", icon: Fire, factory: () => new BerserkerModifier() },
+  { label: "Magnetic", icon: Magnet, factory: () => new MagneticModifier() },
+  { label: "Leech", icon: Drop, factory: () => new LeechModifier() },
+  {
+    label: "Overcharge",
+    icon: Lightning,
+    factory: () => new OverchargeModifier(),
+  },
+  {
+    label: "Growth",
+    icon: ArrowsOut,
+    factory: () => new GrowthHormonesModifier(),
+  },
+  { label: "Baby", icon: ArrowsIn, factory: () => new BabyModifier() },
+  { label: "Mitosis", icon: GitFork, factory: () => new MitosisModifier() },
+  {
+    label: "Poltergeist",
+    icon: Ghost,
+    factory: () => new PoltergeistModifier(),
+  },
+];
+
 export default function GameBoardPanel() {
   const [redHealth, setRedHealth] = useState(STARTING_HEALTH);
   const [blueHealth, setBlueHealth] = useState(STARTING_HEALTH);
   const [timeLeft, setTimeLeft] = useState(ROUND_DURATION_SECONDS);
+  const gameApiRef = useRef<GameApi | null>(null);
+  const handleGameReady = useCallback((api: GameApi) => {
+    gameApiRef.current = api;
+  }, []);
+  const [winner, setWinner] = useState<"red" | "blue" | null>(null);
+  const handleBallDied = useCallback((id: "red" | "blue") => {
+    setWinner(id);
+  }, []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -94,8 +158,61 @@ export default function GameBoardPanel() {
         <GameBoard
           onRedHealthChange={setRedHealth}
           onBlueHealthChange={setBlueHealth}
+          onBallDied={handleBallDied}
+          onGameReady={handleGameReady}
         />
       </Card>
+
+      {winner && (
+        <div
+          className="mt-6 w-full py-4 text-center border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+          style={{ backgroundColor: winner === "red" ? "#fee2e2" : "#dbeafe" }}
+        >
+          <span
+            className="text-3xl font-black uppercase tracking-widest"
+            style={{ color: winner === "red" ? "#b91c1c" : "#1d4ed8" }}
+          >
+            {winner === "red" ? "Red" : "Blue"} Wins!
+          </span>
+        </div>
+      )}
+
+      <div className="mt-8 w-full border-4 border-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <p className="text-xs font-black uppercase tracking-widest mb-4">
+          Modifiers (Test)
+        </p>
+        <div className="grid grid-cols-2 gap-6">
+          {(["red", "blue"] as const).map((ballId) => (
+            <div key={ballId} className="flex flex-col gap-2">
+              <span
+                className={`text-sm font-black uppercase tracking-widest ${
+                  ballId === "red" ? "text-red-600" : "text-blue-600"
+                }`}
+              >
+                {ballId === "red" ? "Red" : "Blue"} Ball
+              </span>
+              <div className="flex gap-2 flex-wrap">
+                {MODIFIERS.map((mod) => {
+                  const IconComp = mod.icon;
+                  return (
+                    <Button
+                      key={mod.label}
+                      variant="outline"
+                      className="border-4 border-black rounded-none font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1.5"
+                      onClick={() =>
+                        gameApiRef.current?.addModifier(ballId, mod.factory())
+                      }
+                    >
+                      <IconComp size={15} weight="bold" />
+                      {mod.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
