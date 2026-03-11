@@ -4,6 +4,8 @@ import { BallModifier } from "../ball-modifier";
 const TELEPORT_INTERVAL = 5000; // ms between teleports
 const FLASH_DURATION = 350; // ms of flicker after teleport
 const TRAIL_LIFETIME = 280; // ms each trail ghost persists
+const TRAIL_FILL = 0x6f4ac7;
+const TRAIL_OUTLINE = 0x3e2673;
 
 type TrailPoint = { x: number; y: number; age: number };
 
@@ -53,10 +55,12 @@ export class PoltergeistModifier extends BallModifier {
     this.graphics.clear();
     for (const pt of this.trail) {
       const progress = pt.age / TRAIL_LIFETIME;
-      const alpha = (1 - progress) * 0.45;
+      const alpha = (1 - progress) * 0.62;
       const r = 20 * (1 - progress * 0.6);
-      this.graphics.fillStyle(0xaa88ff, alpha);
+      this.graphics.lineStyle(2, TRAIL_OUTLINE, alpha);
+      this.graphics.fillStyle(TRAIL_FILL, alpha);
       this.graphics.fillCircle(pt.x, pt.y, r);
+      this.graphics.strokeCircle(pt.x, pt.y, r);
     }
 
     // Teleport

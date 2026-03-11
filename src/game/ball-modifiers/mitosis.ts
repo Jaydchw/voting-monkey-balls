@@ -1,83 +1,103 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
-
-const ORBIT_RADIUS = 42;
-const SATELLITE_RADIUS = 8;
-const DAMAGE_RANGE = 36; // proximity to enemy before satellite deals damage
-const SAT_DAMAGE = 2;
-const SAT_COOLDOWN = 1000; // ms per satellite
-const ORBIT_SPEED = 0.0022; // radians per ms
+import type { Ball } from "../ball";
 
 export class MitosisModifier extends BallModifier {
   readonly name = "Mitosis";
   readonly quality = 4;
   readonly icon = "gitFork";
+  readonly propagateToGhosts = false;
   readonly description =
-    "Spawns 2 orbiting satellite clones. Each zaps the enemy for 2 HP on contact.";
+    "Splits the ball into two linked copies that share a single health pool.";
 
-  private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;
-  private angle = 0;
-  private cooldowns = [0, 0];
+  private ghost: Ball | null = null;
+  private linkGraphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;
 
   protected onApply(): void {
-    this.angle = 0;
-    this.cooldowns = [0, 0];
-    this.graphics = this.scene.add.graphics();
-    this.graphics.setDepth(2);
+    const master = this.ball;
+    const ghostColor = master.body.fillColor;
+
+    // Spawn ghost 80 px from master in a random direction, clamped to arena
+    const offsetAngle = Math.random() * Math.PI * 2;
+    const rawX = master.body.x + Math.cos(offsetAngle) * 80;
+    const rawY = master.body.y + Math.sin(offsetAngle) * 80;
+    const spawnX = Math.max(50, Math.min(master.arenaWidth - 50, rawX));
+    const spawnY = Math.max(50, Math.min(master.arenaHeight - 50, rawY));
+
+    // Access the Ball constructor through the prototype chain so we don't need
+    // a runtime import (which would pull Phaser into the SSR bundle).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const BallCtor = Object.getPrototypeOf(master).constructor as new (
+      ...args: any[]
+    ) => Ball;
+
+    this.ghost = new BallCtor(
+      this.scene,
+      spawnX,
+      spawnY,
+      ghostColor,
+      master.speed,
+      1,
+      master.health,
+      master.id,
+      master.arenaWidth,
+      master.arenaHeight,
+      master.wallThickness,
+      () => {},
+      null,
+    );
+
+    this.ghost.isGhostBall = true;
+    this.ghost.linkedBall = master;
+    this.ghost.enemy = master.enemy;
+    this.ghost.body.setAlpha(0.72);
+
+    // Copy all existing non-Mitosis modifiers to the ghost before registering
+    for (const mod of master.modifiers) {
+      if (mod instanceof MitosisModifier) continue;
+      const ModCtor = Object.getPrototypeOf(mod)
+        .constructor as new () => typeof mod;
+      this.ghost.addModifier(new ModCtor());
+    }
+
+    // Register ghost so future addModifier calls on master propagate automatically
+    master.ghostBalls.push(this.ghost);
+
+    this.linkGraphics = this.scene.add.graphics();
+    this.linkGraphics.setDepth(1);
   }
 
   protected onRemove(): void {
-    this.graphics.destroy();
+    if (this.ghost) {
+      const idx = this.ball.ghostBalls.indexOf(this.ghost);
+      if (idx !== -1) this.ball.ghostBalls.splice(idx, 1);
+      this.ghost.linkedBall = null;
+      this.ghost.removeAllModifiers();
+      this.ghost.body.destroy();
+      this.ghost = null;
+    }
+    this.linkGraphics.destroy();
   }
 
-  update(delta: number): void {
-    this.angle += delta * ORBIT_SPEED;
-    this.cooldowns = this.cooldowns.map((c) => Math.max(0, c - delta));
+  update(_delta: number): void {
+    if (!this.ghost) return;
 
-    const cx = this.ball.body.x;
-    const cy = this.ball.body.y;
-    const enemy = this.ball.enemy;
-    const isRed = this.ball.id === "red";
-    const baseColor = isRed ? 0xff8888 : 0x8888ff;
-    const glowColor = isRed ? 0xff4444 : 0x4444ff;
+    const mx = this.ball.body.x;
+    const my = this.ball.body.y;
+    const gx = this.ghost.body.x;
+    const gy = this.ghost.body.y;
 
-    this.graphics.clear();
+    this.linkGraphics.clear();
 
-    // Faint orbit ring
-    this.graphics.lineStyle(1, 0xcccccc, 0.15);
-    this.graphics.strokeCircle(cx, cy, ORBIT_RADIUS);
-
-    for (let i = 0; i < 2; i++) {
-      const a = this.angle + i * Math.PI;
-      const sx = cx + Math.cos(a) * ORBIT_RADIUS;
-      const sy = cy + Math.sin(a) * ORBIT_RADIUS;
-
-      // Satellite glow
-      this.graphics.fillStyle(glowColor, 0.25);
-      this.graphics.fillCircle(sx, sy, SATELLITE_RADIUS + 4);
-
-      // Satellite body
-      this.graphics.fillStyle(baseColor, 1);
-      this.graphics.fillCircle(sx, sy, SATELLITE_RADIUS);
-      this.graphics.lineStyle(2, 0x000000, 0.8);
-      this.graphics.strokeCircle(sx, sy, SATELLITE_RADIUS);
-
-      // Orbit line from ball centre to satellite
-      this.graphics.lineStyle(1, baseColor, 0.2);
-      this.graphics.beginPath();
-      this.graphics.moveTo(cx, cy);
-      this.graphics.lineTo(sx, sy);
-      this.graphics.strokePath();
-
-      // Proximity damage check
-      if (enemy && this.cooldowns[i] <= 0) {
-        const dx = sx - enemy.body.x;
-        const dy = sy - enemy.body.y;
-        if (Math.hypot(dx, dy) <= DAMAGE_RANGE) {
-          enemy.takeDamage(SAT_DAMAGE);
-          this.cooldowns[i] = SAT_COOLDOWN;
-        }
-      }
+    const dist = Math.hypot(gx - mx, gy - my);
+    const alpha = Math.max(0, 0.45 - dist / 320);
+    if (alpha > 0.01) {
+      const isRed = this.ball.id === "red";
+      this.linkGraphics.lineStyle(2, isRed ? 0xff6666 : 0x6666ff, alpha);
+      this.linkGraphics.beginPath();
+      this.linkGraphics.moveTo(mx, my);
+      this.linkGraphics.lineTo(gx, gy);
+      this.linkGraphics.strokePath();
     }
   }
 }

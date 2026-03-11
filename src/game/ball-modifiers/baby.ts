@@ -1,6 +1,9 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
 
+const SPARKLE_FILL = 0xd4a017;
+const SPARKLE_OUTLINE = 0x6e4f00;
+
 const SHRINK_FACTOR = 0.6;
 const SPEED_BONUS = 1.25;
 const DAMAGE_MULTIPLIER = 1.3;
@@ -48,9 +51,11 @@ export class BabyModifier extends BallModifier {
       const angle = this.sparkleT * Math.PI * 2 + (i / 5) * Math.PI * 2;
       const sx = x + Math.cos(angle) * r;
       const sy = y + Math.sin(angle) * r;
-      const a = 0.4 + 0.4 * Math.sin(this.sparkleT * Math.PI * 2 + i);
-      this.graphics.fillStyle(0xffffaa, a);
-      this.graphics.fillCircle(sx, sy, 3);
+      const a = 0.55 + 0.3 * Math.sin(this.sparkleT * Math.PI * 2 + i);
+      this.graphics.lineStyle(1.5, SPARKLE_OUTLINE, Math.min(1, a + 0.15));
+      this.graphics.fillStyle(SPARKLE_FILL, a);
+      this.graphics.fillCircle(sx, sy, 4);
+      this.graphics.strokeCircle(sx, sy, 4);
     }
   }
 }

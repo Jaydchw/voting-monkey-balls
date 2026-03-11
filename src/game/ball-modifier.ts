@@ -41,4 +41,7 @@ export abstract class BallModifier {
   modifyDamageTaken(amount: number): number {
     return amount;
   }
+
+  /** When false, this modifier is not copied to ghost balls created by Mitosis. */
+  readonly propagateToGhosts: boolean = true;
 }

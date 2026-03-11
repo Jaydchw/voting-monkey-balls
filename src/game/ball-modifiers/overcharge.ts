@@ -4,6 +4,8 @@ import { BallModifier } from "../ball-modifier";
 const ZAP_INTERVAL = 3000;
 const ZAP_DAMAGE = 8;
 const ZAP_FLASH_DURATION = 200;
+const SPARK_COLOR = 0x2d5f99;
+const ZAP_COLOR = 0x143f73;
 
 export class OverchargeModifier extends BallModifier {
   readonly name = "Overcharge";
@@ -44,7 +46,7 @@ export class OverchargeModifier extends BallModifier {
       const sy = cy + Math.sin(angle) * r;
       const sxOff = cx + Math.cos(angle + 0.4) * (r - 8);
       const syOff = cy + Math.sin(angle + 0.4) * (r - 8);
-      this.graphics.lineStyle(2, 0xaaddff, 0.7);
+      this.graphics.lineStyle(3, SPARK_COLOR, 0.85);
       this.graphics.beginPath();
       this.graphics.moveTo(sx, sy);
       this.graphics.lineTo(sxOff, syOff);
@@ -54,7 +56,7 @@ export class OverchargeModifier extends BallModifier {
     if (this.flashTimer > 0) {
       const alpha = this.flashTimer / ZAP_FLASH_DURATION;
       const segments = 8;
-      this.graphics.lineStyle(3, 0xffffff, alpha);
+      this.graphics.lineStyle(4, ZAP_COLOR, Math.min(1, alpha + 0.2));
       this.graphics.beginPath();
       this.graphics.moveTo(cx, cy);
       for (let i = 1; i < segments; i++) {

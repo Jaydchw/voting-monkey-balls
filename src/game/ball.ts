@@ -29,13 +29,25 @@ export class Ball {
   readonly maxHealth: number;
   id: "red" | "blue";
   enemy: Ball | null = null;
+  /** Points to the master ball (used by ghost balls to delegate damage). */
+  linkedBall: Ball | null = null;
+  /** All ghost balls spawned from this ball by Mitosis. */
+  ghostBalls: Ball[] = [];
+  /** True when this is a Mitosis ghost — delegates takeDamage to master. */
+  isGhostBall: boolean = false;
+  /** Absorbs damage before HP. Set/cleared by ArmoredModifier. */
+  shieldHP: number = 0;
   modifiers: BallModifier[] = [];
   scene: Phaser.Scene;
   physicsScale = 1.0;
-  private readonly speed: number;
+  /** Multiplied into base speed by arena-wide effects (e.g. SpeedBoost). */
+  arenaSpeedMultiplier = 1.0;
+  /** When true, maintainSpeed skips wall-proximity reflection (used by Portal). */
+  ignoreArenaWalls = false;
+  readonly speed: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
-  private readonly wallThickness: number;
+  readonly wallThickness: number;
   private readonly onHealthChange: (health: number) => void;
   private readonly onDied: (() => void) | null;
 
@@ -97,6 +109,11 @@ export class Ball {
   }
 
   takeDamage(rawAmount: number) {
+    // Ghost balls delegate to master so master's modifiers (Armored, etc.) apply
+    if (this.isGhostBall && this.linkedBall) {
+      this.linkedBall.takeDamage(rawAmount);
+      return;
+    }
     const amount = this.modifiers.reduce(
       (a, m) => m.modifyDamageTaken(a),
       rawAmount,
@@ -105,16 +122,35 @@ export class Ball {
     this.health = Math.max(0, this.health - amount);
     this.onHealthChange(this.health);
     if (wasAlive && this.health <= 0) this.onDied?.();
+    // Keep all ghost balls' health in sync
+    for (const ghost of this.ghostBalls)
+      ghost.syncHealthFromLinked(this.health);
   }
 
   heal(amount: number) {
     this.health = Math.min(this.maxHealth, this.health + amount);
     this.onHealthChange(this.health);
+    for (const ghost of this.ghostBalls)
+      ghost.syncHealthFromLinked(this.health);
+  }
+
+  /** Called by master to keep ghost health in sync — does not recurse. */
+  private syncHealthFromLinked(newHealth: number): void {
+    this.health = newHealth;
+    // Ghost has a no-op onHealthChange; master already updated the UI
   }
 
   addModifier(modifier: BallModifier): void {
     this.modifiers.push(modifier);
     modifier.apply(this, this.scene);
+    // Propagate to ghost balls so they stay in sync; ghosts don't recurse further
+    if (!this.isGhostBall && modifier.propagateToGhosts) {
+      for (const ghost of this.ghostBalls) {
+        const ModCtor = Object.getPrototypeOf(modifier)
+          .constructor as new () => BallModifier;
+        ghost.addModifier(new ModCtor());
+      }
+    }
   }
 
   setSize(absoluteFactor: number): void {
@@ -148,7 +184,8 @@ export class Ball {
   }
 
   effectiveSpeed(): number {
-    return this.modifiers.reduce((s, m) => m.modifySpeed(s), this.speed);
+    const base = this.speed * this.arenaSpeedMultiplier;
+    return this.modifiers.reduce((s, m) => m.modifySpeed(s), base);
   }
 
   nudgeDirection() {
@@ -203,12 +240,14 @@ export class Ball {
     // This prevents the ball from getting embedded and axis-locking.
     // Walls now sit at the canvas edges, so the margin is just the ball radius.
     const safeMargin = BALL_COLLISION_RADIUS * this.physicsScale + 2;
-    if (this.body.x <= safeMargin && vx < 0) vx = Math.abs(vx);
-    if (this.body.x >= this.arenaWidth - safeMargin && vx > 0)
-      vx = -Math.abs(vx);
-    if (this.body.y <= safeMargin && vy < 0) vy = Math.abs(vy);
-    if (this.body.y >= this.arenaHeight - safeMargin && vy > 0)
-      vy = -Math.abs(vy);
+    if (!this.ignoreArenaWalls) {
+      if (this.body.x <= safeMargin && vx < 0) vx = Math.abs(vx);
+      if (this.body.x >= this.arenaWidth - safeMargin && vx > 0)
+        vx = -Math.abs(vx);
+      if (this.body.y <= safeMargin && vy < 0) vy = Math.abs(vy);
+      if (this.body.y >= this.arenaHeight - safeMargin && vy > 0)
+        vy = -Math.abs(vy);
+    }
 
     const adjustedMag = Math.hypot(vx, vy);
     this.body.setVelocity(

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import * as Phaser from "phaser";
 import { Ball } from "@/game/ball";
 import type { BallModifier } from "@/game/ball-modifier";
+import type { ArenaModifier, ArenaWalls } from "@/game/arena-modifier";
 
 const ARENA_WIDTH = 640;
 const ARENA_HEIGHT = 420;
@@ -12,6 +13,7 @@ const WALL_THICKNESS = 8;
 
 export type GameApi = {
   addModifier: (ballId: "red" | "blue", modifier: BallModifier) => void;
+  addArenaModifier: (modifier: ArenaModifier) => void;
 };
 
 type HealthCallbacks = {
@@ -33,6 +35,8 @@ function createMainScene(
 ): Phaser.Types.Scenes.SceneType {
   let redBall: Ball;
   let blueBall: Ball;
+  const arenaModifiers: ArenaModifier[] = [];
+  let arenaWalls: ArenaWalls;
   const collisionCooldowns = new Set<string>();
 
   const trackCollisionPair = (bodyA: CollisionBody, bodyB: CollisionBody) => {
@@ -58,34 +62,36 @@ function createMainScene(
 
       // Walls sit flush with the canvas edges; half their thickness is outside
       // the visible area so balls bounce off the very border of the canvas.
-      this.matter.add.rectangle(
-        ARENA_WIDTH / 2,
-        -WALL_THICKNESS / 2,
-        ARENA_WIDTH,
-        WALL_THICKNESS,
-        wallOptions,
-      );
-      this.matter.add.rectangle(
-        ARENA_WIDTH / 2,
-        ARENA_HEIGHT + WALL_THICKNESS / 2,
-        ARENA_WIDTH,
-        WALL_THICKNESS,
-        wallOptions,
-      );
-      this.matter.add.rectangle(
-        -WALL_THICKNESS / 2,
-        ARENA_HEIGHT / 2,
-        WALL_THICKNESS,
-        ARENA_HEIGHT,
-        wallOptions,
-      );
-      this.matter.add.rectangle(
-        ARENA_WIDTH + WALL_THICKNESS / 2,
-        ARENA_HEIGHT / 2,
-        WALL_THICKNESS,
-        ARENA_HEIGHT,
-        wallOptions,
-      );
+      arenaWalls = {
+        top: this.matter.add.rectangle(
+          ARENA_WIDTH / 2,
+          -WALL_THICKNESS / 2,
+          ARENA_WIDTH,
+          WALL_THICKNESS,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+        bottom: this.matter.add.rectangle(
+          ARENA_WIDTH / 2,
+          ARENA_HEIGHT + WALL_THICKNESS / 2,
+          ARENA_WIDTH,
+          WALL_THICKNESS,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+        left: this.matter.add.rectangle(
+          -WALL_THICKNESS / 2,
+          ARENA_HEIGHT / 2,
+          WALL_THICKNESS,
+          ARENA_HEIGHT,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+        right: this.matter.add.rectangle(
+          ARENA_WIDTH + WALL_THICKNESS / 2,
+          ARENA_HEIGHT / 2,
+          WALL_THICKNESS,
+          ARENA_HEIGHT,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+      };
 
       redBall = new Ball(
         this,
@@ -126,6 +132,17 @@ function createMainScene(
           if (ballId === "red") redBall.addModifier(modifier);
           else blueBall.addModifier(modifier);
         },
+        addArenaModifier: (modifier) => {
+          arenaModifiers.push(modifier);
+          modifier.apply(
+            this,
+            redBall,
+            blueBall,
+            ARENA_WIDTH,
+            ARENA_HEIGHT,
+            arenaWalls,
+          );
+        },
       });
 
       // Matter.js fires collision events on compound-body *parts*, not the
@@ -140,7 +157,7 @@ function createMainScene(
       };
 
       this.matter.world.on(
-        "collisionStart",
+        "collisionstart",
         (event: MatterJS.IEventCollision<MatterJS.Engine>) => {
           event.pairs.forEach((pair) => {
             const bodyA = resolveBody(pair.bodyA);
@@ -171,13 +188,11 @@ function createMainScene(
             }
 
             if (aBall && bWall && ballA) {
-              ballA.takeDamage(1);
               for (const mod of ballA.modifiers) mod.onBallHitWall();
               ballA.nudgeDirection();
             }
 
             if (bBall && aWall && ballB) {
-              ballB.takeDamage(1);
               for (const mod of ballB.modifiers) mod.onBallHitWall();
               ballB.nudgeDirection();
             }
@@ -186,7 +201,7 @@ function createMainScene(
       );
 
       this.matter.world.on(
-        "collisionEnd",
+        "collisionend",
         (event: MatterJS.IEventCollision<MatterJS.Engine>) => {
           event.pairs.forEach((pair) => {
             const bodyA = resolveBody(pair.bodyA);
@@ -198,9 +213,16 @@ function createMainScene(
     },
     update(_time: number, delta: number) {
       redBall?.updateModifiers(delta);
+      for (const ghost of redBall?.ghostBalls ?? [])
+        ghost.updateModifiers(delta);
       blueBall?.updateModifiers(delta);
+      for (const ghost of blueBall?.ghostBalls ?? [])
+        ghost.updateModifiers(delta);
+      for (const mod of arenaModifiers) mod.update(delta);
       redBall?.maintainSpeed();
+      for (const ghost of redBall?.ghostBalls ?? []) ghost.maintainSpeed();
       blueBall?.maintainSpeed();
+      for (const ghost of blueBall?.ghostBalls ?? []) ghost.maintainSpeed();
     },
   };
 }
