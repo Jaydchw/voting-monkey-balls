@@ -3,15 +3,24 @@
 import { useEffect, useRef } from "react";
 import * as Phaser from "phaser";
 import { Ball } from "@/game/ball";
+import type { BallModifier } from "@/game/ball-modifier";
+import type { ArenaModifier, ArenaWalls } from "@/game/arena-modifier";
 
 const ARENA_WIDTH = 640;
 const ARENA_HEIGHT = 420;
 const STARTING_HEALTH = 100;
 const WALL_THICKNESS = 8;
 
+export type GameApi = {
+  addModifier: (ballId: "red" | "blue", modifier: BallModifier) => void;
+  addArenaModifier: (modifier: ArenaModifier) => void;
+};
+
 type HealthCallbacks = {
   onRedHealthChange: (health: number) => void;
   onBlueHealthChange: (health: number) => void;
+  onRedBallDied: () => void;
+  onBlueBallDied: () => void;
 };
 
 type CollisionBody = MatterJS.BodyType & {
@@ -22,20 +31,13 @@ type CollisionBody = MatterJS.BodyType & {
 
 function createMainScene(
   callbacks: HealthCallbacks,
+  onGameReady?: (api: GameApi) => void,
 ): Phaser.Types.Scenes.SceneType {
   let redBall: Ball;
   let blueBall: Ball;
+  const arenaModifiers: ArenaModifier[] = [];
+  let arenaWalls: ArenaWalls;
   const collisionCooldowns = new Set<string>();
-
-  const damageBall = (ball: Ball, amount: number) => {
-    ball.health = Math.max(0, ball.health - amount);
-
-    if (ball.id === "red") {
-      callbacks.onRedHealthChange(ball.health);
-    } else {
-      callbacks.onBlueHealthChange(ball.health);
-    }
-  };
 
   const trackCollisionPair = (bodyA: CollisionBody, bodyB: CollisionBody) => {
     const idA = bodyA.id;
@@ -46,8 +48,8 @@ function createMainScene(
   return {
     key: "MainScene",
     create(this: Phaser.Scene) {
-      callbacks.onRedHealthChange(STARTING_HEALTH);
-      callbacks.onBlueHealthChange(STARTING_HEALTH);
+      // Health is emitted by Ball constructor via onHealthChange callbacks.
+      // The game API is exposed to React after both balls are initialised.
 
       const wallOptions = {
         isStatic: true,
@@ -60,34 +62,36 @@ function createMainScene(
 
       // Walls sit flush with the canvas edges; half their thickness is outside
       // the visible area so balls bounce off the very border of the canvas.
-      this.matter.add.rectangle(
-        ARENA_WIDTH / 2,
-        -WALL_THICKNESS / 2,
-        ARENA_WIDTH,
-        WALL_THICKNESS,
-        wallOptions,
-      );
-      this.matter.add.rectangle(
-        ARENA_WIDTH / 2,
-        ARENA_HEIGHT + WALL_THICKNESS / 2,
-        ARENA_WIDTH,
-        WALL_THICKNESS,
-        wallOptions,
-      );
-      this.matter.add.rectangle(
-        -WALL_THICKNESS / 2,
-        ARENA_HEIGHT / 2,
-        WALL_THICKNESS,
-        ARENA_HEIGHT,
-        wallOptions,
-      );
-      this.matter.add.rectangle(
-        ARENA_WIDTH + WALL_THICKNESS / 2,
-        ARENA_HEIGHT / 2,
-        WALL_THICKNESS,
-        ARENA_HEIGHT,
-        wallOptions,
-      );
+      arenaWalls = {
+        top: this.matter.add.rectangle(
+          ARENA_WIDTH / 2,
+          -WALL_THICKNESS / 2,
+          ARENA_WIDTH,
+          WALL_THICKNESS,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+        bottom: this.matter.add.rectangle(
+          ARENA_WIDTH / 2,
+          ARENA_HEIGHT + WALL_THICKNESS / 2,
+          ARENA_WIDTH,
+          WALL_THICKNESS,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+        left: this.matter.add.rectangle(
+          -WALL_THICKNESS / 2,
+          ARENA_HEIGHT / 2,
+          WALL_THICKNESS,
+          ARENA_HEIGHT,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+        right: this.matter.add.rectangle(
+          ARENA_WIDTH + WALL_THICKNESS / 2,
+          ARENA_HEIGHT / 2,
+          WALL_THICKNESS,
+          ARENA_HEIGHT,
+          wallOptions,
+        ) as unknown as MatterJS.BodyType,
+      };
 
       redBall = new Ball(
         this,
@@ -101,6 +105,8 @@ function createMainScene(
         ARENA_WIDTH,
         ARENA_HEIGHT,
         WALL_THICKNESS,
+        callbacks.onRedHealthChange,
+        callbacks.onRedBallDied,
       );
       blueBall = new Ball(
         this,
@@ -114,14 +120,48 @@ function createMainScene(
         ARENA_WIDTH,
         ARENA_HEIGHT,
         WALL_THICKNESS,
+        callbacks.onBlueHealthChange,
+        callbacks.onBlueBallDied,
       );
 
+      redBall.enemy = blueBall;
+      blueBall.enemy = redBall;
+
+      onGameReady?.({
+        addModifier: (ballId, modifier) => {
+          if (ballId === "red") redBall.addModifier(modifier);
+          else blueBall.addModifier(modifier);
+        },
+        addArenaModifier: (modifier) => {
+          arenaModifiers.push(modifier);
+          modifier.apply(
+            this,
+            redBall,
+            blueBall,
+            ARENA_WIDTH,
+            ARENA_HEIGHT,
+            arenaWalls,
+          );
+        },
+      });
+
+      // Matter.js fires collision events on compound-body *parts*, not the
+      // parent body where we store `label` and `plugin.ballRef`. Resolve up.
+      const resolveBody = (
+        b: MatterJS.Body | MatterJS.BodyType,
+      ): CollisionBody => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parent = (b as any).parent as CollisionBody | undefined;
+        const self = b as unknown as CollisionBody;
+        return parent && parent !== self ? parent : self;
+      };
+
       this.matter.world.on(
-        "collisionStart",
+        "collisionstart",
         (event: MatterJS.IEventCollision<MatterJS.Engine>) => {
           event.pairs.forEach((pair) => {
-            const bodyA = pair.bodyA as unknown as CollisionBody;
-            const bodyB = pair.bodyB as unknown as CollisionBody;
+            const bodyA = resolveBody(pair.bodyA);
+            const bodyB = resolveBody(pair.bodyB);
             const key = trackCollisionPair(bodyA, bodyB);
 
             if (collisionCooldowns.has(key)) {
@@ -138,20 +178,22 @@ function createMainScene(
             const ballB = bodyB.plugin?.ballRef;
 
             if (aBall && bBall && ballA && ballB) {
-              damageBall(ballA, 1);
-              damageBall(ballB, 1);
+              ballA.takeDamage(1);
+              ballB.takeDamage(1);
+              for (const mod of ballA.modifiers) mod.onBallHitBall(ballB);
+              for (const mod of ballB.modifiers) mod.onBallHitBall(ballA);
               ballA.nudgeDirection();
               ballB.nudgeDirection();
               return;
             }
 
             if (aBall && bWall && ballA) {
-              damageBall(ballA, 1);
+              for (const mod of ballA.modifiers) mod.onBallHitWall();
               ballA.nudgeDirection();
             }
 
             if (bBall && aWall && ballB) {
-              damageBall(ballB, 1);
+              for (const mod of ballB.modifiers) mod.onBallHitWall();
               ballB.nudgeDirection();
             }
           });
@@ -159,19 +201,28 @@ function createMainScene(
       );
 
       this.matter.world.on(
-        "collisionEnd",
+        "collisionend",
         (event: MatterJS.IEventCollision<MatterJS.Engine>) => {
           event.pairs.forEach((pair) => {
-            const bodyA = pair.bodyA as unknown as CollisionBody;
-            const bodyB = pair.bodyB as unknown as CollisionBody;
+            const bodyA = resolveBody(pair.bodyA);
+            const bodyB = resolveBody(pair.bodyB);
             collisionCooldowns.delete(trackCollisionPair(bodyA, bodyB));
           });
         },
       );
     },
-    update() {
+    update(_time: number, delta: number) {
+      redBall?.updateModifiers(delta);
+      for (const ghost of redBall?.ghostBalls ?? [])
+        ghost.updateModifiers(delta);
+      blueBall?.updateModifiers(delta);
+      for (const ghost of blueBall?.ghostBalls ?? [])
+        ghost.updateModifiers(delta);
+      for (const mod of arenaModifiers) mod.update(delta);
       redBall?.maintainSpeed();
+      for (const ghost of redBall?.ghostBalls ?? []) ghost.maintainSpeed();
       blueBall?.maintainSpeed();
+      for (const ghost of blueBall?.ghostBalls ?? []) ghost.maintainSpeed();
     },
   };
 }
@@ -179,16 +230,38 @@ function createMainScene(
 type GameBoardProps = {
   onRedHealthChange?: (health: number) => void;
   onBlueHealthChange?: (health: number) => void;
+  onBallDied?: (id: "red" | "blue") => void;
+  onGameReady?: (api: GameApi) => void;
 };
 
 export default function GameBoard({
   onRedHealthChange,
   onBlueHealthChange,
+  onBallDied,
+  onGameReady,
 }: GameBoardProps) {
   const gameRef = useRef<HTMLDivElement>(null);
 
+  // Keep latest callbacks in refs so the Phaser scene always calls the
+  // current version without needing to destroy/recreate the game.
+  const onRedHealthChangeRef = useRef(onRedHealthChange);
+  const onBlueHealthChangeRef = useRef(onBlueHealthChange);
+  const onBallDiedRef = useRef(onBallDied);
+  const onGameReadyRef = useRef(onGameReady);
+  onRedHealthChangeRef.current = onRedHealthChange;
+  onBlueHealthChangeRef.current = onBlueHealthChange;
+  onBallDiedRef.current = onBallDied;
+  onGameReadyRef.current = onGameReady;
+
   useEffect(() => {
     if (!gameRef.current) return;
+
+    const callbacks: HealthCallbacks = {
+      onRedHealthChange: (h) => onRedHealthChangeRef.current?.(h),
+      onBlueHealthChange: (h) => onBlueHealthChangeRef.current?.(h),
+      onRedBallDied: () => onBallDiedRef.current?.("red"),
+      onBlueBallDied: () => onBallDiedRef.current?.("blue"),
+    };
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
@@ -204,10 +277,7 @@ export default function GameBoard({
           gravity: { y: 0, x: 0 },
         },
       },
-      scene: createMainScene({
-        onRedHealthChange: onRedHealthChange ?? (() => {}),
-        onBlueHealthChange: onBlueHealthChange ?? (() => {}),
-      }),
+      scene: createMainScene(callbacks, (api) => onGameReadyRef.current?.(api)),
     };
 
     const game = new Phaser.Game(config);
@@ -218,7 +288,8 @@ export default function GameBoard({
     return () => {
       game.destroy(true);
     };
-  }, [onBlueHealthChange, onRedHealthChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return <div ref={gameRef} />;
 }

@@ -1,15 +1,17 @@
-"use client"
+"use client";
 
-import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
+import type { CSSProperties } from "react";
+import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 function Progress({
   className,
   children,
   value,
+  indicatorStyle,
   ...props
-}: ProgressPrimitive.Root.Props) {
+}: ProgressPrimitive.Root.Props & { indicatorStyle?: CSSProperties }) {
   return (
     <ProgressPrimitive.Root
       value={value}
@@ -19,10 +21,10 @@ function Progress({
     >
       {children}
       <ProgressTrack>
-        <ProgressIndicator />
+        <ProgressIndicator style={indicatorStyle} />
       </ProgressTrack>
     </ProgressPrimitive.Root>
-  )
+  );
 }
 
 function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
@@ -30,12 +32,12 @@ function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
     <ProgressPrimitive.Track
       className={cn(
         "relative flex h-1 w-full items-center overflow-x-hidden rounded-none bg-muted",
-        className
+        className,
       )}
       data-slot="progress-track"
       {...props}
     />
-  )
+  );
 }
 
 function ProgressIndicator({
@@ -48,7 +50,7 @@ function ProgressIndicator({
       className={cn("h-full bg-primary transition-all", className)}
       {...props}
     />
-  )
+  );
 }
 
 function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
@@ -58,7 +60,7 @@ function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
       data-slot="progress-label"
       {...props}
     />
-  )
+  );
 }
 
 function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
@@ -66,12 +68,12 @@ function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
     <ProgressPrimitive.Value
       className={cn(
         "ml-auto text-xs text-muted-foreground tabular-nums",
-        className
+        className,
       )}
       data-slot="progress-value"
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -80,4 +82,4 @@ export {
   ProgressIndicator,
   ProgressLabel,
   ProgressValue,
-}
+};

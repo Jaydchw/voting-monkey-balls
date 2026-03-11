@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import type { BallModifier } from "./ball-modifier";
 
 type BallMatterBody = MatterJS.BodyType & {
   plugin?: {
@@ -25,11 +26,30 @@ const MIN_AXIS_ANGLE = 0.3;
 export class Ball {
   body: BallGameObject;
   health: number;
+  readonly maxHealth: number;
   id: "red" | "blue";
-  private readonly speed: number;
-  private readonly arenaWidth: number;
-  private readonly arenaHeight: number;
-  private readonly wallThickness: number;
+  enemy: Ball | null = null;
+  /** Points to the master ball (used by ghost balls to delegate damage). */
+  linkedBall: Ball | null = null;
+  /** All ghost balls spawned from this ball by Mitosis. */
+  ghostBalls: Ball[] = [];
+  /** True when this is a Mitosis ghost — delegates takeDamage to master. */
+  isGhostBall: boolean = false;
+  /** Absorbs damage before HP. Set/cleared by ArmoredModifier. */
+  shieldHP: number = 0;
+  modifiers: BallModifier[] = [];
+  scene: Phaser.Scene;
+  physicsScale = 1.0;
+  /** Multiplied into base speed by arena-wide effects (e.g. SpeedBoost). */
+  arenaSpeedMultiplier = 1.0;
+  /** When true, maintainSpeed skips wall-proximity reflection (used by Portal). */
+  ignoreArenaWalls = false;
+  readonly speed: number;
+  readonly arenaWidth: number;
+  readonly arenaHeight: number;
+  readonly wallThickness: number;
+  private readonly onHealthChange: (health: number) => void;
+  private readonly onDied: (() => void) | null;
 
   constructor(
     scene: Phaser.Scene,
@@ -43,13 +63,21 @@ export class Ball {
     arenaWidth: number,
     arenaHeight: number,
     wallThickness: number,
+    onHealthChange: (health: number) => void,
+    onDied: (() => void) | null = null,
   ) {
     this.id = id;
     this.speed = speed;
     this.health = health;
+    this.maxHealth = health;
+    this.scene = scene;
+    this.modifiers = [];
     this.arenaWidth = arenaWidth;
     this.arenaHeight = arenaHeight;
     this.wallThickness = wallThickness;
+    this.onHealthChange = onHealthChange;
+    this.onDied = onDied;
+    onHealthChange(health);
     const circle = scene.add.circle(x, y, BALL_RENDER_RADIUS, color);
     circle.setStrokeStyle(BALL_OUTLINE_WIDTH, 0x000000, 1);
 
@@ -78,6 +106,86 @@ export class Ball {
     const velocityY = Math.sin(angle) * speed;
 
     this.body.setVelocity(velocityX, velocityY);
+  }
+
+  takeDamage(rawAmount: number) {
+    // Ghost balls delegate to master so master's modifiers (Armored, etc.) apply
+    if (this.isGhostBall && this.linkedBall) {
+      this.linkedBall.takeDamage(rawAmount);
+      return;
+    }
+    const amount = this.modifiers.reduce(
+      (a, m) => m.modifyDamageTaken(a),
+      rawAmount,
+    );
+    const wasAlive = this.health > 0;
+    this.health = Math.max(0, this.health - amount);
+    this.onHealthChange(this.health);
+    if (wasAlive && this.health <= 0) this.onDied?.();
+    // Keep all ghost balls' health in sync
+    for (const ghost of this.ghostBalls)
+      ghost.syncHealthFromLinked(this.health);
+  }
+
+  heal(amount: number) {
+    this.health = Math.min(this.maxHealth, this.health + amount);
+    this.onHealthChange(this.health);
+    for (const ghost of this.ghostBalls)
+      ghost.syncHealthFromLinked(this.health);
+  }
+
+  /** Called by master to keep ghost health in sync — does not recurse. */
+  private syncHealthFromLinked(newHealth: number): void {
+    this.health = newHealth;
+    // Ghost has a no-op onHealthChange; master already updated the UI
+  }
+
+  addModifier(modifier: BallModifier): void {
+    this.modifiers.push(modifier);
+    modifier.apply(this, this.scene);
+    // Propagate to ghost balls so they stay in sync; ghosts don't recurse further
+    if (!this.isGhostBall && modifier.propagateToGhosts) {
+      for (const ghost of this.ghostBalls) {
+        const ModCtor = Object.getPrototypeOf(modifier)
+          .constructor as new () => BallModifier;
+        ghost.addModifier(new ModCtor());
+      }
+    }
+  }
+
+  setSize(absoluteFactor: number): void {
+    const delta = absoluteFactor / this.physicsScale;
+    if (Math.abs(delta - 1) < 0.0001) return;
+    this.physicsScale = absoluteFactor;
+    this.body.setScale(absoluteFactor);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Phaser as any).Physics.Matter.Matter.Body.scale(
+      this.body.body,
+      delta,
+      delta,
+    );
+  }
+
+  removeModifier(modifier: BallModifier): void {
+    const idx = this.modifiers.indexOf(modifier);
+    if (idx !== -1) {
+      this.modifiers.splice(idx, 1);
+      modifier.remove();
+    }
+  }
+
+  removeAllModifiers(): void {
+    for (const mod of this.modifiers) mod.remove();
+    this.modifiers = [];
+  }
+
+  updateModifiers(delta: number): void {
+    for (const mod of this.modifiers) mod.update(delta);
+  }
+
+  effectiveSpeed(): number {
+    const base = this.speed * this.arenaSpeedMultiplier;
+    return this.modifiers.reduce((s, m) => m.modifySpeed(s), base);
   }
 
   nudgeDirection() {
@@ -113,35 +221,38 @@ export class Ball {
   maintainSpeed() {
     const velocity = this.body.body.velocity;
     const magnitude = Math.hypot(velocity.x, velocity.y);
+    const targetSpeed = this.effectiveSpeed();
 
     if (magnitude < 0.001) {
       const angle = Math.random() * Math.PI * 2;
       this.body.setVelocity(
-        Math.cos(angle) * this.speed,
-        Math.sin(angle) * this.speed,
+        Math.cos(angle) * targetSpeed,
+        Math.sin(angle) * targetSpeed,
       );
       return;
     }
 
     const angle = this.keepAwayFromAxis(Math.atan2(velocity.y, velocity.x));
-    let vx = Math.cos(angle) * this.speed;
-    let vy = Math.sin(angle) * this.speed;
+    let vx = Math.cos(angle) * targetSpeed;
+    let vy = Math.sin(angle) * targetSpeed;
 
     // If near a wall and still moving toward it, reflect that component.
     // This prevents the ball from getting embedded and axis-locking.
     // Walls now sit at the canvas edges, so the margin is just the ball radius.
-    const safeMargin = BALL_COLLISION_RADIUS + 2;
-    if (this.body.x <= safeMargin && vx < 0) vx = Math.abs(vx);
-    if (this.body.x >= this.arenaWidth - safeMargin && vx > 0)
-      vx = -Math.abs(vx);
-    if (this.body.y <= safeMargin && vy < 0) vy = Math.abs(vy);
-    if (this.body.y >= this.arenaHeight - safeMargin && vy > 0)
-      vy = -Math.abs(vy);
+    const safeMargin = BALL_COLLISION_RADIUS * this.physicsScale + 2;
+    if (!this.ignoreArenaWalls) {
+      if (this.body.x <= safeMargin && vx < 0) vx = Math.abs(vx);
+      if (this.body.x >= this.arenaWidth - safeMargin && vx > 0)
+        vx = -Math.abs(vx);
+      if (this.body.y <= safeMargin && vy < 0) vy = Math.abs(vy);
+      if (this.body.y >= this.arenaHeight - safeMargin && vy > 0)
+        vy = -Math.abs(vy);
+    }
 
     const adjustedMag = Math.hypot(vx, vy);
     this.body.setVelocity(
-      (vx / adjustedMag) * this.speed,
-      (vy / adjustedMag) * this.speed,
+      (vx / adjustedMag) * targetSpeed,
+      (vy / adjustedMag) * targetSpeed,
     );
   }
 }
