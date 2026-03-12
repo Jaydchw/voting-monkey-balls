@@ -735,11 +735,19 @@ export class Ball {
       return;
     }
 
-    const angle = this.keepAwayFromAxis(Math.atan2(velocity.y, velocity.x));
-    let vx = Math.cos(angle) * targetSpeed;
-    let vy = Math.sin(angle) * targetSpeed;
+    // Gravity should bend an existing trajectory smoothly; applying
+    // axis-avoidance steering here causes jitter near vertical movement.
+    let vx = velocity.x;
+    let vy = velocity.y;
 
-    if (this.gravityY !== 0) {
+    if (this.gravityY === 0) {
+      const angle = this.keepAwayFromAxis(Math.atan2(vy, vx));
+      vx = Math.cos(angle) * targetSpeed;
+      vy = Math.sin(angle) * targetSpeed;
+    } else {
+      const scale = targetSpeed / magnitude;
+      vx *= scale;
+      vy *= scale;
       vy += this.gravityY * (delta / 1000);
     }
 
@@ -757,6 +765,11 @@ export class Ball {
     }
 
     const adjustedMag = Math.hypot(vx, vy);
+    if (adjustedMag < 0.001) {
+      this.body.setVelocity(0, 0);
+      this.syncFaceSprite();
+      return;
+    }
     this.body.setVelocity(
       (vx / adjustedMag) * targetSpeed,
       (vy / adjustedMag) * targetSpeed,

@@ -1,6 +1,17 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
 
+const WALL_SENSOR_USERS_KEY = "arenaWallSensorUsers";
+const IGNORE_WALLS_USERS_KEY = "arenaIgnoreWallsUsers";
+const PORTAL_USERS_KEY = "arenaPortalUsers";
+
+type CircleArenaState = {
+  active: boolean;
+  centerX: number;
+  centerY: number;
+  safeRadius: number;
+};
+
 export class PortalModifier extends ArenaModifier {
   readonly name = "Portal";
   readonly quality = 3;
@@ -11,14 +22,29 @@ export class PortalModifier extends ArenaModifier {
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;
   private t = 0;
 
-  protected onApply(): void {
-    // Make all four walls into sensors so balls pass through them
+  private setWallsAreSensors(enabled: boolean): void {
     for (const wall of Object.values(this.walls)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (wall as any).isSensor = true;
+      (wall as any).isSensor = enabled;
     }
-    this.redBall.ignoreArenaWalls = true;
-    this.blueBall.ignoreArenaWalls = true;
+  }
+
+  private adjustCounter(key: string, delta: 1 | -1): number {
+    const current = (this.scene.data.get(key) as number | undefined) ?? 0;
+    const next = Math.max(0, current + delta);
+    this.scene.data.set(key, next);
+    return next;
+  }
+
+  protected onApply(): void {
+    if (this.adjustCounter(WALL_SENSOR_USERS_KEY, 1) === 1) {
+      this.setWallsAreSensors(true);
+    }
+    if (this.adjustCounter(IGNORE_WALLS_USERS_KEY, 1) === 1) {
+      this.redBall.ignoreArenaWalls = true;
+      this.blueBall.ignoreArenaWalls = true;
+    }
+    this.adjustCounter(PORTAL_USERS_KEY, 1);
     this.redBall.projectilesEndless = true;
     this.blueBall.projectilesEndless = true;
     this.graphics = this.scene.add.graphics();
@@ -26,14 +52,17 @@ export class PortalModifier extends ArenaModifier {
   }
 
   protected onRemove(): void {
-    for (const wall of Object.values(this.walls)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (wall as any).isSensor = false;
+    if (this.adjustCounter(WALL_SENSOR_USERS_KEY, -1) === 0) {
+      this.setWallsAreSensors(false);
     }
-    this.redBall.ignoreArenaWalls = false;
-    this.blueBall.ignoreArenaWalls = false;
-    this.redBall.projectilesEndless = false;
-    this.blueBall.projectilesEndless = false;
+    if (this.adjustCounter(IGNORE_WALLS_USERS_KEY, -1) === 0) {
+      this.redBall.ignoreArenaWalls = false;
+      this.blueBall.ignoreArenaWalls = false;
+    }
+    if (this.adjustCounter(PORTAL_USERS_KEY, -1) === 0) {
+      this.redBall.projectilesEndless = false;
+      this.blueBall.projectilesEndless = false;
+    }
     this.graphics.destroy();
   }
 
@@ -42,26 +71,45 @@ export class PortalModifier extends ArenaModifier {
 
     const W = this.arenaWidth;
     const H = this.arenaHeight;
+    const circleState = this.scene.data.get("circleArenaState") as
+      | CircleArenaState
+      | undefined;
+    const hasCircleArena = circleState?.active === true;
 
     // Wrap any ball that has fully exited the arena
     for (const ball of this.balls) {
       let x = ball.body.x;
       let y = ball.body.y;
       let moved = false;
-      if (x < 0) {
-        x = W;
-        moved = true;
-      } else if (x > W) {
-        x = 0;
-        moved = true;
+
+      if (hasCircleArena && circleState) {
+        const dx = x - circleState.centerX;
+        const dy = y - circleState.centerY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > circleState.safeRadius) {
+          const angle = Math.atan2(dy, dx) + Math.PI;
+          const targetR = Math.max(8, circleState.safeRadius - 6);
+          x = circleState.centerX + Math.cos(angle) * targetR;
+          y = circleState.centerY + Math.sin(angle) * targetR;
+          moved = true;
+        }
+      } else {
+        if (x < 0) {
+          x = W;
+          moved = true;
+        } else if (x > W) {
+          x = 0;
+          moved = true;
+        }
+        if (y < 0) {
+          y = H;
+          moved = true;
+        } else if (y > H) {
+          y = 0;
+          moved = true;
+        }
       }
-      if (y < 0) {
-        y = H;
-        moved = true;
-      } else if (y > H) {
-        y = 0;
-        moved = true;
-      }
+
       if (moved) ball.body.setPosition(x, y);
     }
 

@@ -3,6 +3,17 @@ import { ArenaModifier } from "../arena-modifier";
 
 // Ball collision radius (must match ball.ts constant)
 const BALL_RADIUS = 23;
+const WALL_SENSOR_USERS_KEY = "arenaWallSensorUsers";
+const IGNORE_WALLS_USERS_KEY = "arenaIgnoreWallsUsers";
+const CIRCLE_USERS_KEY = "arenaCircleUsers";
+const PORTAL_USERS_KEY = "arenaPortalUsers";
+
+type CircleArenaState = {
+  active: boolean;
+  centerX: number;
+  centerY: number;
+  safeRadius: number;
+};
 
 export class CircleArenaModifier extends ArenaModifier {
   readonly name = "Circle Arena";
@@ -15,32 +26,56 @@ export class CircleArenaModifier extends ArenaModifier {
   private t = 0;
   private circleRadius = 0;
 
+  private setWallsAreSensors(enabled: boolean): void {
+    for (const wall of Object.values(this.walls)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (wall as any).isSensor = enabled;
+    }
+  }
+
+  private adjustCounter(key: string, delta: 1 | -1): number {
+    const current = (this.scene.data.get(key) as number | undefined) ?? 0;
+    const next = Math.max(0, current + delta);
+    this.scene.data.set(key, next);
+    return next;
+  }
+
   protected onApply(): void {
     // Inscribed circle radius with a small inset so ring is visible
     this.circleRadius = Math.min(this.arenaWidth, this.arenaHeight) / 2 - 6;
     this.t = 0;
 
-    // Make rectangular walls passthrough so balls aren't stopped by them
-    for (const wall of Object.values(this.walls)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (wall as any).isSensor = true;
+    if (this.adjustCounter(WALL_SENSOR_USERS_KEY, 1) === 1) {
+      this.setWallsAreSensors(true);
     }
-    // Disable Ball.maintainSpeed rectangular boundary checks
-    for (const ball of this.balls) {
-      ball.ignoreArenaWalls = true;
+    if (this.adjustCounter(IGNORE_WALLS_USERS_KEY, 1) === 1) {
+      for (const ball of this.balls) {
+        ball.ignoreArenaWalls = true;
+      }
     }
+    this.adjustCounter(CIRCLE_USERS_KEY, 1);
+    this.scene.data.set("circleArenaState", {
+      active: true,
+      centerX: this.arenaWidth / 2,
+      centerY: this.arenaHeight / 2,
+      safeRadius: this.circleRadius - BALL_RADIUS,
+    } as CircleArenaState);
 
     this.graphics = this.scene.add.graphics();
     this.graphics.setDepth(3);
   }
 
   protected onRemove(): void {
-    for (const wall of Object.values(this.walls)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (wall as any).isSensor = false;
+    if (this.adjustCounter(WALL_SENSOR_USERS_KEY, -1) === 0) {
+      this.setWallsAreSensors(false);
     }
-    for (const ball of this.balls) {
-      ball.ignoreArenaWalls = false;
+    if (this.adjustCounter(IGNORE_WALLS_USERS_KEY, -1) === 0) {
+      for (const ball of this.balls) {
+        ball.ignoreArenaWalls = false;
+      }
+    }
+    if (this.adjustCounter(CIRCLE_USERS_KEY, -1) === 0) {
+      this.scene.data.remove("circleArenaState");
     }
     this.graphics.destroy();
   }
@@ -51,6 +86,9 @@ export class CircleArenaModifier extends ArenaModifier {
     const cx = this.arenaWidth / 2;
     const cy = this.arenaHeight / 2;
     const safeR = this.circleRadius - BALL_RADIUS;
+    const portalUsers =
+      (this.scene.data.get(PORTAL_USERS_KEY) as number | undefined) ?? 0;
+    const portalActive = portalUsers > 0;
 
     // Enforce circular boundary for each ball
     for (const ball of this.balls) {
@@ -62,17 +100,25 @@ export class CircleArenaModifier extends ArenaModifier {
         const dist = Math.hypot(dx, dy);
         if (dist > safeR) {
           const angle = Math.atan2(dy, dx);
-          b.body.setPosition(
-            cx + Math.cos(angle) * (safeR - 2),
-            cy + Math.sin(angle) * (safeR - 2),
-          );
-          // Reflect velocity off circle boundary (outward normal = dx/dist, dy/dist)
-          const vel = b.body.body.velocity;
-          const nx = dist > 0 ? dx / dist : 1;
-          const ny = dist > 0 ? dy / dist : 0;
-          const dot = vel.x * nx + vel.y * ny;
-          if (dot > 0) {
-            b.body.setVelocity(vel.x - 2 * dot * nx, vel.y - 2 * dot * ny);
+          if (portalActive) {
+            const opposite = angle + Math.PI;
+            b.body.setPosition(
+              cx + Math.cos(opposite) * (safeR - 2),
+              cy + Math.sin(opposite) * (safeR - 2),
+            );
+          } else {
+            b.body.setPosition(
+              cx + Math.cos(angle) * (safeR - 2),
+              cy + Math.sin(angle) * (safeR - 2),
+            );
+            // Reflect velocity off circle boundary (outward normal = dx/dist, dy/dist)
+            const vel = b.body.body.velocity;
+            const nx = dist > 0 ? dx / dist : 1;
+            const ny = dist > 0 ? dy / dist : 0;
+            const dot = vel.x * nx + vel.y * ny;
+            if (dot > 0) {
+              b.body.setVelocity(vel.x - 2 * dot * nx, vel.y - 2 * dot * ny);
+            }
           }
         }
       }

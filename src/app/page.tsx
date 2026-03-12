@@ -20,9 +20,19 @@ export default function MainMenu() {
             Join
           </Button>
         </Link>
+        <div className="border-t-4 border-black pt-4">
+          <p className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-center">
+            Freeplay
+          </p>
+        </div>
         <Link href="/bots" className="w-full">
           <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-white text-black hover:bg-gray-100">
             Bots
+          </Button>
+        </Link>
+        <Link href="/test" className="w-full">
+          <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-cyan-300 text-black hover:bg-cyan-200">
+            Test
           </Button>
         </Link>
         <Link href="/audio-test" className="w-full">
