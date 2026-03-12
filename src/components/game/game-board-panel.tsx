@@ -28,6 +28,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { GameApi } from "@/components/game/game-board";
 import type { BallModifier } from "@/game/ball-modifier";
+import type { Weapon } from "@/game/weapon";
 import { RegenModifier } from "@/game/ball-modifiers/regen";
 import { SpikesModifier } from "@/game/ball-modifiers/spikes";
 import { ArmoredModifier } from "@/game/ball-modifiers/armored";
@@ -46,6 +47,21 @@ import { CircleArenaModifier } from "@/game/arena-modifiers/circle-arena";
 import { TurbulenceModifier } from "@/game/arena-modifiers/turbulence";
 import { VortexModifier } from "@/game/arena-modifiers/vortex";
 import { BumpersModifier } from "@/game/arena-modifiers/bumpers";
+import { SwordWeapon } from "@/game/weapons/sword";
+import { StaffWeapon } from "@/game/weapons/staff";
+import { RapierWeapon } from "@/game/weapons/rapier";
+import { KatanaWeapon } from "@/game/weapons/katana";
+import { EighthNoteWeapon } from "@/game/weapons/eighth-note";
+import { TrebleClefWeapon } from "@/game/weapons/treble-clef";
+import { BazookaWeapon } from "@/game/weapons/bazooka";
+import { HomingGunWeapon } from "@/game/weapons/homing-gun";
+import { SniperWeapon } from "@/game/weapons/sniper";
+import { ShotgunWeapon } from "@/game/weapons/shotgun";
+import { ElectricStaffWeapon } from "@/game/weapons/electric-staff";
+import { PoisonStaffWeapon } from "@/game/weapons/poison-staff";
+import { WrenchWeapon } from "@/game/weapons/wrench";
+import { BoomerangWeapon } from "@/game/weapons/boomerang";
+import { ScytheWeapon } from "@/game/weapons/scythe";
 
 const GameBoard = dynamic(() => import("@/components/game/game-board"), {
   ssr: false,
@@ -168,6 +184,8 @@ const MODIFIERS: ModifierMeta[] = [
 
 type ArenaMeta = { label: string; icon: Icon; factory: () => ArenaModifier };
 
+type WeaponMeta = { label: string; icon: Icon; factory: () => Weapon };
+
 const ARENA_MODIFIERS: ArenaMeta[] = [
   {
     label: "Speed Boost",
@@ -189,6 +207,48 @@ const ARENA_MODIFIERS: ArenaMeta[] = [
   { label: "Bumpers", icon: DotsNine, factory: () => new BumpersModifier() },
 ];
 
+const WEAPONS: WeaponMeta[] = [
+  { label: "Sword", icon: Asterisk, factory: () => new SwordWeapon() },
+  { label: "Staff", icon: Lightning, factory: () => new StaffWeapon() },
+  { label: "Rapier", icon: Target, factory: () => new RapierWeapon() },
+  { label: "Katana", icon: Fire, factory: () => new KatanaWeapon() },
+  {
+    label: "Eighth Note",
+    icon: Ghost,
+    factory: () => new EighthNoteWeapon(),
+  },
+  {
+    label: "Treble Clef",
+    icon: Shield,
+    factory: () => new TrebleClefWeapon(),
+  },
+  { label: "Bazooka", icon: Fire, factory: () => new BazookaWeapon() },
+  {
+    label: "Homing Gun",
+    icon: Target,
+    factory: () => new HomingGunWeapon(),
+  },
+  { label: "Sniper", icon: Target, factory: () => new SniperWeapon() },
+  { label: "Shotgun", icon: Shield, factory: () => new ShotgunWeapon() },
+  {
+    label: "Electric Staff",
+    icon: Lightning,
+    factory: () => new ElectricStaffWeapon(),
+  },
+  {
+    label: "Poison Staff",
+    icon: Drop,
+    factory: () => new PoisonStaffWeapon(),
+  },
+  { label: "Wrench", icon: Shield, factory: () => new WrenchWeapon() },
+  {
+    label: "Boomerang",
+    icon: Ghost,
+    factory: () => new BoomerangWeapon(),
+  },
+  { label: "Scythe", icon: Drop, factory: () => new ScytheWeapon() },
+];
+
 export default function GameBoardPanel() {
   const [redHealth, setRedHealth] = useState(STARTING_HEALTH);
   const [blueHealth, setBlueHealth] = useState(STARTING_HEALTH);
@@ -200,6 +260,8 @@ export default function GameBoardPanel() {
   const [winner, setWinner] = useState<"red" | "blue" | null>(null);
   const [redModifiers, setRedModifiers] = useState<ModifierState[]>([]);
   const [blueModifiers, setBlueModifiers] = useState<ModifierState[]>([]);
+  const [redWeapons, setRedWeapons] = useState<ModifierState[]>([]);
+  const [blueWeapons, setBlueWeapons] = useState<ModifierState[]>([]);
   const [isCircleArena, setIsCircleArena] = useState(false);
   const [gameKey, setGameKey] = useState(0);
   const handleBallDied = useCallback((id: "red" | "blue") => {
@@ -213,6 +275,8 @@ export default function GameBoardPanel() {
     setWinner(null);
     setRedModifiers([]);
     setBlueModifiers([]);
+    setRedWeapons([]);
+    setBlueWeapons([]);
     setIsCircleArena(false);
     gameApiRef.current = null;
   }, []);
@@ -239,6 +303,30 @@ export default function GameBoardPanel() {
     const seconds = (timeLeft % 60).toString().padStart(2, "0");
     return `${minutes}:${seconds}`;
   }, [timeLeft]);
+
+  const addModifierToBall = useCallback(
+    (ballId: "red" | "blue", modifier: BallModifier) => {
+      gameApiRef.current?.addModifier(ballId, modifier);
+      const setter = ballId === "red" ? setRedModifiers : setBlueModifiers;
+      setter((prev) => [
+        ...prev,
+        { name: modifier.name, icon: modifier.icon, quality: modifier.quality },
+      ]);
+    },
+    [],
+  );
+
+  const addWeaponToBall = useCallback(
+    (ballId: "red" | "blue", weapon: Weapon) => {
+      gameApiRef.current?.addWeapon(ballId, weapon);
+      const setter = ballId === "red" ? setRedWeapons : setBlueWeapons;
+      setter((prev) => [
+        ...prev,
+        { name: weapon.name, icon: weapon.icon, quality: weapon.quality },
+      ]);
+    },
+    [],
+  );
 
   return (
     <div className="flex flex-col items-center justify-center p-8 w-full max-w-4xl mx-auto">
@@ -285,6 +373,24 @@ export default function GameBoardPanel() {
                 ) : null;
               })}
             </div>
+            <div className="flex gap-1 flex-wrap min-h-8">
+              {redWeapons.map((weapon, i) => {
+                const IconComp = PHOSPHOR_ICON_MAP[weapon.icon];
+                return IconComp ? (
+                  <span
+                    key={`${weapon.name}-${i}`}
+                    title={weapon.name}
+                    className="inline-flex items-center justify-center px-2 h-8 border-2 border-black bg-amber-100"
+                  >
+                    <IconComp
+                      size={16}
+                      weight="bold"
+                      color={QUALITY_ICON_COLOR[weapon.quality] ?? "#71717a"}
+                    />
+                  </span>
+                ) : null;
+              })}
+            </div>
           </div>
 
           <div className="flex items-center justify-center md:self-start md:pt-12">
@@ -318,6 +424,24 @@ export default function GameBoardPanel() {
                       size={18}
                       weight="bold"
                       color={QUALITY_ICON_COLOR[mod.quality] ?? "#71717a"}
+                    />
+                  </span>
+                ) : null;
+              })}
+            </div>
+            <div className="flex gap-1 flex-wrap min-h-8">
+              {blueWeapons.map((weapon, i) => {
+                const IconComp = PHOSPHOR_ICON_MAP[weapon.icon];
+                return IconComp ? (
+                  <span
+                    key={`${weapon.name}-${i}`}
+                    title={weapon.name}
+                    className="inline-flex items-center justify-center px-2 h-8 border-2 border-black bg-amber-100"
+                  >
+                    <IconComp
+                      size={16}
+                      weight="bold"
+                      color={QUALITY_ICON_COLOR[weapon.quality] ?? "#71717a"}
                     />
                   </span>
                 ) : null;
@@ -397,19 +521,34 @@ export default function GameBoardPanel() {
                       key={mod.label}
                       variant="outline"
                       className="border-4 border-black rounded-none font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1.5"
-                      onClick={() => {
-                        const m = mod.factory();
-                        gameApiRef.current?.addModifier(ballId, m);
-                        const setter =
-                          ballId === "red" ? setRedModifiers : setBlueModifiers;
-                        setter((prev) => [
-                          ...prev,
-                          { name: m.name, icon: m.icon, quality: m.quality },
-                        ]);
-                      }}
+                      onClick={() => addModifierToBall(ballId, mod.factory())}
                     >
                       <IconComp size={15} weight="bold" />
                       {mod.label}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <span
+                className={`mt-2 text-sm font-black uppercase tracking-widest ${
+                  ballId === "red" ? "text-red-600" : "text-blue-600"
+                }`}
+              >
+                {ballId === "red" ? "Red" : "Blue"} Weapons
+              </span>
+              <div className="flex gap-2 flex-wrap">
+                {WEAPONS.map((weapon) => {
+                  const IconComp = weapon.icon;
+                  return (
+                    <Button
+                      key={weapon.label}
+                      variant="outline"
+                      className="border-4 border-black rounded-none font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1.5 bg-amber-100"
+                      onClick={() => addWeaponToBall(ballId, weapon.factory())}
+                    >
+                      <IconComp size={15} weight="bold" />
+                      {weapon.label}
                     </Button>
                   );
                 })}

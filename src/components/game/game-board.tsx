@@ -10,6 +10,7 @@ import {
 } from "@/game/ball";
 import type { BallModifier } from "@/game/ball-modifier";
 import type { ArenaModifier, ArenaWalls } from "@/game/arena-modifier";
+import type { Weapon } from "@/game/weapon";
 
 const ARENA_WIDTH = 640;
 const ARENA_HEIGHT = 420;
@@ -18,6 +19,7 @@ const WALL_THICKNESS = 8;
 
 export type GameApi = {
   addModifier: (ballId: "red" | "blue", modifier: BallModifier) => void;
+  addWeapon: (ballId: "red" | "blue", weapon: Weapon) => void;
   addArenaModifier: (modifier: ArenaModifier) => void;
 };
 
@@ -141,6 +143,10 @@ function createMainScene(
           if (ballId === "red") redBall.addModifier(modifier);
           else blueBall.addModifier(modifier);
         },
+        addWeapon: (ballId, weapon) => {
+          if (ballId === "red") redBall.addWeapon(weapon);
+          else blueBall.addWeapon(weapon);
+        },
         addArenaModifier: (modifier) => {
           arenaModifiers.push(modifier);
           modifier.apply(
@@ -224,10 +230,18 @@ function createMainScene(
       );
     },
     update(_time: number, delta: number) {
+      redBall?.updateStatusEffects(delta);
+      for (const ghost of redBall?.ghostBalls ?? [])
+        ghost.updateStatusEffects(delta);
+      blueBall?.updateStatusEffects(delta);
+      for (const ghost of blueBall?.ghostBalls ?? [])
+        ghost.updateStatusEffects(delta);
       redBall?.updateModifiers(delta);
+      redBall?.updateWeapons(delta);
       for (const ghost of redBall?.ghostBalls ?? [])
         ghost.updateModifiers(delta);
       blueBall?.updateModifiers(delta);
+      blueBall?.updateWeapons(delta);
       for (const ghost of blueBall?.ghostBalls ?? [])
         ghost.updateModifiers(delta);
       for (const mod of arenaModifiers) mod.update(delta);
