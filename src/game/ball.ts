@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import type { BallModifier } from "./ball-modifier";
+import type { Weapon } from "./weapon";
 
 type BallMatterBody = MatterJS.BodyType & {
   plugin?: {
@@ -38,6 +39,18 @@ type BallOptions = {
   receivesModifierPropagation?: boolean;
 };
 
+type ActiveSlow = {
+  multiplier: number;
+  remainingMs: number;
+};
+
+type ActiveDamageOverTime = {
+  damagePerTick: number;
+  tickMs: number;
+  remainingMs: number;
+  elapsedMs: number;
+};
+
 export class Ball {
   body: BallGameObject;
   health: number;
@@ -55,12 +68,16 @@ export class Ball {
   /** Absorbs damage before HP. Set/cleared by ArmoredModifier. */
   shieldHP: number = 0;
   modifiers: BallModifier[] = [];
+  weapons: Weapon[] = [];
   scene: Phaser.Scene;
   physicsScale = 1.0;
   /** Multiplied into base speed by arena-wide effects (e.g. SpeedBoost). */
   arenaSpeedMultiplier = 1.0;
   /** When true, maintainSpeed skips wall-proximity reflection (used by Portal). */
   ignoreArenaWalls = false;
+  private stunRemainingMs = 0;
+  private activeSlows: ActiveSlow[] = [];
+  private activeDamageOverTime: ActiveDamageOverTime[] = [];
   readonly speed: number;
   readonly arenaWidth: number;
   readonly arenaHeight: number;
@@ -172,6 +189,78 @@ export class Ball {
       ghost.syncHealthFromLinked(this.health);
   }
 
+  applyStun(durationMs: number): void {
+    if (this.collisionMode === "linked-health" && this.linkedBall) {
+      this.linkedBall.applyStun(durationMs);
+      return;
+    }
+    this.stunRemainingMs = Math.max(this.stunRemainingMs, durationMs);
+  }
+
+  applySlow(multiplier: number, durationMs: number): void {
+    if (this.collisionMode === "linked-health" && this.linkedBall) {
+      this.linkedBall.applySlow(multiplier, durationMs);
+      return;
+    }
+    this.activeSlows.push({
+      multiplier: Phaser.Math.Clamp(multiplier, 0.05, 1),
+      remainingMs: durationMs,
+    });
+  }
+
+  applyDamageOverTime(
+    damagePerTick: number,
+    tickMs: number,
+    durationMs: number,
+  ): void {
+    if (this.collisionMode === "linked-health" && this.linkedBall) {
+      this.linkedBall.applyDamageOverTime(damagePerTick, tickMs, durationMs);
+      return;
+    }
+    this.activeDamageOverTime.push({
+      damagePerTick,
+      tickMs,
+      remainingMs: durationMs,
+      elapsedMs: 0,
+    });
+  }
+
+  updateStatusEffects(delta: number): void {
+    this.stunRemainingMs = Math.max(0, this.stunRemainingMs - delta);
+
+    this.activeSlows = this.activeSlows
+      .map((slow) => ({
+        ...slow,
+        remainingMs: slow.remainingMs - delta,
+      }))
+      .filter((slow) => slow.remainingMs > 0);
+
+    for (const effect of this.activeDamageOverTime) {
+      effect.remainingMs -= delta;
+      effect.elapsedMs += delta;
+
+      while (
+        effect.elapsedMs >= effect.tickMs &&
+        effect.remainingMs > -effect.tickMs
+      ) {
+        effect.elapsedMs -= effect.tickMs;
+        this.takeDamage(effect.damagePerTick);
+      }
+    }
+
+    this.activeDamageOverTime = this.activeDamageOverTime.filter(
+      (effect) => effect.remainingMs > 0,
+    );
+
+    if (this.isStunned()) {
+      this.body.setVelocity(0, 0);
+    }
+  }
+
+  isStunned(): boolean {
+    return this.stunRemainingMs > 0;
+  }
+
   /** Called by master to keep ghost health in sync — does not recurse. */
   private syncHealthFromLinked(newHealth: number): void {
     this.health = newHealth;
@@ -190,6 +279,11 @@ export class Ball {
         ghost.addModifier(new ModCtor());
       }
     }
+  }
+
+  addWeapon(weapon: Weapon): void {
+    this.weapons.push(weapon);
+    weapon.apply(this, this.scene);
   }
 
   setSize(absoluteFactor: number): void {
@@ -218,13 +312,23 @@ export class Ball {
     this.modifiers = [];
   }
 
+  removeAllWeapons(): void {
+    for (const weapon of this.weapons) weapon.remove();
+    this.weapons = [];
+  }
+
   updateModifiers(delta: number): void {
     for (const mod of this.modifiers) mod.update(delta);
   }
 
+  updateWeapons(delta: number): void {
+    for (const weapon of this.weapons) weapon.update(delta);
+  }
+
   effectiveSpeed(): number {
     const base = this.speed * this.arenaSpeedMultiplier;
-    return this.modifiers.reduce((s, m) => m.modifySpeed(s), base);
+    const slowedBase = base * this.getSlowMultiplier();
+    return this.modifiers.reduce((s, m) => m.modifySpeed(s), slowedBase);
   }
 
   nudgeDirection() {
@@ -259,6 +363,10 @@ export class Ball {
 
   maintainSpeed() {
     if (this.isStaticBody) return;
+    if (this.isStunned()) {
+      this.body.setVelocity(0, 0);
+      return;
+    }
 
     const velocity = this.body.body.velocity;
     const magnitude = Math.hypot(velocity.x, velocity.y);
@@ -294,6 +402,17 @@ export class Ball {
     this.body.setVelocity(
       (vx / adjustedMag) * targetSpeed,
       (vy / adjustedMag) * targetSpeed,
+    );
+  }
+
+  private getSlowMultiplier(): number {
+    if (this.activeSlows.length === 0) {
+      return 1;
+    }
+
+    return this.activeSlows.reduce(
+      (lowest, slow) => Math.min(lowest, slow.multiplier),
+      1,
     );
   }
 }
