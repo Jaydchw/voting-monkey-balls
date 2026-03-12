@@ -25,6 +25,11 @@ export default function MainMenu() {
             Bots
           </Button>
         </Link>
+        <Link href="/audio-test" className="w-full">
+          <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-yellow-300 text-black hover:bg-yellow-200">
+            Audio Test
+          </Button>
+        </Link>
       </Card>
 
       <p className="mt-16 text-lg font-bold uppercase tracking-wide text-center">
