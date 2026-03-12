@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
 import type { Ball } from "../ball";
+import { ArrowsOut } from "@phosphor-icons/react";
 
 const MAX_SCALE = 1.5;
 const EXTRA_DAMAGE = 3; // bonus collision damage when grown
@@ -8,7 +9,7 @@ const EXTRA_DAMAGE = 3; // bonus collision damage when grown
 export class GrowthHormonesModifier extends BallModifier {
   readonly name = "Growth Hormones";
   readonly quality = 2;
-  readonly icon = "arrowsOut";
+  readonly icon = ArrowsOut;
   readonly description =
     "Instantly grows the ball to 1.5× size. Collisions deal 3 extra damage.";
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;

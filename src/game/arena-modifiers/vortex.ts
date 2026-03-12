@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { ArrowsCounterClockwise } from "@phosphor-icons/react";
 
 const PULL_STRENGTH = 0.012; // velocity units added per frame × delta compensation
 const TANGENT_RATIO = 0.45; // fraction of pull applied as tangential spin
@@ -12,7 +13,7 @@ const CORE_INNER = 0x3d6ed6;
 export class VortexModifier extends ArenaModifier {
   readonly name = "Vortex";
   readonly quality = 3;
-  readonly icon = "arrowsClockwise";
+  readonly icon = ArrowsCounterClockwise;
   readonly description =
     "A gravity vortex at the arena centre slowly pulls and spins all balls.";
 

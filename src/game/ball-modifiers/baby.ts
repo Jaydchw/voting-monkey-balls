@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import { Baby } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 
 const SPARKLE_FILL = 0xd4a017;
@@ -11,7 +12,7 @@ const DAMAGE_MULTIPLIER = 1.3;
 export class BabyModifier extends BallModifier {
   readonly name = "Baby";
   readonly quality = 1;
-  readonly icon = "arrowsIn";
+  readonly icon = Baby;
   readonly description =
     "Shrinks ball to 60% size — faster, but takes 30% more damage.";
 

@@ -3,13 +3,14 @@ import { BALL_COLLISION_RADIUS } from "../ball";
 import type { Ball } from "../ball";
 import { MeleeWeapon } from "./melee-weapon";
 import { RangedWeapon } from "./ranged-weapon";
+import { ArrowArcLeft } from "@phosphor-icons/react";
 
 const KATANA_REACH = 64;
 
 export class KatanaWeapon extends MeleeWeapon {
   readonly name = "Katana";
   readonly quality = 4;
-  readonly icon = "fire";
+  readonly icon = ArrowArcLeft;
   readonly description =
     "A mirror-edged katana that slices in arcs and deflects projectiles.";
   readonly attackSpeedMs = 360;

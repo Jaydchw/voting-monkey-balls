@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
+import { Atom } from "@phosphor-icons/react";
 
 const STAFF_REACH = 42;
 const STAFF_LENGTH = 58;
@@ -7,7 +8,7 @@ const STAFF_LENGTH = 58;
 export class StaffWeapon extends RangedWeapon {
   readonly name = "Staff";
   readonly quality = 1;
-  readonly icon = "lightning";
+  readonly icon = Atom;
   readonly description =
     "A staff that spins around the ball and fires a shot every second.";
   readonly attackSpeedMs = 1000;

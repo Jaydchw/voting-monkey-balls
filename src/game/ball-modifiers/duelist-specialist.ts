@@ -1,10 +1,11 @@
 import { BallModifier } from "../ball-modifier";
 import type { DamageSource, OutgoingDamageProfile } from "../ball-modifier";
+import { HandFist } from "@phosphor-icons/react";
 
 export class DuelistSpecialistModifier extends BallModifier {
   readonly name = "Duelist Specialist";
   readonly quality = 2;
-  readonly icon = "asterisk";
+  readonly icon = HandFist;
   readonly description = "Melee damage x2. Projectile damage x0.5.";
 
   protected onApply(): void {}

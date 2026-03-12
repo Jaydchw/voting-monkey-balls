@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { BALL_COLLISION_RADIUS } from "../ball";
 import { MeleeWeapon } from "./melee-weapon";
+import { Wrench } from "@phosphor-icons/react";
 
 type TurretState = {
   x: number;
@@ -18,7 +19,7 @@ type TurretProjectile = {
 export class WrenchWeapon extends MeleeWeapon {
   readonly name = "Wrench";
   readonly quality = 3;
-  readonly icon = "shield";
+  readonly icon = Wrench;
   readonly description =
     "A heavy wrench that deploys auto-firing helper turrets while dealing contact damage.";
   readonly attackSpeedMs = 420;

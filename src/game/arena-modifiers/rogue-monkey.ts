@@ -16,6 +16,7 @@ import { BazookaWeapon } from "../weapons/bazooka";
 import { ShotgunWeapon } from "../weapons/shotgun";
 import { MachineGunWeapon } from "../weapons/machine-gun";
 import { SniperWeapon } from "../weapons/sniper";
+import { Robot } from "@phosphor-icons/react";
 
 type ModifierFactory = () => BallModifier;
 type WeaponFactory = () => Weapon;
@@ -43,7 +44,7 @@ const ROGUE_WEAPONS: WeaponFactory[] = [
 export class RogueMonkeyModifier extends ArenaModifier {
   readonly name = "Rogue Monkey";
   readonly quality = 4;
-  readonly icon = "ghost";
+  readonly icon = Robot;
   readonly description =
     "Spawns a neutral monkey with 2 random weapons and 2 random ball modifiers.";
 

@@ -3,13 +3,14 @@ import type { Ball } from "../ball";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
 import type { GameSfxId } from "@/lib/game-sfx";
 import { playGameSfx } from "@/lib/game-sfx";
+import { MusicNotes } from "@phosphor-icons/react";
 
 const TREBLE_CLEF_REACH = 52;
 
 export class TrebleClefWeapon extends RangedWeapon {
   readonly name = "Treble Clef";
   readonly quality = 3;
-  readonly icon = "lightning";
+  readonly icon = MusicNotes;
   readonly description =
     "A dramatic clef that locks onto the enemy and launches booming crescendos.";
   readonly attackSpeedMs = 896;
@@ -74,6 +75,7 @@ export class TrebleClefWeapon extends RangedWeapon {
   }
 
   protected onAfterFire(_shotCount: number): void {
+    void _shotCount;
     this.cadenceStep = (this.cadenceStep + 1) % 4;
   }
 

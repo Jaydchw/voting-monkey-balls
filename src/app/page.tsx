@@ -25,21 +25,33 @@ export default function MainMenu() {
             Freeplay
           </p>
         </div>
+        <Link href="/singleplayer" className="w-full">
+          <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-green-400 text-black hover:bg-green-300">
+            Singleplayer
+          </Button>
+        </Link>
         <Link href="/bots" className="w-full">
           <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-white text-black hover:bg-gray-100">
-            Bots
+            Watch Bots
           </Button>
         </Link>
-        <Link href="/test" className="w-full">
-          <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-cyan-300 text-black hover:bg-cyan-200">
-            Test
-          </Button>
-        </Link>
-        <Link href="/audio-test" className="w-full">
-          <Button className="w-full text-2xl py-8 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-yellow-300 text-black hover:bg-yellow-200">
-            Audio Test
-          </Button>
-        </Link>
+        <div className="border-t-4 border-black pt-4">
+          <p className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-center">
+            Dev
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <Link href="/test" className="flex-1">
+            <Button className="w-full py-6 border-4 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-cyan-300 text-black hover:bg-cyan-200 text-sm">
+              Test
+            </Button>
+          </Link>
+          <Link href="/audio-test" className="flex-1">
+            <Button className="w-full py-6 border-4 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-yellow-300 text-black hover:bg-yellow-200 text-sm">
+              Audio
+            </Button>
+          </Link>
+        </div>
       </Card>
 
       <p className="mt-16 text-lg font-bold uppercase tracking-wide text-center">

@@ -1,12 +1,13 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
+import { Magnet } from "@phosphor-icons/react";
 
 const ATTRACT_STRENGTH = 0.12;
 
 export class MagneticModifier extends BallModifier {
   readonly name = "Magnetic";
   readonly quality = 2;
-  readonly icon = "magnet";
+  readonly icon = Magnet;
   readonly description = "Gradually pulls the enemy ball toward this one.";
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;

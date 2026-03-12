@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { CircleDashed } from "@phosphor-icons/react";
 
 // Ball collision radius (must match ball.ts constant)
 const BALL_RADIUS = 23;
@@ -18,7 +19,7 @@ type CircleArenaState = {
 export class CircleArenaModifier extends ArenaModifier {
   readonly name = "Circle Arena";
   readonly quality = 3;
-  readonly icon = "target";
+  readonly icon = CircleDashed;
   readonly description =
     "Transforms the arena into a circle. Balls are reflected back at the boundary.";
 

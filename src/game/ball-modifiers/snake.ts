@@ -1,5 +1,6 @@
 import { BallModifier } from "../ball-modifier";
 import { BALL_COLLISION_RADIUS, Ball } from "../ball";
+import { Spiral } from "@phosphor-icons/react";
 
 const GHOSTS_PER_STACK = 5;
 const GHOST_ALPHA = 0.42;
@@ -17,7 +18,7 @@ type PositionSample = {
 export class SnakeModifier extends BallModifier {
   readonly name = "Snake";
   readonly quality = 3;
-  readonly icon = "ghost";
+  readonly icon = Spiral;
   readonly propagateToGhosts = false;
   readonly description =
     "Leaves a chain of ghost balls in its wake that block enemies and deal contact damage.";

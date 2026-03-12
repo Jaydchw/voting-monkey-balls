@@ -1,3 +1,4 @@
+import { Biohazard } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 import type { DamageSource, OutgoingDamageProfile } from "../ball-modifier";
 
@@ -8,7 +9,7 @@ const DOT_TICK_MS = 250;
 export class CausticPayloadModifier extends BallModifier {
   readonly name = "Caustic Payload";
   readonly quality = 3;
-  readonly icon = "drop";
+  readonly icon = Biohazard;
   readonly description =
     "Attacks deal +50% damage, but all of it is delivered over 5s.";
 

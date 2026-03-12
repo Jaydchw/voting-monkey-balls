@@ -1,12 +1,13 @@
 import { BallModifier } from "../ball-modifier";
 import type { WeaponType } from "../ball-modifier";
+import { Timer } from "@phosphor-icons/react";
 
 const ATTACK_SPEED_MULTIPLIER = 0.65;
 
 export class RapidFireModifier extends BallModifier {
   readonly name = "Rapid Fire";
   readonly quality = 2;
-  readonly icon = "lightning";
+  readonly icon = Timer;
   readonly description = "35% faster attacks for all weapons.";
 
   protected onApply(): void {}

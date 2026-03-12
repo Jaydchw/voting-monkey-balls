@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { Shuffle } from "@phosphor-icons/react";
 import { BALL_COLLISION_RADIUS } from "../ball";
 import { BallModifier } from "../ball-modifier";
 
@@ -10,7 +11,7 @@ const ENEMY_SLOW_DURATION_MS = 1200;
 export class PhaseShiftModifier extends BallModifier {
   readonly name = "Phase Shift";
   readonly quality = 4;
-  readonly icon = "arrowsOut";
+  readonly icon = Shuffle;
   readonly description =
     "On wall hits, 35% chance to blink to a random spot and briefly slow the enemy.";
 

@@ -2,6 +2,7 @@ import * as Phaser from "phaser";
 import { BALL_COLLISION_RADIUS } from "../ball";
 import type { Ball } from "../ball";
 import { Weapon } from "../weapon";
+import { Scan } from "@phosphor-icons/react";
 
 const LASER_REACH = 44;
 const LASER_LENGTH = 46;
@@ -10,7 +11,7 @@ const LASER_WIDTH = 28;
 export class LaserGunWeapon extends Weapon {
   readonly name = "Laser Gun";
   readonly quality = 4;
-  readonly icon = "lightning";
+  readonly icon = Scan;
   readonly description =
     "Fires very wide, solid laser beams that burn through targets in pulses.";
   readonly attackSpeedMs = 1650;

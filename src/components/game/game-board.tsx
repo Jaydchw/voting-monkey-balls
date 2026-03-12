@@ -36,6 +36,11 @@ type HealthCallbacks = {
   onBlueBallDied: () => void;
 };
 
+type TelemetryCallbacks = {
+  onBallCollision?: () => void;
+  onWallCollision?: (ballId: "red" | "blue") => void;
+};
+
 type CollisionBody = MatterJS.BodyType & {
   plugin?: {
     ballRef?: Ball;
@@ -44,6 +49,7 @@ type CollisionBody = MatterJS.BodyType & {
 
 function createMainScene(
   callbacks: HealthCallbacks,
+  telemetry: TelemetryCallbacks,
   onGameReady?: (api: GameApi) => void,
 ): Phaser.Types.Scenes.SceneType {
   let redBall: Ball;
@@ -240,6 +246,7 @@ function createMainScene(
               if (ballA.id === ballB.id) {
                 return;
               }
+              telemetry.onBallCollision?.();
               ballA.takeDamage(1, {
                 effect: "explosive",
                 intensity: 1.9,
@@ -259,12 +266,18 @@ function createMainScene(
 
             if (aBall && bWall && ballA) {
               playGameSfx(this, "hit", { volume: 0.35 });
+              if (ballA.id === "red" || ballA.id === "blue") {
+                telemetry.onWallCollision?.(ballA.id);
+              }
               for (const mod of ballA.modifiers) mod.onBallHitWall();
               ballA.nudgeDirection();
             }
 
             if (bBall && aWall && ballB) {
               playGameSfx(this, "hit", { volume: 0.35 });
+              if (ballB.id === "red" || ballB.id === "blue") {
+                telemetry.onWallCollision?.(ballB.id);
+              }
               for (const mod of ballB.modifiers) mod.onBallHitWall();
               ballB.nudgeDirection();
             }
@@ -320,6 +333,8 @@ type GameBoardProps = {
   onBlueHealthChange?: (health: number) => void;
   onBallDied?: (id: "red" | "blue") => void;
   onGameReady?: (api: GameApi) => void;
+  onBallCollision?: () => void;
+  onWallCollision?: (ballId: "red" | "blue") => void;
 };
 
 export default function GameBoard({
@@ -327,6 +342,8 @@ export default function GameBoard({
   onBlueHealthChange,
   onBallDied,
   onGameReady,
+  onBallCollision,
+  onWallCollision,
 }: GameBoardProps) {
   const gameRef = useRef<HTMLDivElement>(null);
 
@@ -336,13 +353,24 @@ export default function GameBoard({
   const onBlueHealthChangeRef = useRef(onBlueHealthChange);
   const onBallDiedRef = useRef(onBallDied);
   const onGameReadyRef = useRef(onGameReady);
+  const onBallCollisionRef = useRef(onBallCollision);
+  const onWallCollisionRef = useRef(onWallCollision);
 
   useEffect(() => {
     onRedHealthChangeRef.current = onRedHealthChange;
     onBlueHealthChangeRef.current = onBlueHealthChange;
     onBallDiedRef.current = onBallDied;
     onGameReadyRef.current = onGameReady;
-  }, [onRedHealthChange, onBlueHealthChange, onBallDied, onGameReady]);
+    onBallCollisionRef.current = onBallCollision;
+    onWallCollisionRef.current = onWallCollision;
+  }, [
+    onRedHealthChange,
+    onBlueHealthChange,
+    onBallDied,
+    onGameReady,
+    onBallCollision,
+    onWallCollision,
+  ]);
 
   useEffect(() => {
     if (!gameRef.current) return;
@@ -368,7 +396,14 @@ export default function GameBoard({
           gravity: { y: 0, x: 0 },
         },
       },
-      scene: createMainScene(callbacks, (api) => onGameReadyRef.current?.(api)),
+      scene: createMainScene(
+        callbacks,
+        {
+          onBallCollision: () => onBallCollisionRef.current?.(),
+          onWallCollision: (ballId) => onWallCollisionRef.current?.(ballId),
+        },
+        (api) => onGameReadyRef.current?.(api),
+      ),
     };
 
     const game = new Phaser.Game(config);

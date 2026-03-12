@@ -1,9 +1,10 @@
 import { ArenaModifier } from "../arena-modifier";
+import { FastForward } from "@phosphor-icons/react";
 
 export class DoubleTimeModifier extends ArenaModifier {
   readonly name = "Double Time";
   readonly quality = 3;
-  readonly icon = "arrowsClockwise";
+  readonly icon = FastForward;
   readonly description =
     "Simulation speed is doubled for balls, projectiles, cooldowns, and effects.";
 

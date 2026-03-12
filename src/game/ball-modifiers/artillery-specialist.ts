@@ -1,10 +1,11 @@
+import { Target } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 import type { DamageSource, OutgoingDamageProfile } from "../ball-modifier";
 
 export class ArtillerySpecialistModifier extends BallModifier {
   readonly name = "Artillery Specialist";
   readonly quality = 2;
-  readonly icon = "target";
+  readonly icon = Target;
   readonly description = "Projectile damage x2. Melee damage x0.5.";
 
   protected onApply(): void {}

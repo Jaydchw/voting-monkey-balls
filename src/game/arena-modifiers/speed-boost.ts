@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { Gauge } from "@phosphor-icons/react";
 
 const SPEED_BOOST = 1.6;
 const STREAK_COLOR = 0x8a6b00;
@@ -7,7 +8,7 @@ const STREAK_COLOR = 0x8a6b00;
 export class SpeedBoostModifier extends ArenaModifier {
   readonly name = "Speed Boost";
   readonly quality = 2;
-  readonly icon = "gauge";
+  readonly icon = Gauge;
   readonly description = "All balls move 60% faster.";
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;

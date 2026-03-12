@@ -1,10 +1,11 @@
 import type * as Phaser from "phaser";
+import { Shield } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 
 export class ArmoredModifier extends BallModifier {
   readonly name = "Armored";
   readonly quality = 2;
-  readonly icon = "shield";
+  readonly icon = Shield;
   readonly description =
     "Halves all damage. Starts with a 20 HP shield that absorbs hits first.";
 

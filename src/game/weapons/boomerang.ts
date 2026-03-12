@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
 import { BALL_COLLISION_RADIUS } from "../ball";
 import { Weapon } from "../weapon";
+import { ArrowBendUpLeft } from "@phosphor-icons/react";
 
 type BoomerangState = {
   active: boolean;
@@ -16,7 +17,7 @@ type BoomerangState = {
 export class BoomerangWeapon extends Weapon {
   readonly name = "Boomerang";
   readonly quality = 2;
-  readonly icon = "ghost";
+  readonly icon = ArrowBendUpLeft;
   readonly description =
     "Throws a curved blade that swings back to the owner after its run.";
   readonly attackSpeedMs = 1300;

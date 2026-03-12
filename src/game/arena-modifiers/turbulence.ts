@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { Wind } from "@phosphor-icons/react";
 
 const GUST_MIN_INTERVAL = 600;
 const GUST_MAX_INTERVAL = 2200;
@@ -14,7 +15,7 @@ const PARTICLE_COLOR = 0x234f74;
 export class TurbulenceModifier extends ArenaModifier {
   readonly name = "Turbulence";
   readonly quality = 2;
-  readonly icon = "wind";
+  readonly icon = Wind;
   readonly description =
     "Random wind gusts periodically push all balls in a new direction.";
 

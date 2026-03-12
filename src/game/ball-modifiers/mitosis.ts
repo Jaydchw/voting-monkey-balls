@@ -1,11 +1,12 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
 import { Ball } from "../ball";
+import { GitFork } from "@phosphor-icons/react";
 
 export class MitosisModifier extends BallModifier {
   readonly name = "Mitosis";
   readonly quality = 4;
-  readonly icon = "gitFork";
+  readonly icon = GitFork;
   readonly propagateToGhosts = false;
   readonly description =
     "Splits the ball into two linked copies that share a single health pool.";

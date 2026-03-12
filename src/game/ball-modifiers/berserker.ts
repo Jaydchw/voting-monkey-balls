@@ -1,10 +1,11 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
+import { Fire } from "@phosphor-icons/react";
 
 export class BerserkerModifier extends BallModifier {
   readonly name = "Berserker";
   readonly quality = 3;
-  readonly icon = "fire";
+  readonly icon = Fire;
   readonly description =
     "Speeds up as health drops — up to 1.8x speed at 0 HP.";
 

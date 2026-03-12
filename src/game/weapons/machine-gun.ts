@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
+import { Pulse } from "@phosphor-icons/react";
 
 const MACHINE_GUN_REACH = 42;
 const MACHINE_GUN_LENGTH = 34;
@@ -7,7 +8,7 @@ const MACHINE_GUN_LENGTH = 34;
 export class MachineGunWeapon extends RangedWeapon {
   readonly name = "Machine Gun";
   readonly quality = 2;
-  readonly icon = "target";
+  readonly icon = Pulse;
   readonly description =
     "Sprays low-damage rounds that ricochet around the arena walls.";
   readonly attackSpeedMs = 120;

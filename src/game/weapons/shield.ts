@@ -3,6 +3,7 @@ import { BALL_COLLISION_RADIUS } from "../ball";
 import type { Ball } from "../ball";
 import { MeleeWeapon } from "./melee-weapon";
 import { RangedWeapon } from "./ranged-weapon";
+import { ShieldPlus } from "@phosphor-icons/react";
 
 const SHIELD_REACH = 50;
 const SHIELD_RADIUS = 24;
@@ -10,7 +11,7 @@ const SHIELD_RADIUS = 24;
 export class ShieldWeapon extends MeleeWeapon {
   readonly name = "Shield";
   readonly quality = 3;
-  readonly icon = "shield";
+  readonly icon = ShieldPlus;
   readonly description =
     "A rotating shield that blocks melee and reflects incoming projectiles.";
   readonly attackSpeedMs = 280;

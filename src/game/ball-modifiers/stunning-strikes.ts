@@ -1,3 +1,4 @@
+import { Warning } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 import type { Ball } from "../ball";
 import type { DamageSource } from "../ball-modifier";
@@ -8,7 +9,7 @@ const STUN_DURATION_MS = 1000;
 export class StunningStrikesModifier extends BallModifier {
   readonly name = "Stunning Strikes";
   readonly quality = 3;
-  readonly icon = "target";
+  readonly icon = Warning;
   readonly description = "All attacks have a 50% chance to stun for 1 second.";
 
   protected onApply(): void {}

@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
 import type { Ball } from "../ball";
+import { Lightning } from "@phosphor-icons/react";
 
 const ELECTRIC_STAFF_REACH = 48;
 const ELECTRIC_STAFF_LENGTH = 56;
@@ -8,7 +9,7 @@ const ELECTRIC_STAFF_LENGTH = 56;
 export class ElectricStaffWeapon extends RangedWeapon {
   readonly name = "Electric Staff";
   readonly quality = 3;
-  readonly icon = "lightning";
+  readonly icon = Lightning;
   readonly description =
     "Fires shocking bolts that stun the enemy ball for a full second.";
   readonly attackSpeedMs = 980;

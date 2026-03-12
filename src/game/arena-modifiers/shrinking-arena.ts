@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { CornersIn } from "@phosphor-icons/react";
 
 const SHRINK_DURATION = 40000; // ms to reach minimum size
 const MIN_RADIUS = 70;
@@ -10,7 +11,7 @@ const PUSH_STRENGTH = 2.5;
 export class ShrinkingArenaModifier extends ArenaModifier {
   readonly name = "Shrinking Zone";
   readonly quality = 4;
-  readonly icon = "target";
+  readonly icon = CornersIn;
   readonly description =
     "A safe circle shrinks toward the centre. Balls outside take damage each second.";
 

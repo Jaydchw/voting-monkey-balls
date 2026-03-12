@@ -1,13 +1,14 @@
 import type * as Phaser from "phaser";
 import type { Ball } from "../ball";
 import { MeleeWeapon } from "./melee-weapon";
+import { Drop } from "@phosphor-icons/react";
 
 const SCYTHE_REACH = 66;
 
 export class ScytheWeapon extends MeleeWeapon {
   readonly name = "Scythe";
   readonly quality = 3;
-  readonly icon = "drop";
+  readonly icon = Drop;
   readonly description =
     "A sweeping reaper blade that steals life on every hit.";
   readonly attackSpeedMs = 360;

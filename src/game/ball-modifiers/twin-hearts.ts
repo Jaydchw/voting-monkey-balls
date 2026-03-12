@@ -1,9 +1,10 @@
+import { HeartStraight } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 
 export class TwinHeartsModifier extends BallModifier {
   readonly name = "Twin Hearts";
   readonly quality = 3;
-  readonly icon = "heart";
+  readonly icon = HeartStraight;
   readonly description = "Double max HP and immediately heal to full.";
 
   private previousMaxHealth = 0;

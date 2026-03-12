@@ -1,12 +1,13 @@
 import { BallModifier } from "../ball-modifier";
 import type { DamageSource } from "../ball-modifier";
+import { Star } from "@phosphor-icons/react";
 
 const EVADE_CHANCE = 0.25;
 
 export class LuckyEvadeModifier extends BallModifier {
   readonly name = "Lucky Evade";
   readonly quality = 2;
-  readonly icon = "ghost";
+  readonly icon = Star;
   readonly description = "25% chance to ignore incoming damage.";
 
   protected onApply(): void {}

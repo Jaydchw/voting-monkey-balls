@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import { BatteryCharging } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 
 const ZAP_INTERVAL = 3000;
@@ -10,7 +11,7 @@ const ZAP_COLOR = 0x143f73;
 export class OverchargeModifier extends BallModifier {
   readonly name = "Overcharge";
   readonly quality = 3;
-  readonly icon = "lightning";
+  readonly icon = BatteryCharging;
   readonly description = "Every 3 seconds, zaps the enemy for 8 damage.";
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;

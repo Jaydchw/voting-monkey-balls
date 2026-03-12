@@ -30,10 +30,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("font-sans", jetbrainsMono.variable)}>
-      <body className={`${bungee.variable} ${geistMono.variable} antialiased`}>
-        {children}
-      </body>
+    <html
+      lang="en"
+      className={cn(
+        bungee.variable,
+        jetbrainsMono.variable,
+        geistMono.variable,
+        "font-sans",
+      )}
+    >
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { MeleeWeapon } from "./melee-weapon";
+import { Sword } from "@phosphor-icons/react";
 
 const SWORD_REACH = 58;
 const SWORD_SWING_SPEED = Math.PI * 2.1;
@@ -9,7 +10,7 @@ const SWORD_DAMAGE = 6;
 export class SwordWeapon extends MeleeWeapon {
   readonly name = "Sword";
   readonly quality = 1;
-  readonly icon = "asterisk";
+  readonly icon = Sword;
   readonly description =
     "A simple sword that spins around the ball and deals contact damage.";
   readonly attackSpeedMs = 300;

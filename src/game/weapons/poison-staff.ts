@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
 import type { Ball } from "../ball";
+import { Skull } from "@phosphor-icons/react";
 
 const POISON_STAFF_REACH = 34;
 const POISON_STAFF_LENGTH = 52;
@@ -8,7 +9,7 @@ const POISON_STAFF_LENGTH = 52;
 export class PoisonStaffWeapon extends RangedWeapon {
   readonly name = "Poison Staff";
   readonly quality = 3;
-  readonly icon = "drop";
+  readonly icon = Skull;
   readonly description =
     "Launches toxic globes that slow the enemy and inflict poison over time.";
   readonly attackSpeedMs = 900;

@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import type { Icon } from "@phosphor-icons/react";
 import type { Ball } from "./ball";
 import { playGameSfx, type GameSfxId } from "@/lib/game-sfx";
 
@@ -30,7 +31,7 @@ export type ModifierSoundConfig =
 export abstract class BallModifier {
   abstract readonly name: string;
   abstract readonly quality: number;
-  abstract readonly icon: string;
+  abstract readonly icon: Icon;
   abstract readonly description: string;
   readonly sound?: ModifierSoundConfig;
 

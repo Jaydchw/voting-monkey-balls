@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
+import { Crosshair } from "@phosphor-icons/react";
 
 const SNIPER_REACH = 52;
 const SNIPER_LENGTH = 48;
@@ -7,7 +8,7 @@ const SNIPER_LENGTH = 48;
 export class SniperWeapon extends RangedWeapon {
   readonly name = "Sniper";
   readonly quality = 4;
-  readonly icon = "target";
+  readonly icon = Crosshair;
   readonly description =
     "A high-caliber rifle with a red sight line and devastating shots.";
   readonly attackSpeedMs = 1450;

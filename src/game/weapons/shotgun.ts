@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
+import { DotsThreeOutline } from "@phosphor-icons/react";
 
 const SHOTGUN_REACH = 45;
 const SHOTGUN_LENGTH = 34;
@@ -7,7 +8,7 @@ const SHOTGUN_LENGTH = 34;
 export class ShotgunWeapon extends RangedWeapon {
   readonly name = "Shotgun";
   readonly quality = 2;
-  readonly icon = "shield";
+  readonly icon = DotsThreeOutline;
   readonly description =
     "Blasts three shells in a spread for brutal close-range pressure.";
   readonly attackSpeedMs = 860;

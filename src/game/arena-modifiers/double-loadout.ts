@@ -1,9 +1,10 @@
 import { ArenaModifier } from "../arena-modifier";
+import { Backpack } from "@phosphor-icons/react";
 
 export class DoubleLoadoutModifier extends ArenaModifier {
   readonly name = "Double Loadout";
   readonly quality = 3;
-  readonly icon = "dotsNine";
+  readonly icon = Backpack;
   readonly description =
     "Newly added weapons and ball modifiers are applied twice.";
 

@@ -1,12 +1,13 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
+import { Heart } from "@phosphor-icons/react";
 
 const REGEN_PER_SECOND = 2;
 
 export class RegenModifier extends BallModifier {
   readonly name = "Regen";
   readonly quality = 2;
-  readonly icon = "heart";
+  readonly icon = Heart;
   readonly description = "Regenerate 2 HP per second.";
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;

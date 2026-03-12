@@ -3,25 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Icon } from "@phosphor-icons/react";
-import {
-  Asterisk,
-  ArrowsClockwise,
-  ArrowsIn,
-  ArrowsOut,
-  DotsNine,
-  Drop,
-  Fire,
-  Gauge,
-  Ghost,
-  GitFork,
-  Heart,
-  Lightning,
-  Magnet,
-  Shield,
-  Shuffle,
-  Target,
-  Wind,
-} from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,77 +10,17 @@ import { Progress } from "@/components/ui/progress";
 import type { GameApi } from "@/components/game/game-board";
 import type { BallModifier } from "@/game/ball-modifier";
 import type { Weapon } from "@/game/weapon";
-import { RegenModifier } from "@/game/ball-modifiers/regen";
-import { SpikesModifier } from "@/game/ball-modifiers/spikes";
-import { ArmoredModifier } from "@/game/ball-modifiers/armored";
-import { BerserkerModifier } from "@/game/ball-modifiers/berserker";
-import { MagneticModifier } from "@/game/ball-modifiers/magnetic";
-import { LeechModifier } from "@/game/ball-modifiers/leech";
-import { OverchargeModifier } from "@/game/ball-modifiers/overcharge";
-import { GrowthHormonesModifier } from "@/game/ball-modifiers/growth-hormones";
-import { BabyModifier } from "@/game/ball-modifiers/baby";
-import { MitosisModifier } from "@/game/ball-modifiers/mitosis";
-import { SnakeModifier } from "@/game/ball-modifiers/snake";
-import { TwinHeartsModifier } from "@/game/ball-modifiers/twin-hearts";
-import { RapidFireModifier } from "@/game/ball-modifiers/rapid-fire";
-import { StunningStrikesModifier } from "@/game/ball-modifiers/stunning-strikes";
-import { CausticPayloadModifier } from "@/game/ball-modifiers/caustic-payload";
-import { ProjectileDeflectorModifier } from "@/game/ball-modifiers/projectile-deflector";
-import { ArtillerySpecialistModifier } from "@/game/ball-modifiers/artillery-specialist";
-import { DuelistSpecialistModifier } from "@/game/ball-modifiers/duelist-specialist";
-import { LuckyEvadeModifier } from "@/game/ball-modifiers/lucky-evade";
-import { PhaseShiftModifier } from "@/game/ball-modifiers/phase-shift";
-import type { ArenaModifier } from "@/game/arena-modifier";
-import { SpeedBoostModifier } from "@/game/arena-modifiers/speed-boost";
-import { PortalModifier } from "@/game/arena-modifiers/portal";
-import { CircleArenaModifier } from "@/game/arena-modifiers/circle-arena";
-import { TurbulenceModifier } from "@/game/arena-modifiers/turbulence";
-import { VortexModifier } from "@/game/arena-modifiers/vortex";
-import { BumpersModifier } from "@/game/arena-modifiers/bumpers";
-import { DoubleTimeModifier } from "@/game/arena-modifiers/double-time";
-import { RogueMonkeyModifier } from "@/game/arena-modifiers/rogue-monkey";
-import { DoubleLoadoutModifier } from "@/game/arena-modifiers/double-loadout";
-import { TwoVsTwoModifier } from "@/game/arena-modifiers/two-v-two";
-import { GravityOnModifier } from "@/game/arena-modifiers/gravity-on";
-import { SwordWeapon } from "@/game/weapons/sword";
-import { StaffWeapon } from "@/game/weapons/staff";
-import { RapierWeapon } from "@/game/weapons/rapier";
-import { KatanaWeapon } from "@/game/weapons/katana";
-import { ShieldWeapon } from "@/game/weapons/shield";
-import { EighthNoteWeapon } from "@/game/weapons/eighth-note";
-import { TrebleClefWeapon } from "@/game/weapons/treble-clef";
-import { BazookaWeapon } from "@/game/weapons/bazooka";
-import { HomingGunWeapon } from "@/game/weapons/homing-gun";
-import { SniperWeapon } from "@/game/weapons/sniper";
-import { ShotgunWeapon } from "@/game/weapons/shotgun";
-import { LaserGunWeapon } from "@/game/weapons/laser-gun";
-import { MachineGunWeapon } from "@/game/weapons/machine-gun";
-import { ElectricStaffWeapon } from "@/game/weapons/electric-staff";
-import { PoisonStaffWeapon } from "@/game/weapons/poison-staff";
-import { WrenchWeapon } from "@/game/weapons/wrench";
-import { BoomerangWeapon } from "@/game/weapons/boomerang";
-import { ScytheWeapon } from "@/game/weapons/scythe";
+import {
+  MODIFIER_CATALOG,
+  ARENA_MODIFIER_CATALOG,
+  WEAPON_CATALOG,
+} from "@/game/catalog";
 
 const GameBoard = dynamic(() => import("@/components/game/game-board"), {
   ssr: false,
 });
 
-type ModifierState = { name: string; icon: string; quality: number };
-
-const PHOSPHOR_ICON_MAP: Partial<Record<string, Icon>> = {
-  heart: Heart,
-  asterisk: Asterisk,
-  shield: Shield,
-  fire: Fire,
-  magnet: Magnet,
-  drop: Drop,
-  lightning: Lightning,
-  arrowsOut: ArrowsOut,
-  arrowsIn: ArrowsIn,
-  gitFork: GitFork,
-  ghost: Ghost,
-  target: Target,
-};
+type ModifierState = { name: string; icon: Icon; quality: number };
 
 const MODIFIER_RING_CLASS: Record<string, string> = {
   Armored: "ring-4 ring-yellow-400",
@@ -188,182 +109,6 @@ function getHealthBarIndicatorStyle(
 const STARTING_HEALTH = 100;
 const ROUND_DURATION_SECONDS = 120;
 const CIRCLE_ARENA_SIZE = 410;
-
-type ModifierMeta = { label: string; icon: Icon; factory: () => BallModifier };
-
-const MODIFIERS: ModifierMeta[] = [
-  { label: "Regen", icon: Heart, factory: () => new RegenModifier() },
-  { label: "Spikes", icon: Asterisk, factory: () => new SpikesModifier() },
-  { label: "Armored", icon: Shield, factory: () => new ArmoredModifier() },
-  { label: "Berserker", icon: Fire, factory: () => new BerserkerModifier() },
-  { label: "Magnetic", icon: Magnet, factory: () => new MagneticModifier() },
-  { label: "Leech", icon: Drop, factory: () => new LeechModifier() },
-  {
-    label: "Overcharge",
-    icon: Lightning,
-    factory: () => new OverchargeModifier(),
-  },
-  {
-    label: "Growth",
-    icon: ArrowsOut,
-    factory: () => new GrowthHormonesModifier(),
-  },
-  { label: "Baby", icon: ArrowsIn, factory: () => new BabyModifier() },
-  { label: "Mitosis", icon: GitFork, factory: () => new MitosisModifier() },
-  {
-    label: "Snake",
-    icon: Ghost,
-    factory: () => new SnakeModifier(),
-  },
-  {
-    label: "Twin Hearts",
-    icon: Heart,
-    factory: () => new TwinHeartsModifier(),
-  },
-  {
-    label: "Rapid Fire",
-    icon: Lightning,
-    factory: () => new RapidFireModifier(),
-  },
-  {
-    label: "Stunning Strikes",
-    icon: Target,
-    factory: () => new StunningStrikesModifier(),
-  },
-  {
-    label: "Caustic Payload",
-    icon: Drop,
-    factory: () => new CausticPayloadModifier(),
-  },
-  {
-    label: "Projectile Deflector",
-    icon: Shield,
-    factory: () => new ProjectileDeflectorModifier(),
-  },
-  {
-    label: "Artillery Specialist",
-    icon: Target,
-    factory: () => new ArtillerySpecialistModifier(),
-  },
-  {
-    label: "Duelist Specialist",
-    icon: Asterisk,
-    factory: () => new DuelistSpecialistModifier(),
-  },
-  {
-    label: "Lucky Evade",
-    icon: Ghost,
-    factory: () => new LuckyEvadeModifier(),
-  },
-  {
-    label: "Phase Shift",
-    icon: ArrowsOut,
-    factory: () => new PhaseShiftModifier(),
-  },
-];
-
-type ArenaMeta = { label: string; icon: Icon; factory: () => ArenaModifier };
-
-type WeaponMeta = { label: string; icon: Icon; factory: () => Weapon };
-
-const ARENA_MODIFIERS: ArenaMeta[] = [
-  {
-    label: "Speed Boost",
-    icon: Gauge,
-    factory: () => new SpeedBoostModifier(),
-  },
-  { label: "Portal", icon: Shuffle, factory: () => new PortalModifier() },
-  {
-    label: "Circle Arena",
-    icon: Target,
-    factory: () => new CircleArenaModifier(),
-  },
-  { label: "Turbulence", icon: Wind, factory: () => new TurbulenceModifier() },
-  {
-    label: "Vortex",
-    icon: ArrowsClockwise,
-    factory: () => new VortexModifier(),
-  },
-  { label: "Bumpers", icon: DotsNine, factory: () => new BumpersModifier() },
-  {
-    label: "Double Time",
-    icon: ArrowsClockwise,
-    factory: () => new DoubleTimeModifier(),
-  },
-  {
-    label: "Rogue Monkey",
-    icon: Ghost,
-    factory: () => new RogueMonkeyModifier(),
-  },
-  {
-    label: "Double Loadout",
-    icon: DotsNine,
-    factory: () => new DoubleLoadoutModifier(),
-  },
-  {
-    label: "2v2",
-    icon: GitFork,
-    factory: () => new TwoVsTwoModifier(),
-  },
-  {
-    label: "Gravity On",
-    icon: Gauge,
-    factory: () => new GravityOnModifier(),
-  },
-];
-
-const WEAPONS: WeaponMeta[] = [
-  { label: "Sword", icon: Asterisk, factory: () => new SwordWeapon() },
-  { label: "Staff", icon: Lightning, factory: () => new StaffWeapon() },
-  { label: "Rapier", icon: Target, factory: () => new RapierWeapon() },
-  { label: "Katana", icon: Fire, factory: () => new KatanaWeapon() },
-  { label: "Shield", icon: Shield, factory: () => new ShieldWeapon() },
-  {
-    label: "Eighth Note",
-    icon: Ghost,
-    factory: () => new EighthNoteWeapon(),
-  },
-  {
-    label: "Treble Clef",
-    icon: Shield,
-    factory: () => new TrebleClefWeapon(),
-  },
-  { label: "Bazooka", icon: Fire, factory: () => new BazookaWeapon() },
-  {
-    label: "Homing Gun",
-    icon: Target,
-    factory: () => new HomingGunWeapon(),
-  },
-  { label: "Sniper", icon: Target, factory: () => new SniperWeapon() },
-  { label: "Shotgun", icon: Shield, factory: () => new ShotgunWeapon() },
-  {
-    label: "Laser Gun",
-    icon: Lightning,
-    factory: () => new LaserGunWeapon(),
-  },
-  {
-    label: "Machine Gun",
-    icon: Target,
-    factory: () => new MachineGunWeapon(),
-  },
-  {
-    label: "Electric Staff",
-    icon: Lightning,
-    factory: () => new ElectricStaffWeapon(),
-  },
-  {
-    label: "Poison Staff",
-    icon: Drop,
-    factory: () => new PoisonStaffWeapon(),
-  },
-  { label: "Wrench", icon: Shield, factory: () => new WrenchWeapon() },
-  {
-    label: "Boomerang",
-    icon: Ghost,
-    factory: () => new BoomerangWeapon(),
-  },
-  { label: "Scythe", icon: Drop, factory: () => new ScytheWeapon() },
-];
 
 export default function GameBoardPanel() {
   const [redHealth, setRedHealth] = useState(STARTING_HEALTH);
@@ -454,14 +199,14 @@ export default function GameBoardPanel() {
         {ballId === "red" ? "Red" : "Blue"} Ball
       </span>
       <div className="flex gap-2 flex-wrap">
-        {MODIFIERS.map((mod) => {
+        {MODIFIER_CATALOG.map((mod) => {
           const IconComp = mod.icon;
           return (
             <Button
               key={mod.label}
               variant="outline"
               className="border-4 border-black rounded-none font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1.5"
-              onClick={() => addModifierToBall(ballId, mod.factory())}
+              onClick={() => addModifierToBall(ballId, mod.create())}
             >
               <IconComp size={15} weight="bold" />
               {mod.label}
@@ -478,14 +223,14 @@ export default function GameBoardPanel() {
         {ballId === "red" ? "Red" : "Blue"} Weapons
       </span>
       <div className="flex gap-2 flex-wrap">
-        {WEAPONS.map((weapon) => {
+        {WEAPON_CATALOG.map((weapon) => {
           const IconComp = weapon.icon;
           return (
             <Button
               key={weapon.label}
               variant="outline"
               className="border-4 border-black rounded-none font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1.5 bg-amber-100"
-              onClick={() => addWeaponToBall(ballId, weapon.factory())}
+              onClick={() => addWeaponToBall(ballId, weapon.create())}
             >
               <IconComp size={15} weight="bold" />
               {weapon.label}
@@ -497,7 +242,7 @@ export default function GameBoardPanel() {
   );
 
   return (
-    <div className="flex flex-col items-center justify-center p-8 w-full max-w-[1560px] mx-auto">
+    <div className="flex flex-col items-center justify-center p-8 w-full max-w-390 mx-auto">
       <div className="mb-6 w-44 border-4 border-black bg-yellow-300 py-2 text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
         <span className="inline-block w-full text-3xl font-black tabular-nums tracking-wide">
           {timerLabel}
@@ -525,8 +270,8 @@ export default function GameBoardPanel() {
             />
             <div className="flex gap-1 flex-wrap mt-1 min-h-8">
               {redModifiers.map((mod, i) => {
-                const IconComp = PHOSPHOR_ICON_MAP[mod.icon];
-                return IconComp ? (
+                const IconComp = mod.icon;
+                return (
                   <span
                     key={i}
                     title={mod.name}
@@ -538,13 +283,13 @@ export default function GameBoardPanel() {
                       color={QUALITY_ICON_COLOR[mod.quality] ?? "#71717a"}
                     />
                   </span>
-                ) : null;
+                );
               })}
             </div>
             <div className="flex gap-1 flex-wrap min-h-8">
               {redWeapons.map((weapon, i) => {
-                const IconComp = PHOSPHOR_ICON_MAP[weapon.icon];
-                return IconComp ? (
+                const IconComp = weapon.icon;
+                return (
                   <span
                     key={`${weapon.name}-${i}`}
                     title={weapon.name}
@@ -556,7 +301,7 @@ export default function GameBoardPanel() {
                       color={QUALITY_ICON_COLOR[weapon.quality] ?? "#71717a"}
                     />
                   </span>
-                ) : null;
+                );
               })}
             </div>
           </div>
@@ -581,8 +326,8 @@ export default function GameBoardPanel() {
             />
             <div className="flex gap-1 flex-wrap mt-1 min-h-8">
               {blueModifiers.map((mod, i) => {
-                const IconComp = PHOSPHOR_ICON_MAP[mod.icon];
-                return IconComp ? (
+                const IconComp = mod.icon;
+                return (
                   <span
                     key={i}
                     title={mod.name}
@@ -594,13 +339,13 @@ export default function GameBoardPanel() {
                       color={QUALITY_ICON_COLOR[mod.quality] ?? "#71717a"}
                     />
                   </span>
-                ) : null;
+                );
               })}
             </div>
             <div className="flex gap-1 flex-wrap min-h-8">
               {blueWeapons.map((weapon, i) => {
-                const IconComp = PHOSPHOR_ICON_MAP[weapon.icon];
-                return IconComp ? (
+                const IconComp = weapon.icon;
+                return (
                   <span
                     key={`${weapon.name}-${i}`}
                     title={weapon.name}
@@ -612,7 +357,7 @@ export default function GameBoardPanel() {
                       color={QUALITY_ICON_COLOR[weapon.quality] ?? "#71717a"}
                     />
                   </span>
-                ) : null;
+                );
               })}
             </div>
           </div>
@@ -630,7 +375,7 @@ export default function GameBoardPanel() {
       </div>
 
       <div className="w-full grid grid-cols-1 xl:grid-cols-[300px_auto_300px] gap-6 items-start justify-center">
-        <Card className="border-4 border-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none xl:max-h-[520px] xl:overflow-y-auto">
+        <Card className="border-4 border-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none xl:max-h-130 xl:overflow-y-auto">
           <p className="text-xs font-black uppercase tracking-widest mb-3">
             Red Controls
           </p>
@@ -686,7 +431,7 @@ export default function GameBoardPanel() {
               Arena Modifiers
             </p>
             <div className="flex gap-2 flex-wrap">
-              {ARENA_MODIFIERS.map((mod) => {
+              {ARENA_MODIFIER_CATALOG.map((mod) => {
                 const IconComp = mod.icon;
                 return (
                   <Button
@@ -694,7 +439,7 @@ export default function GameBoardPanel() {
                     variant="outline"
                     className="border-4 border-black rounded-none font-bold uppercase tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-1.5"
                     onClick={() => {
-                      gameApiRef.current?.addArenaModifier(mod.factory());
+                      gameApiRef.current?.addArenaModifier(mod.create());
                       if (mod.label === "Circle Arena") setIsCircleArena(true);
                     }}
                   >
@@ -707,7 +452,7 @@ export default function GameBoardPanel() {
           </Card>
         </div>
 
-        <Card className="border-4 border-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none xl:max-h-[520px] xl:overflow-y-auto">
+        <Card className="border-4 border-black p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-none xl:max-h-130 xl:overflow-y-auto">
           <p className="text-xs font-black uppercase tracking-widest mb-3">
             Blue Controls
           </p>

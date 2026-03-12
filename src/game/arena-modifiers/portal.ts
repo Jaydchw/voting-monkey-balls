@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { DoorOpen } from "@phosphor-icons/react";
 
 const WALL_SENSOR_USERS_KEY = "arenaWallSensorUsers";
 const IGNORE_WALLS_USERS_KEY = "arenaIgnoreWallsUsers";
@@ -15,7 +16,7 @@ type CircleArenaState = {
 export class PortalModifier extends ArenaModifier {
   readonly name = "Portal";
   readonly quality = 3;
-  readonly icon = "shuffle";
+  readonly icon = DoorOpen;
   readonly description =
     "Balls wrap through walls to the opposite side instead of bouncing.";
 

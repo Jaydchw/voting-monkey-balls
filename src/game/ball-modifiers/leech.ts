@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import { Eyedropper } from "@phosphor-icons/react";
 import { BallModifier } from "../ball-modifier";
 import type { Ball } from "../ball";
 
@@ -7,7 +8,7 @@ const HEAL_AMOUNT = 3;
 export class LeechModifier extends BallModifier {
   readonly name = "Leech";
   readonly quality = 2;
-  readonly icon = "drop";
+  readonly icon = Eyedropper;
   readonly description = "Heals 3 HP when colliding with the enemy ball.";
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;
@@ -23,6 +24,7 @@ export class LeechModifier extends BallModifier {
   }
 
   onBallHitBall(_other: Ball): void {
+    void _other;
     this.ball.heal(HEAL_AMOUNT);
   }
 

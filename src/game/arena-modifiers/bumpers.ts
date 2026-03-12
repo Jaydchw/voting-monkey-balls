@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { ArenaModifier } from "../arena-modifier";
+import { DotsNine } from "@phosphor-icons/react";
 
 const BUMPER_RADIUS = 18;
 const BUMPER_COLOR = 0xcc44ff;
@@ -17,7 +18,7 @@ const BUMPER_LAYOUT = [
 export class BumpersModifier extends ArenaModifier {
   readonly name = "Bumpers";
   readonly quality = 2;
-  readonly icon = "dotsNine";
+  readonly icon = DotsNine;
   readonly description =
     "Adds 5 indestructible bumper obstacles that deflect balls at high speed.";
 

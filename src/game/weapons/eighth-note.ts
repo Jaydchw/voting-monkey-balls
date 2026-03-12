@@ -2,13 +2,14 @@ import type * as Phaser from "phaser";
 import type { Ball } from "../ball";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
 import type { GameSfxId } from "@/lib/game-sfx";
+import { MusicNote } from "@phosphor-icons/react";
 
 const EIGHTH_NOTE_REACH = 48;
 
 export class EighthNoteWeapon extends RangedWeapon {
   readonly name = "Eighth Note";
   readonly quality = 2;
-  readonly icon = "ghost";
+  readonly icon = MusicNote;
   readonly description =
     "A flying note that hurls fast sonic pulses straight at the enemy.";
   readonly attackSpeedMs = 448;
@@ -43,6 +44,8 @@ export class EighthNoteWeapon extends RangedWeapon {
     _index: number,
     _shotCount: number,
   ): GameSfxId | null {
+    void _index;
+    void _shotCount;
     const notes: GameSfxId[] = ["music1", "music2", "music3", "music4"];
     return notes[Math.floor(Math.random() * notes.length)];
   }

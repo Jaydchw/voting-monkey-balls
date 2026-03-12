@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import type { Icon } from "@phosphor-icons/react";
 import type { Ball } from "./ball";
 import { playGameSfx, type GameSfxId } from "@/lib/game-sfx";
 
@@ -15,7 +16,7 @@ export type WeaponSoundConfig =
 export abstract class Weapon {
   abstract readonly name: string;
   abstract readonly quality: number;
-  abstract readonly icon: string;
+  abstract readonly icon: Icon;
   abstract readonly description: string;
   abstract readonly attackSpeedMs: number;
   abstract readonly type: "melee" | "ranged";

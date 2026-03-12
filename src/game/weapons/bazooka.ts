@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
+import { Rocket } from "@phosphor-icons/react";
 
 const BAZOOKA_REACH = 54;
 const BAZOOKA_LENGTH = 44;
@@ -7,7 +8,7 @@ const BAZOOKA_LENGTH = 44;
 export class BazookaWeapon extends RangedWeapon {
   readonly name = "Bazooka";
   readonly quality = 4;
-  readonly icon = "fire";
+  readonly icon = Rocket;
   readonly description =
     "Launches explosive rockets that detonate on players or walls with splash damage.";
   readonly attackSpeedMs = 1650;

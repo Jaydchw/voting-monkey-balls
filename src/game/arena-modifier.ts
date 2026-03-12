@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import type { Icon } from "@phosphor-icons/react";
 import type { Ball } from "./ball";
 
 /** References to the four static wall bodies that bound the arena. */
@@ -25,8 +26,7 @@ export type ArenaRuntimeContext = {
 export abstract class ArenaModifier {
   abstract readonly name: string;
   abstract readonly quality: number;
-  /** Phosphor icon key displayed in the panel. */
-  abstract readonly icon: string;
+  abstract readonly icon: Icon;
   abstract readonly description: string;
 
   protected scene!: Phaser.Scene;

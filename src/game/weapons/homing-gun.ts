@@ -1,5 +1,6 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
+import { NavigationArrow } from "@phosphor-icons/react";
 
 const HOMING_GUN_REACH = 44;
 const HOMING_GUN_LENGTH = 30;
@@ -7,7 +8,7 @@ const HOMING_GUN_LENGTH = 30;
 export class HomingGunWeapon extends RangedWeapon {
   readonly name = "Homing Gun";
   readonly quality = 3;
-  readonly icon = "target";
+  readonly icon = NavigationArrow;
   readonly description =
     "Fires guided rounds that curve toward the enemy ball.";
   readonly attackSpeedMs = 520;

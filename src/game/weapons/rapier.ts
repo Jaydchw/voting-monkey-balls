@@ -1,12 +1,13 @@
 import type * as Phaser from "phaser";
 import { MeleeWeapon } from "./melee-weapon";
+import { Knife } from "@phosphor-icons/react";
 
 const RAPIER_REACH = 68;
 
 export class RapierWeapon extends MeleeWeapon {
   readonly name = "Rapier";
   readonly quality = 2;
-  readonly icon = "target";
+  readonly icon = Knife;
   readonly description =
     "A long dueling blade that carves elegant circles around the ball.";
   readonly attackSpeedMs = 240;

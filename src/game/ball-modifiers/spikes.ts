@@ -1,6 +1,7 @@
 import type * as Phaser from "phaser";
 import { BallModifier } from "../ball-modifier";
 import type { Ball } from "../ball";
+import { Asterisk } from "@phosphor-icons/react";
 
 const SPIKE_COUNT = 8;
 const SPIKE_LENGTH = 14;
@@ -10,7 +11,7 @@ const EXTRA_DAMAGE = 2;
 export class SpikesModifier extends BallModifier {
   readonly name = "Spikes";
   readonly quality = 1;
-  readonly icon = "asterisk";
+  readonly icon = Asterisk;
   readonly description = "Deal extra damage on contact with the other ball.";
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;
