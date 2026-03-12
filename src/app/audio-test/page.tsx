@@ -416,17 +416,17 @@ export default function AudioTestPage() {
   }, []);
 
   return (
-    <div className="w-screen min-h-screen flex flex-col items-center bg-white text-black p-8">
-      <div className="w-full max-w-6xl relative">
-        <Link href="/">
-          <Button
-            className="absolute top-0 left-0 border-4 border-black rounded-none font-bold uppercase tracking-widest"
-            variant="secondary"
-          >
-            Back to Menu
-          </Button>
-        </Link>
+    <div className="w-screen min-h-screen flex flex-col items-center bg-white text-black p-8 relative">
+      <Link href="/">
+        <Button
+          className="absolute top-8 left-8 border-4 border-black rounded-none font-bold uppercase tracking-widest"
+          variant="secondary"
+        >
+          Back to Menu
+        </Button>
+      </Link>
 
+      <div className="w-full max-w-6xl">
         <h1 className="text-5xl font-black uppercase text-center mb-4 tracking-widest border-b-8 border-black pb-4 pt-16">
           Audio Test Deck
         </h1>

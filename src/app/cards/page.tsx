@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -503,7 +504,16 @@ export default function CardsTestPage() {
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col items-center justify-center bg-white text-black font-sans p-8">
+    <div className="w-screen h-screen flex flex-col items-center justify-center bg-white text-black font-sans relative p-8">
+      <Link href="/">
+        <Button
+          className="absolute top-8 left-8 border-4 border-black rounded-none font-bold uppercase tracking-widest"
+          variant="secondary"
+        >
+          Back to Menu
+        </Button>
+      </Link>
+
       <div className="w-full max-w-[1700px] flex flex-col items-center">
         <h1 className="text-6xl font-black mb-8 tracking-widest uppercase text-center border-b-8 border-black pb-4">
           Card Draw Test
