@@ -203,7 +203,7 @@ export default function GameBoardPanel() {
   const [isCircleArena, setIsCircleArena] = useState(false);
   const [gameKey, setGameKey] = useState(0);
   const handleBallDied = useCallback((id: "red" | "blue") => {
-    setWinner(id);
+    setWinner(id === "red" ? "blue" : "red");
   }, []);
   const handleClearAll = useCallback(() => {
     setGameKey((k) => k + 1);

@@ -1,6 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import GameBoardPanel from "@/components/game/game-board-panel";
+
+const GameBoardPanel = dynamic(
+  () => import("@/components/game/game-board-panel"),
+  { ssr: false },
+);
 
 export default function TestingPage() {
   return (
