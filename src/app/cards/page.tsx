@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 
@@ -69,13 +69,14 @@ type DeckLayout = {
 
 const INITIAL_DECK_LAYOUT: DeckLayout = {
   channel: "left",
-  x: 40,
-  y: 24,
+  x: 70,
+  y: 130,
   laneWidth: 360
 }
 
 const MONKEY_THINKING_IMAGE = "/monkey%20reactions/thinking_nobg/thinking.png"
 const MONKEY_DEFAULT_IMAGE = "/monkey%20reactions/thinking_nobg/hm.png"
+const MONKEY_SWEAR_IMAGE = "/monkey%20reactions/thinking_nobg/swear.png"
 const MONKEY_IMAGE_POOL = [
   "/monkey%20reactions/thinking_nobg/ahaha.png",
   "/monkey%20reactions/thinking_nobg/cheeky.png",
@@ -83,7 +84,7 @@ const MONKEY_IMAGE_POOL = [
   "/monkey%20reactions/thinking_nobg/money.png",
   "/monkey%20reactions/thinking_nobg/phone.png",
   "/monkey%20reactions/thinking_nobg/scared.png",
-  "/monkey%20reactions/thinking_nobg/swear.png",
+  MONKEY_SWEAR_IMAGE,
   MONKEY_THINKING_IMAGE,
   "/monkey%20reactions/thinking_nobg/thumbs.png"
 ]
@@ -323,15 +324,39 @@ export default function CardsTestPage() {
   const [monkeyOffsetY, setMonkeyOffsetY] = useState(-190)
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_DEFAULT_IMAGE)
   const [monkeyReactionSelection, setMonkeyReactionSelection] = useState("random")
-  const [randomMovementEnabled, setRandomMovementEnabled] = useState(true)
+  const [randomMovementEnabled, setRandomMovementEnabled] = useState(false)
   const [oscillationRange, setOscillationRange] = useState(10)
   const [bobMode, setBobMode] = useState<BobMode>("always")
   const [bobbingSpeed, setBobbingSpeed] = useState(0.6)
   const [cardTurnPaceMs, setCardTurnPaceMs] = useState(700)
   const [deckScale, setDeckScale] = useState(1)
+  const [randomizeScaleEnabled, setRandomizeScaleEnabled] = useState(false)
+  const [allowSwearRandom, setAllowSwearRandom] = useState(false)
+  const timeoutIdsRef = useRef<number[]>([])
 
   const shouldBob = bobMode === "always" || (bobMode === "shuffle" && isShuffleBobActive)
   const shouldShowMonkeySprite = monkeyReactionSelection !== "hide"
+
+  const clearScheduledTimeouts = () => {
+    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    timeoutIdsRef.current = []
+  }
+
+  const scheduleTimeout = (callback: () => void, delayMs: number) => {
+    const timeoutId = window.setTimeout(() => {
+      timeoutIdsRef.current = timeoutIdsRef.current.filter((id) => id !== timeoutId)
+      callback()
+    }, delayMs)
+
+    timeoutIdsRef.current.push(timeoutId)
+    return timeoutId
+  }
+
+  useEffect(() => {
+    return () => {
+      clearScheduledTimeouts()
+    }
+  }, [])
 
   const setDeckPosition = (partial: Partial<DeckLayout>) => {
     setDeckLayout((previous) => ({
@@ -344,17 +369,21 @@ export default function CardsTestPage() {
     const maxX = Math.max(0, current.laneWidth - 180)
     const minY = -160
     const maxY = 300
-    const deltaX = Math.floor((Math.random() * 2 - 1) * range)
-    const deltaY = Math.floor((Math.random() * 2 - 1) * range)
+
     return {
       ...current,
-      x: Math.min(maxX, Math.max(0, current.x + deltaX)),
-      y: Math.min(maxY, Math.max(minY, current.y + deltaY))
+      channel: Math.random() < 0.5 ? "left" : "right",
+      x: Math.floor(Math.random() * (maxX + 1)),
+      y: minY + Math.floor(Math.random() * (maxY - minY + 1))
     }
   }
 
   const pickRandomMonkeyImage = (): string => {
-    return MONKEY_IMAGE_POOL[Math.floor(Math.random() * MONKEY_IMAGE_POOL.length)]
+    const availableImages = allowSwearRandom
+      ? MONKEY_IMAGE_POOL
+      : MONKEY_IMAGE_POOL.filter((image) => image !== MONKEY_SWEAR_IMAGE)
+
+    return availableImages[Math.floor(Math.random() * availableImages.length)]
   }
 
   const handleDrawCards = () => {
@@ -374,6 +403,8 @@ export default function CardsTestPage() {
       cardFlipDurationMs +
       extraPostTurnsDelayMs
 
+    clearScheduledTimeouts()
+
     setShowDeck(true)
     setIsShuffling(true)
     setIsMonkeySettling(false)
@@ -382,10 +413,9 @@ export default function CardsTestPage() {
     setRevealedCount(0)
     if (randomMovementEnabled) {
       setDeckLayout((current) => getRandomDeckLayout(current, oscillationRange))
-      setMonkeyOffsetY((current) => {
-        const deltaY = Math.floor((Math.random() * 2 - 1) * oscillationRange)
-        return Math.min(200, Math.max(-260, current + deltaY))
-      })
+    }
+    if (randomizeScaleEnabled) {
+      setDeckScale(Number((0.5 + Math.random() * 1.5).toFixed(2)))
     }
 
     const runPreDealMonkeyImagePhase = (onComplete: () => void) => {
@@ -397,10 +427,10 @@ export default function CardsTestPage() {
         const ahaha = "/monkey%20reactions/thinking_nobg/ahaha.png"
 
         setMonkeyImageSrc(hm)
-        setTimeout(() => setMonkeyImageSrc(swear), 500)
-        setTimeout(() => setMonkeyImageSrc(hm), 650)
-        setTimeout(() => setMonkeyImageSrc(ahaha), 900)
-        setTimeout(() => setMonkeyImageSrc(hm), 2700)
+        scheduleTimeout(() => setMonkeyImageSrc(swear), 500)
+        scheduleTimeout(() => setMonkeyImageSrc(hm), 625)
+        scheduleTimeout(() => setMonkeyImageSrc(ahaha), 1400)
+        scheduleTimeout(() => setMonkeyImageSrc(hm), 4000)
       } else if (monkeyReactionSelection === "off") {
         setMonkeyImageSrc(MONKEY_DEFAULT_IMAGE)
       } else if (monkeyReactionSelection === "hide") {
@@ -409,12 +439,12 @@ export default function CardsTestPage() {
         setMonkeyImageSrc(monkeyReactionSelection)
       }
 
-      setTimeout(() => {
+      scheduleTimeout(() => {
         onComplete()
       }, preDealStartDelayMs)
 
       if (monkeyReactionSelection !== "mockery") {
-        setTimeout(() => {
+        scheduleTimeout(() => {
           setMonkeyImageSrc(MONKEY_DEFAULT_IMAGE)
         }, preDealRandomImageMs)
       }
@@ -430,15 +460,15 @@ export default function CardsTestPage() {
       setAnimate(false)
 
       // First lay the cards out from the pile position.
-      setTimeout(() => setAnimate(true), 30)
+      scheduleTimeout(() => setAnimate(true), 30)
 
       // Then flip cards one by one once the draw motion finishes.
-      setTimeout(() => setRevealedCount(1), firstRevealDelayMs)
-      setTimeout(() => setRevealedCount(2), secondRevealDelayMs)
-      setTimeout(() => setRevealedCount(3), thirdRevealDelayMs)
+      scheduleTimeout(() => setRevealedCount(1), firstRevealDelayMs)
+      scheduleTimeout(() => setRevealedCount(2), secondRevealDelayMs)
+      scheduleTimeout(() => setRevealedCount(3), thirdRevealDelayMs)
     }
 
-    setTimeout(() => {
+    scheduleTimeout(() => {
       // Cards stop shuffling first.
       setIsShuffling(false)
 
@@ -447,11 +477,11 @@ export default function CardsTestPage() {
         const timeToBaselineMs = (bobCycleMs - (shuffleVisualMs % bobCycleMs)) % bobCycleMs
 
         setIsMonkeySettling(true)
-        setTimeout(() => {
+        scheduleTimeout(() => {
           // Freeze monkey at baseline before dealing.
           setIsShuffleBobActive(false)
           runPreDealMonkeyImagePhase(() => {
-            setTimeout(() => {
+            scheduleTimeout(() => {
               setIsMonkeySettling(false)
               beginDealSequence()
             }, postBobPauseMs)
@@ -462,7 +492,7 @@ export default function CardsTestPage() {
       }
 
       runPreDealMonkeyImagePhase(() => {
-        setTimeout(() => {
+        scheduleTimeout(() => {
           beginDealSequence()
         }, postBobPauseMs)
       })
@@ -487,7 +517,7 @@ export default function CardsTestPage() {
         </div>
 
         <Card className="w-full max-w-6xl border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-4 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-14 gap-4">
             <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-widest">
               Channel
               <select
@@ -639,6 +669,28 @@ export default function CardsTestPage() {
                 value={deckScale}
                 onChange={(event) => setDeckScale(Number(event.target.value))}
               />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-widest">
+              Randomize Scale
+              <button
+                type="button"
+                onClick={() => setRandomizeScaleEnabled((enabled) => !enabled)}
+                className={`border-4 border-black px-3 py-2 text-sm font-black uppercase ${randomizeScaleEnabled ? "bg-green-300" : "bg-gray-300"}`}
+              >
+                {randomizeScaleEnabled ? "On" : "Off"}
+              </button>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-widest">
+              Allow Swear
+              <button
+                type="button"
+                onClick={() => setAllowSwearRandom((enabled) => !enabled)}
+                className={`border-4 border-black px-3 py-2 text-sm font-black uppercase ${allowSwearRandom ? "bg-green-300" : "bg-gray-300"}`}
+              >
+                {allowSwearRandom ? "On" : "Off"}
+              </button>
             </label>
           </div>
         </Card>
