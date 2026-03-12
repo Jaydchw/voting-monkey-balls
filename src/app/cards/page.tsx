@@ -77,8 +77,9 @@ const INITIAL_DECK_LAYOUT: DeckLayout = {
 const MONKEY_THINKING_IMAGE = "/monkey%20reactions/thinking_nobg/thinking.png"
 const MONKEY_DEFAULT_IMAGE = "/monkey%20reactions/thinking_nobg/hm.png"
 const MONKEY_SWEAR_IMAGE = "/monkey%20reactions/thinking_nobg/swear.png"
+const MONKEY_AHAHA_IMAGE = "/monkey%20reactions/thinking_nobg/ahaha.png"
 const MONKEY_IMAGE_POOL = [
-  "/monkey%20reactions/thinking_nobg/ahaha.png",
+  MONKEY_AHAHA_IMAGE,
   "/monkey%20reactions/thinking_nobg/cheeky.png",
   "/monkey%20reactions/thinking_nobg/idea.png",
   "/monkey%20reactions/thinking_nobg/money.png",
@@ -94,7 +95,7 @@ const MONKEY_REACTION_OPTIONS = [
   { label: "Off", value: "off" },
   { label: "Hide Monkey", value: "hide" },
   { label: "Mockery", value: "mockery" },
-  { label: "Ahaha", value: "/monkey%20reactions/thinking_nobg/ahaha.png" },
+  { label: "Ahaha", value: MONKEY_AHAHA_IMAGE },
   { label: "Cheeky", value: "/monkey%20reactions/thinking_nobg/cheeky.png" },
   { label: "Idea", value: "/monkey%20reactions/thinking_nobg/idea.png" },
   { label: "Money", value: "/monkey%20reactions/thinking_nobg/money.png" },
@@ -336,6 +337,8 @@ export default function CardsTestPage() {
 
   const shouldBob = bobMode === "always" || (bobMode === "shuffle" && isShuffleBobActive)
   const shouldShowMonkeySprite = monkeyReactionSelection !== "hide"
+  const isAhahaReaction = monkeyImageSrc === MONKEY_AHAHA_IMAGE
+  const monkeyExtraScale = isAhahaReaction ? 1.17 : 1
 
   const clearScheduledTimeouts = () => {
     timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
@@ -424,7 +427,7 @@ export default function CardsTestPage() {
       } else if (monkeyReactionSelection === "mockery") {
         const hm = MONKEY_DEFAULT_IMAGE
         const swear = "/monkey%20reactions/thinking_nobg/swear.png"
-        const ahaha = "/monkey%20reactions/thinking_nobg/ahaha.png"
+        const ahaha = MONKEY_AHAHA_IMAGE
 
         setMonkeyImageSrc(hm)
         scheduleTimeout(() => setMonkeyImageSrc(swear), 500)
@@ -713,10 +716,11 @@ export default function CardsTestPage() {
                     alt="Thinking monkey"
                     className="absolute w-[280px] h-[280px] object-contain pointer-events-none select-none transition-[top] duration-500 ease-out"
                     style={{
-                      left: "50%",
+                      left: isAhahaReaction ? "36%" : "50%",
                       top: monkeyOffsetY,
-                      transform: shouldBob ? undefined : "translateX(-50%)",
+                      transform: shouldBob ? undefined : `translateX(-50%) scale(${monkeyExtraScale})`,
                       ["--monkey-bob-range" as string]: `${oscillationRange}px`,
+                      ["--monkey-extra-scale" as string]: monkeyExtraScale,
                       animation: shouldBob ? `monkeyBob ${bobbingSpeed}s ease-in-out infinite` : "none"
                     }}
                   />
@@ -781,10 +785,11 @@ export default function CardsTestPage() {
                     alt="Thinking monkey"
                     className="absolute w-[280px] h-[280px] object-contain pointer-events-none select-none transition-[top] duration-500 ease-out"
                     style={{
-                      left: "50%",
+                      left: isAhahaReaction ? "36%" : "50%",
                       top: monkeyOffsetY,
-                      transform: shouldBob ? undefined : "translateX(-50%)",
+                      transform: shouldBob ? undefined : `translateX(-50%) scale(${monkeyExtraScale})`,
                       ["--monkey-bob-range" as string]: `${oscillationRange}px`,
+                      ["--monkey-extra-scale" as string]: monkeyExtraScale,
                       animation: shouldBob ? `monkeyBob ${bobbingSpeed}s ease-in-out infinite` : "none"
                     }}
                   />
@@ -811,9 +816,9 @@ export default function CardsTestPage() {
 
         <style>{`
           @keyframes monkeyBob {
-            0% { transform: translateX(-50%) translateY(0px); }
-            50% { transform: translateX(-50%) translateY(calc(var(--monkey-bob-range, 10px) * -1)); }
-            100% { transform: translateX(-50%) translateY(0px); }
+            0% { transform: translateX(-50%) translateY(0px) scale(var(--monkey-extra-scale, 1)); }
+            50% { transform: translateX(-50%) translateY(calc(var(--monkey-bob-range, 10px) * -1)) scale(var(--monkey-extra-scale, 1)); }
+            100% { transform: translateX(-50%) translateY(0px) scale(var(--monkey-extra-scale, 1)); }
           }
           @keyframes shuffleA {
             0% { transform: translate(0, 0) rotate(0deg); z-index: 3; }

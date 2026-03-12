@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 
 export default function MainMenu() {
   return (
-    <div className="w-screen h-screen flex flex-col items-center justify-center bg-white text-black font-sans p-8">
+    <div className="w-screen min-h-screen overflow-y-auto flex flex-col items-center justify-center bg-white text-black font-sans p-8">
       <h1 className="text-6xl font-black mb-12 tracking-widest uppercase text-center border-b-8 border-black pb-4">
         Voting Monkey Balls
       </h1>
@@ -44,6 +44,11 @@ export default function MainMenu() {
           <Link href="/test" className="flex-1">
             <Button className="w-full py-6 border-4 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-cyan-300 text-black hover:bg-cyan-200 text-sm">
               Test
+            </Button>
+          </Link>
+          <Link href="/cards" className="flex-1">
+            <Button className="w-full py-6 border-4 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-pink-300 text-black hover:bg-pink-200 text-sm">
+              Cards
             </Button>
           </Link>
           <Link href="/audio-test" className="flex-1">
