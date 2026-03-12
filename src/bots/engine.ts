@@ -10,6 +10,7 @@ import type {
   EngineSnapshot,
   EngineStepInput,
   EngineStepResult,
+  MicroBetInsight,
   MicroBetKind,
   RoundResult,
   StatTotals,
@@ -40,7 +41,7 @@ type EngineConfig = {
 };
 
 const DEFAULT_CONFIG: EngineConfig = {
-  botCount: 20,
+  botCount: 0,
   startingBananas: 100,
   minMainBet: 20,
   roundDurationSeconds: 120,
@@ -260,15 +261,27 @@ export class BotsGameEngine {
     application: VoteApplication | null;
     summary: string | null;
   } {
+    return this.resolvePendingVoteTotals(
+      playerOption === 0 ? playerVotes : 0,
+      playerOption === 1 ? playerVotes : 0,
+    );
+  }
+
+  resolvePendingVoteTotals(
+    optionAExtraVotes: number,
+    optionBExtraVotes: number,
+  ): {
+    application: VoteApplication | null;
+    summary: string | null;
+  } {
     if (!this.pendingVote) {
       return { application: null, summary: null };
     }
 
-    const safeVotes = Math.max(0, Math.floor(playerVotes));
-    const optionAVotes =
-      this.pendingVote.voteSplit.optionA + (playerOption === 0 ? safeVotes : 0);
-    const optionBVotes =
-      this.pendingVote.voteSplit.optionB + (playerOption === 1 ? safeVotes : 0);
+    const safeOptionAVotes = Math.max(0, Math.floor(optionAExtraVotes));
+    const safeOptionBVotes = Math.max(0, Math.floor(optionBExtraVotes));
+    const optionAVotes = this.pendingVote.voteSplit.optionA + safeOptionAVotes;
+    const optionBVotes = this.pendingVote.voteSplit.optionB + safeOptionBVotes;
     const totalVotes = optionAVotes + optionBVotes;
 
     const winningOptionIndex: 0 | 1 =
@@ -312,6 +325,32 @@ export class BotsGameEngine {
       application,
       summary,
     };
+  }
+
+  getPendingMicrobetInsights(): MicroBetInsight[] {
+    const byKind = new Map<
+      MicroBetKind,
+      { count: number; totalStake: number; totalTarget: number }
+    >();
+
+    for (const bet of this.pendingMicroBets) {
+      const current = byKind.get(bet.kind) ?? {
+        count: 0,
+        totalStake: 0,
+        totalTarget: 0,
+      };
+      current.count += 1;
+      current.totalStake += bet.stake;
+      current.totalTarget += bet.target;
+      byKind.set(bet.kind, current);
+    }
+
+    return Array.from(byKind.entries()).map(([kind, value]) => ({
+      kind,
+      count: value.count,
+      totalStake: value.totalStake,
+      averageTarget: value.count === 0 ? 0 : value.totalTarget / value.count,
+    }));
   }
 
   private bootstrapBots(): void {

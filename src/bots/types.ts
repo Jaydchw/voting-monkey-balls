@@ -23,6 +23,13 @@ export type MicroBetKind =
   | "blueWallHits"
   | "ballCollisions";
 
+export type MicroBetInsight = {
+  kind: MicroBetKind;
+  count: number;
+  totalStake: number;
+  averageTarget: number;
+};
+
 export type MainBet = {
   side: BallId;
   stake: number;

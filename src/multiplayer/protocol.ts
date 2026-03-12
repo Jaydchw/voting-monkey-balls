@@ -1,0 +1,151 @@
+import type {
+  BallId,
+  EngineSnapshot,
+  MicroBetInsight,
+  MicroBetKind,
+} from "../bots/types";
+
+export type MatchPhase =
+  | "lobby"
+  | "prematch"
+  | "running"
+  | "vote"
+  | "microbet"
+  | "finished";
+
+export type SerializableVoteOption = {
+  label: string;
+};
+
+export type SerializableVoteWindow = {
+  category: "weapon" | "modifier" | "arena";
+  optionA: SerializableVoteOption;
+  optionB: SerializableVoteOption;
+  voteSplit: {
+    optionA: number;
+    optionB: number;
+  };
+};
+
+export type HostRoomSettings = {
+  botCount: number;
+  startingBananas: number;
+  decisionTimerSeconds: number;
+  roundTimerSeconds: number;
+  roundsTotal: number;
+};
+
+export type ParticipantBetSummary = {
+  side: BallId;
+  stake: number;
+};
+
+export type ParticipantMicrobetSummary = {
+  kind: MicroBetKind;
+  min: number;
+  max: number;
+  stake: number;
+  odds: number;
+};
+
+export type ParticipantPublicState = {
+  id: string;
+  name: string;
+  token?: string;
+  bananas: number;
+  totalPayout: number;
+  roundPayout: number;
+  activeMainBet: ParticipantBetSummary | null;
+  queuedMicrobets: ParticipantMicrobetSummary[];
+  activeMicrobets: ParticipantMicrobetSummary[];
+  connected: boolean;
+};
+
+export type HostBroadcastState = {
+  roomCode: string;
+  phase: MatchPhase;
+  phaseCountdown: number;
+  redHealth: number;
+  blueHealth: number;
+  snapshot: EngineSnapshot;
+  voteWindow: SerializableVoteWindow | null;
+  microbetInsights: MicroBetInsight[];
+  participants: ParticipantPublicState[];
+  roundWinner: BallId | null;
+  settings: HostRoomSettings;
+};
+
+export type PendingMicrobetWire = {
+  kind: MicroBetKind;
+  min: number;
+  max: number;
+  stake: number;
+};
+
+export type PlayerAction =
+  | {
+      kind: "main-bet";
+      side: BallId;
+      stake: number;
+    }
+  | {
+      kind: "main-bet-skip";
+    }
+  | {
+      kind: "vote";
+      selection: 0 | 1;
+      power: number;
+    }
+  | {
+      kind: "microbet";
+      bets: PendingMicrobetWire[];
+    }
+  | {
+      kind: "microbet-skip";
+    };
+
+export type RoomPresence = {
+  hostConnected: boolean;
+  participants: Array<{
+    id: string;
+    name: string;
+    token?: string;
+    connected: boolean;
+  }>;
+};
+
+export type ClientEnvelope =
+  | {
+      type: "hello";
+      role: "host" | "joiner";
+      playerName?: string;
+      playerToken?: string;
+    }
+  | {
+      type: "host-state";
+      state: HostBroadcastState;
+    }
+  | {
+      type: "player-action";
+      action: PlayerAction;
+    }
+  | {
+      type: "request-state";
+    };
+
+export type ServerEnvelope =
+  | {
+      type: "room-state";
+      room: RoomPresence;
+      state: HostBroadcastState | null;
+    }
+  | {
+      type: "player-action";
+      playerId: string;
+      playerName?: string;
+      action: PlayerAction;
+    }
+  | {
+      type: "error";
+      message: string;
+    };

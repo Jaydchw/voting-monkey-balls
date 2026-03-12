@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "voting-monkey-balls",
+  "main": "partykit/host-join-room.ts",
+  "compatibilityDate": "2026-03-12"
+}

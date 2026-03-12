@@ -5,8 +5,9 @@ import { BotsGameEngine } from "@/bots/engine";
 import type {
   BallId,
   EngineSnapshot,
+  MicroBetKind,
+  MicroBetInsight,
   StatTotals,
-  VoteOption,
   VoteWindow,
 } from "@/bots/types";
 import type { GameApi } from "@/components/game/game-board";
@@ -18,7 +19,14 @@ import { BotStandings } from "./panels/bot-standings";
 import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
 import { BotBetsTable } from "./panels/bot-bets-table";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PrematchBetModal } from "./panels/prematch-bet-modal";
+import { VoteEventModal } from "./panels/vote-event-modal";
+import { MicrobetsModal } from "./panels/microbets-modal";
+import type {
+  MainBetSelection,
+  MicrobetDraft,
+  PendingPlayerMicrobet,
+} from "./panels/betting-types";
 
 const STARTING_HEALTH = 100;
 const STARTING_BANANAS = 100;
@@ -27,9 +35,24 @@ const VOTE_WINDOW_SECONDS = 10;
 const MICROBET_WINDOW_SECONDS = 10;
 const MAIN_BET_MIN_STAKE = 20;
 
-type PlayerBet = { side: BallId; stake: number };
 type BetResult = { won: boolean; pnl: number };
 type MatchPhase = "prematch" | "running" | "vote" | "microbet";
+
+const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
+  redDamageToBlue: "Red deals damage to Blue",
+  blueDamageToRed: "Blue deals damage to Red",
+  redWallHits: "Red wall hits",
+  blueWallHits: "Blue wall hits",
+  ballCollisions: "Ball collisions",
+};
+
+const MICROBET_METRIC_CAP: Record<MicroBetKind, number> = {
+  redDamageToBlue: 40,
+  blueDamageToRed: 40,
+  redWallHits: 20,
+  blueWallHits: 20,
+  ballCollisions: 20,
+};
 
 function createZeroTotals(): StatTotals {
   return {
@@ -41,15 +64,27 @@ function createZeroTotals(): StatTotals {
   };
 }
 
-function getVoteOptionLabel(option: VoteOption): string {
-  return option.option.label;
+function calcRangeOdds(kind: MicroBetKind, min: number, max: number): number {
+  const cap = MICROBET_METRIC_CAP[kind];
+  const width = Math.max(1, max - min + 1);
+  const probability = Math.min(0.95, Math.max(0.05, width / (cap + 1)));
+  return Number((0.92 / probability).toFixed(2));
 }
 
-function getVoteOptionIcons(option: VoteOption) {
-  if (option.category === "arena") {
-    return [option.option.arena.icon];
+function getMicrobetActual(kind: MicroBetKind, delta: StatTotals): number {
+  if (kind === "redDamageToBlue") {
+    return delta.blueDamageTaken;
   }
-  return [option.option.blue.icon, option.option.red.icon];
+  if (kind === "blueDamageToRed") {
+    return delta.redDamageTaken;
+  }
+  if (kind === "redWallHits") {
+    return delta.wallHitsRed;
+  }
+  if (kind === "blueWallHits") {
+    return delta.wallHitsBlue;
+  }
+  return delta.ballCollisions;
 }
 
 export default function SingleplayerPanel() {
@@ -92,13 +127,14 @@ export default function SingleplayerPanel() {
   const playerBananasRef = useRef(STARTING_BANANAS);
 
   // Main bet state (pre-match only)
-  const [mainBetSelectedSide, setMainBetSelectedSide] = useState<BallId>("red");
-  const [mainBetSelectedStake, setMainBetSelectedStake] =
-    useState(MAIN_BET_MIN_STAKE);
-  const [currentBet, setCurrentBet] = useState<PlayerBet | null>(null);
+  const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
+    side: "red",
+    stake: MAIN_BET_MIN_STAKE,
+  });
+  const [currentBet, setCurrentBet] = useState<MainBetSelection | null>(null);
   const [mainBetResult, setMainBetResult] = useState<BetResult | null>(null);
 
-  const currentBetRef = useRef<PlayerBet | null>(null);
+  const currentBetRef = useRef<MainBetSelection | null>(null);
   const roundBetSettledRef = useRef(false);
 
   // Vote popup state
@@ -106,18 +142,69 @@ export default function SingleplayerPanel() {
   const [voteSelection, setVoteSelection] = useState<0 | 1>(0);
   const [votePowerStake, setVotePowerStake] = useState(0);
 
-  // Vote refs
-  const voteWindowRef = useRef<VoteWindow | null>(null);
-
   // Microbet state
-  const [microbetSelectedSide, setMicrobetSelectedSide] =
-    useState<BallId>("red");
-  const [microbetSelectedStake, setMicrobetSelectedStake] = useState(1);
-  const [activeMicrobet, setActiveMicrobet] = useState<PlayerBet | null>(null);
-  const [microbetResult, setMicrobetResult] = useState<BetResult | null>(null);
+  const [microbetInsights, setMicrobetInsights] = useState<MicroBetInsight[]>(
+    [],
+  );
+  const [microbetDraft, setMicrobetDraft] = useState<MicrobetDraft>({
+    kind: "redDamageToBlue",
+    min: 0,
+    max: 8,
+    stake: 5,
+  });
+  const [queuedMicrobets, setQueuedMicrobets] = useState<
+    PendingPlayerMicrobet[]
+  >([]);
+  const [activeMicrobets, setActiveMicrobets] = useState<
+    PendingPlayerMicrobet[]
+  >([]);
+  const activeMicrobetsRef = useRef<PendingPlayerMicrobet[]>([]);
+  const [lastMicrobetSettlements, setLastMicrobetSettlements] = useState<
+    Array<{ label: string; won: boolean; payout: number }>
+  >([]);
 
-  const activeMicrobetRef = useRef<PlayerBet | null>(null);
-  const lastVoteStatsRef = useRef<{ red: number; blue: number } | null>(null);
+  const lastVoteStatsRef = useRef<StatTotals | null>(null);
+
+  const settlePlayerMicrobets = useCallback((currentTotals: StatTotals) => {
+    const last = lastVoteStatsRef.current;
+    const active = activeMicrobetsRef.current;
+    if (!last || active.length === 0) {
+      return;
+    }
+
+    const delta: StatTotals = {
+      redDamageTaken: currentTotals.redDamageTaken - last.redDamageTaken,
+      blueDamageTaken: currentTotals.blueDamageTaken - last.blueDamageTaken,
+      wallHitsRed: currentTotals.wallHitsRed - last.wallHitsRed,
+      wallHitsBlue: currentTotals.wallHitsBlue - last.wallHitsBlue,
+      ballCollisions: currentTotals.ballCollisions - last.ballCollisions,
+    };
+
+    const settlements: Array<{ label: string; won: boolean; payout: number }> =
+      [];
+    let payoutTotal = 0;
+
+    for (const bet of active) {
+      const actual = getMicrobetActual(bet.kind, delta);
+      const won = actual >= bet.min && actual <= bet.max;
+      const payout = won ? Math.floor(bet.stake * bet.odds) : 0;
+      payoutTotal += payout;
+      settlements.push({
+        label: `${MICROBET_KIND_LABEL[bet.kind]} (${bet.min}-${bet.max})`,
+        won,
+        payout,
+      });
+    }
+
+    if (payoutTotal > 0) {
+      playerBananasRef.current += payoutTotal;
+      setPlayerBananas(playerBananasRef.current);
+    }
+
+    setLastMicrobetSettlements(settlements);
+    activeMicrobetsRef.current = [];
+    setActiveMicrobets([]);
+  }, []);
 
   const transitionPhase = useCallback((next: MatchPhase, seconds: number) => {
     phaseRef.current = next;
@@ -185,7 +272,7 @@ export default function SingleplayerPanel() {
         ].slice(0, 6),
       );
     },
-    [engine],
+    [],
   );
 
   const resetBoardForNextRound = useCallback(() => {
@@ -208,24 +295,26 @@ export default function SingleplayerPanel() {
     // Reset main bet
     currentBetRef.current = null;
     roundBetSettledRef.current = false;
-    setMainBetSelectedStake(MAIN_BET_MIN_STAKE);
+    setMainBetSelection({ side: "red", stake: MAIN_BET_MIN_STAKE });
     setCurrentBet(null);
     setMainBetResult(null);
 
     // Reset vote popup
-    voteWindowRef.current = null;
     setVoteWindow(null);
     setVoteSelection(0);
     setVotePowerStake(0);
 
     // Reset microbet
-    activeMicrobetRef.current = null;
+    setMicrobetInsights([]);
+    setMicrobetDraft({ kind: "redDamageToBlue", min: 0, max: 8, stake: 5 });
+    setQueuedMicrobets([]);
+    activeMicrobetsRef.current = [];
+    setActiveMicrobets([]);
+    setLastMicrobetSettlements([]);
     lastVoteStatsRef.current = null;
-    setActiveMicrobet(null);
-    setMicrobetResult(null);
 
     transitionPhase("prematch", PREMATCH_WINDOW_SECONDS);
-  }, []);
+  }, [transitionPhase]);
 
   const handleGameReady = useCallback((api: GameApi) => {
     gameApiRef.current = api;
@@ -265,20 +354,17 @@ export default function SingleplayerPanel() {
 
   const handleMainBetPlace = useCallback(() => {
     if (phaseRef.current !== "prematch") return;
-    if (mainBetSelectedStake < MAIN_BET_MIN_STAKE) return;
-    if (playerBananasRef.current < mainBetSelectedStake) return;
+    if (mainBetSelection.stake < MAIN_BET_MIN_STAKE) return;
+    if (playerBananasRef.current < mainBetSelection.stake) return;
 
-    playerBananasRef.current -= mainBetSelectedStake;
+    playerBananasRef.current -= mainBetSelection.stake;
     setPlayerBananas(playerBananasRef.current);
 
-    const bet: PlayerBet = {
-      side: mainBetSelectedSide,
-      stake: mainBetSelectedStake,
-    };
+    const bet: MainBetSelection = { ...mainBetSelection };
     currentBetRef.current = bet;
     setCurrentBet(bet);
     transitionPhase("running", 0);
-  }, [mainBetSelectedSide, mainBetSelectedStake, transitionPhase]);
+  }, [mainBetSelection, transitionPhase]);
 
   const handleMainBetSkip = useCallback(() => {
     if (phaseRef.current !== "prematch") return;
@@ -302,9 +388,12 @@ export default function SingleplayerPanel() {
       }
       setSnapshot(engine.getSnapshot());
 
-      voteWindowRef.current = null;
       setVoteWindow(null);
       setVotePowerStake(0);
+
+      setMicrobetInsights(engine.getPendingMicrobetInsights());
+      setQueuedMicrobets([]);
+      setMicrobetDraft({ kind: "redDamageToBlue", min: 0, max: 8, stake: 5 });
 
       transitionPhase("microbet", MICROBET_WINDOW_SECONDS);
     },
@@ -316,24 +405,82 @@ export default function SingleplayerPanel() {
     resolveVoteAndOpenMicrobet(votePowerStake);
   }, [resolveVoteAndOpenMicrobet, votePowerStake]);
 
-  const handleMicrobetPlace = useCallback(() => {
+  const handleMicrobetAdd = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
-    if (playerBananasRef.current < microbetSelectedStake) return;
+    const odds = calcRangeOdds(
+      microbetDraft.kind,
+      microbetDraft.min,
+      microbetDraft.max,
+    );
+    setQueuedMicrobets((prev) => {
+      const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
+      const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
+      const stake = Math.min(remaining, microbetDraft.stake);
+      if (stake <= 0) {
+        return prev;
+      }
 
-    playerBananasRef.current -= microbetSelectedStake;
-    setPlayerBananas(playerBananasRef.current);
+      const bet: PendingPlayerMicrobet = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        kind: microbetDraft.kind,
+        min: microbetDraft.min,
+        max: microbetDraft.max,
+        stake,
+        odds,
+      };
+      return [...prev, bet];
+    });
+  }, [microbetDraft]);
 
-    const bet: PlayerBet = {
-      side: microbetSelectedSide,
-      stake: microbetSelectedStake,
-    };
-    activeMicrobetRef.current = bet;
-    setActiveMicrobet(bet);
+  const handleMicrobetQuickAdd = useCallback((draft: MicrobetDraft) => {
+    if (phaseRef.current !== "microbet") return;
+    const odds = calcRangeOdds(draft.kind, draft.min, draft.max);
+    setQueuedMicrobets((prev) => {
+      const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
+      const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
+      const stake = Math.min(remaining, draft.stake);
+      if (stake <= 0) {
+        return prev;
+      }
+
+      const bet: PendingPlayerMicrobet = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        kind: draft.kind,
+        min: draft.min,
+        max: draft.max,
+        stake,
+        odds,
+      };
+      return [...prev, bet];
+    });
+  }, []);
+
+  const handleMicrobetRemove = useCallback((id: string) => {
+    if (phaseRef.current !== "microbet") return;
+    setQueuedMicrobets((prev) => prev.filter((bet) => bet.id !== id));
+  }, []);
+
+  const handleMicrobetConfirm = useCallback(() => {
+    if (phaseRef.current !== "microbet") return;
+    const totalStake = queuedMicrobets.reduce((sum, bet) => sum + bet.stake, 0);
+    if (totalStake > playerBananasRef.current) {
+      return;
+    }
+
+    if (totalStake > 0) {
+      playerBananasRef.current -= totalStake;
+      setPlayerBananas(playerBananasRef.current);
+    }
+
+    activeMicrobetsRef.current = queuedMicrobets;
+    setActiveMicrobets(queuedMicrobets);
+    setQueuedMicrobets([]);
     transitionPhase("running", 0);
-  }, [microbetSelectedSide, microbetSelectedStake, transitionPhase]);
+  }, [queuedMicrobets, transitionPhase]);
 
   const handleMicrobetSkip = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
+    setQueuedMicrobets([]);
     transitionPhase("running", 0);
   }, [transitionPhase]);
 
@@ -385,34 +532,16 @@ export default function SingleplayerPanel() {
 
       if (stepResult.voteWindow) {
         const cur = statsTotalsRef.current;
-
-        const last = lastVoteStatsRef.current;
-        if (activeMicrobetRef.current && last) {
-          const deltaRedTaken = cur.redDamageTaken - last.red;
-          const deltaBlueTaken = cur.blueDamageTaken - last.blue;
-          const bet = activeMicrobetRef.current;
-          const redDealtMore = deltaBlueTaken > deltaRedTaken;
-          const won =
-            (bet.side === "red" && redDealtMore) ||
-            (bet.side === "blue" && !redDealtMore);
-          const payout = won ? bet.stake * 2 : 0;
-          const pnl = won ? bet.stake : bet.stake;
-          playerBananasRef.current = Math.max(
-            0,
-            playerBananasRef.current + payout,
-          );
-          setPlayerBananas(playerBananasRef.current);
-          setMicrobetResult({ won, pnl });
-          activeMicrobetRef.current = null;
-          setActiveMicrobet(null);
-        }
+        settlePlayerMicrobets(cur);
 
         lastVoteStatsRef.current = {
-          red: cur.redDamageTaken,
-          blue: cur.blueDamageTaken,
+          redDamageTaken: cur.redDamageTaken,
+          blueDamageTaken: cur.blueDamageTaken,
+          wallHitsRed: cur.wallHitsRed,
+          wallHitsBlue: cur.wallHitsBlue,
+          ballCollisions: cur.ballCollisions,
         };
 
-        voteWindowRef.current = stepResult.voteWindow;
         setVoteWindow(stepResult.voteWindow);
         setVoteSelection(0);
         setVotePowerStake(0);
@@ -424,6 +553,7 @@ export default function SingleplayerPanel() {
       // Settle main bet on round end
       if (stepResult.roundResult && !roundBetSettledRef.current) {
         roundBetSettledRef.current = true;
+        settlePlayerMicrobets(statsTotalsRef.current);
         setRoundWinner(stepResult.roundResult.winner);
         if (currentBetRef.current) {
           const bet = currentBetRef.current;
@@ -465,14 +595,14 @@ export default function SingleplayerPanel() {
     engine,
     resetBoardForNextRound,
     resolveVoteAndOpenMicrobet,
+    settlePlayerMicrobets,
     transitionPhase,
   ]);
 
-  const selectedVoteOption =
-    voteSelection === 0 ? voteWindow?.optionA : voteWindow?.optionB;
-  const selectedVoteLabel = selectedVoteOption
-    ? getVoteOptionLabel(selectedVoteOption)
-    : "No vote";
+  const queuedStakeTotal = queuedMicrobets.reduce(
+    (sum, bet) => sum + bet.stake,
+    0,
+  );
 
   return (
     <div className="w-screen min-h-screen bg-white text-black p-6 md:p-10">
@@ -483,7 +613,7 @@ export default function SingleplayerPanel() {
           timeLeftSeconds={snapshot.timeLeftSeconds}
         />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[280px_auto_300px_260px] gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[280px_auto_320px] gap-6">
           <BotStandings
             leaderboard={snapshot.leaderboard}
             latestLog={snapshot.latestLog}
@@ -499,282 +629,67 @@ export default function SingleplayerPanel() {
               blueWeapons={blueWeapons}
             />
 
-            <div className="relative">
-              <ArenaBoard
-                gameKey={gameKey}
-                isCircleArena={isCircleArena}
-                onRedHealthChange={handleRedHealthChange}
-                onBlueHealthChange={handleBlueHealthChange}
-                onBallDied={handleBallDied}
-                onGameReady={handleGameReady}
-                onWallCollision={handleWallCollision}
-                onBallCollision={handleBallCollision}
-              />
+            <ArenaBoard
+              gameKey={gameKey}
+              isCircleArena={isCircleArena}
+              onRedHealthChange={handleRedHealthChange}
+              onBlueHealthChange={handleBlueHealthChange}
+              onBallDied={handleBallDied}
+              onGameReady={handleGameReady}
+              onWallCollision={handleWallCollision}
+              onBallCollision={handleBallCollision}
+            />
 
-              {phase === "prematch" && (
-                <div className="absolute inset-0 bg-black/35 flex items-center justify-center p-4">
-                  <Card className="w-full max-w-130 border-4 border-black rounded-none p-5 shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
-                    <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-                      Pre-match pick ({phaseCountdown}s)
-                    </p>
-                    <h3 className="text-xl font-black uppercase mt-1">
-                      Choose Winner + Buy In
-                    </h3>
-                    <p className="text-sm mt-1">
-                      Minimum stake is {MAIN_BET_MIN_STAKE} bananas.
-                    </p>
+            <div className="mt-5 w-full grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-yellow-300">
+                <p className="text-xs font-black uppercase tracking-widest mb-1">
+                  Your Bananas
+                </p>
+                <p className="text-3xl font-black tabular-nums">
+                  {playerBananas}
+                </p>
+                <p className="text-xs mt-2 uppercase font-black text-zinc-700">
+                  Phase: {phase}
+                </p>
+              </Card>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <Button
-                        variant={
-                          mainBetSelectedSide === "red" ? "default" : "outline"
-                        }
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={() => setMainBetSelectedSide("red")}
-                      >
-                        Red
-                      </Button>
-                      <Button
-                        variant={
-                          mainBetSelectedSide === "blue" ? "default" : "outline"
-                        }
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={() => setMainBetSelectedSide("blue")}
-                      >
-                        Blue
-                      </Button>
-                    </div>
+              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+                <p className="text-xs font-black uppercase tracking-widest mb-2">
+                  Main Bet
+                </p>
+                {currentBet ? (
+                  <p className="text-sm font-black uppercase">
+                    {currentBet.side} - {currentBet.stake} bananas
+                  </p>
+                ) : (
+                  <p className="text-sm text-zinc-600">
+                    No main bet this round.
+                  </p>
+                )}
+                {mainBetResult && (
+                  <p className="mt-2 text-sm font-black uppercase">
+                    {mainBetResult.won
+                      ? `Win +${mainBetResult.pnl}`
+                      : `Loss -${mainBetResult.pnl}`}
+                  </p>
+                )}
+              </Card>
 
-                    <div className="mt-4 flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        className="border-4 border-black rounded-none"
-                        onClick={() =>
-                          setMainBetSelectedStake((s) =>
-                            Math.max(MAIN_BET_MIN_STAKE, s - 5),
-                          )
-                        }
-                      >
-                        -5
-                      </Button>
-                      <div className="flex-1 border-4 border-black py-2 text-center font-black text-lg">
-                        {mainBetSelectedStake} BANANAS
-                      </div>
-                      <Button
-                        variant="outline"
-                        className="border-4 border-black rounded-none"
-                        onClick={() =>
-                          setMainBetSelectedStake((s) =>
-                            Math.min(playerBananasRef.current, s + 5),
-                          )
-                        }
-                        disabled={
-                          playerBananasRef.current <= mainBetSelectedStake
-                        }
-                      >
-                        +5
-                      </Button>
-                    </div>
-
-                    <div className="mt-4 flex gap-2">
-                      <Button
-                        className="flex-1 border-4 border-black rounded-none font-black uppercase"
-                        onClick={handleMainBetPlace}
-                        disabled={
-                          playerBananas < mainBetSelectedStake ||
-                          mainBetSelectedStake < MAIN_BET_MIN_STAKE
-                        }
-                      >
-                        Lock Pick
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={handleMainBetSkip}
-                      >
-                        Skip
-                      </Button>
-                    </div>
-                  </Card>
-                </div>
-              )}
-
-              {phase === "vote" && voteWindow && (
-                <div className="absolute inset-0 bg-black/35 flex items-center justify-center p-4">
-                  <Card className="w-full max-w-170 border-4 border-black rounded-none p-5 shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
-                    <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-                      Event vote ({phaseCountdown}s)
-                    </p>
-                    <h3 className="text-xl font-black uppercase mt-1">
-                      Choose One Outcome
-                    </h3>
-
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {[voteWindow.optionA, voteWindow.optionB].map(
-                        (option, index) => {
-                          const icons = getVoteOptionIcons(option);
-                          const selected = voteSelection === index;
-                          return (
-                            <button
-                              key={`${getVoteOptionLabel(option)}-${index}`}
-                              className={`text-left border-4 p-3 ${
-                                selected
-                                  ? "border-black bg-yellow-100"
-                                  : "border-zinc-500 bg-white"
-                              }`}
-                              onClick={() => setVoteSelection(index as 0 | 1)}
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                {icons.map((IconComp, iconIndex) => (
-                                  <IconComp
-                                    key={`${index}-${iconIndex}`}
-                                    size={16}
-                                    weight="bold"
-                                  />
-                                ))}
-                              </div>
-                              <p className="text-sm font-bold">
-                                {getVoteOptionLabel(option)}
-                              </p>
-                            </button>
-                          );
-                        },
-                      )}
-                    </div>
-
-                    <div className="mt-4 border-2 border-black p-3">
-                      <p className="text-xs font-black uppercase tracking-widest">
-                        Vote Power Spend
-                      </p>
-                      <p className="text-xs text-zinc-600 mt-1">
-                        Add bananas to increase the chance of your selected
-                        option.
-                      </p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          className="border-2 border-black rounded-none"
-                          onClick={() =>
-                            setVotePowerStake((s) => Math.max(0, s - 5))
-                          }
-                        >
-                          -5
-                        </Button>
-                        <div className="flex-1 border-2 border-black py-1 text-center font-black">
-                          {votePowerStake} BANANAS
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="border-2 border-black rounded-none"
-                          onClick={() =>
-                            setVotePowerStake((s) =>
-                              Math.min(playerBananasRef.current, s + 5),
-                            )
-                          }
-                        >
-                          +5
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <p className="text-xs text-zinc-600">
-                        Selected: {selectedVoteLabel}
-                      </p>
-                      <Button
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={handleVoteCast}
-                        disabled={votePowerStake > playerBananas}
-                      >
-                        Cast Vote
-                      </Button>
-                    </div>
-                  </Card>
-                </div>
-              )}
-
-              {phase === "microbet" && (
-                <div className="absolute inset-0 bg-black/35 flex items-center justify-center p-4">
-                  <Card className="w-full max-w-140 border-4 border-black rounded-none p-5 shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
-                    <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-                      Microbet window ({phaseCountdown}s)
-                    </p>
-                    <h3 className="text-xl font-black uppercase mt-1">
-                      Quick Microbet
-                    </h3>
-                    <p className="text-sm mt-1">
-                      Pick which side deals more damage before the next event.
-                      Payout is 2x.
-                    </p>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <Button
-                        variant={
-                          microbetSelectedSide === "red" ? "default" : "outline"
-                        }
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={() => setMicrobetSelectedSide("red")}
-                      >
-                        Red Deals More
-                      </Button>
-                      <Button
-                        variant={
-                          microbetSelectedSide === "blue"
-                            ? "default"
-                            : "outline"
-                        }
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={() => setMicrobetSelectedSide("blue")}
-                      >
-                        Blue Deals More
-                      </Button>
-                    </div>
-
-                    <div className="mt-4 flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        className="border-2 border-black rounded-none"
-                        onClick={() =>
-                          setMicrobetSelectedStake((s) => Math.max(1, s - 1))
-                        }
-                      >
-                        -1
-                      </Button>
-                      <div className="flex-1 border-2 border-black py-1 text-center font-black">
-                        {microbetSelectedStake} BANANAS
-                      </div>
-                      <Button
-                        variant="outline"
-                        className="border-2 border-black rounded-none"
-                        onClick={() =>
-                          setMicrobetSelectedStake((s) =>
-                            Math.min(playerBananasRef.current, s + 1),
-                          )
-                        }
-                      >
-                        +1
-                      </Button>
-                    </div>
-
-                    <div className="mt-4 flex gap-2">
-                      <Button
-                        className="flex-1 border-4 border-black rounded-none font-black uppercase"
-                        onClick={handleMicrobetPlace}
-                        disabled={microbetSelectedStake > playerBananas}
-                      >
-                        Place Microbet
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="border-4 border-black rounded-none font-black uppercase"
-                        onClick={handleMicrobetSkip}
-                      >
-                        Skip
-                      </Button>
-                    </div>
-                  </Card>
-                </div>
-              )}
+              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+                <p className="text-xs font-black uppercase tracking-widest mb-2">
+                  Active Microbets
+                </p>
+                <p className="text-sm font-black uppercase">
+                  {activeMicrobets.length} running
+                </p>
+                {lastMicrobetSettlements.length > 0 && (
+                  <p className="text-xs text-zinc-700 mt-2">
+                    Last interval:{" "}
+                    {lastMicrobetSettlements.filter((item) => item.won).length}{" "}
+                    / {lastMicrobetSettlements.length} won
+                  </p>
+                )}
+              </Card>
             </div>
 
             {roundWinner && (
@@ -807,61 +722,80 @@ export default function SingleplayerPanel() {
             />
             <BotBetsTable bots={snapshot.bots} />
           </div>
-
-          <div className="flex flex-col gap-6">
-            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-yellow-300">
-              <p className="text-xs font-black uppercase tracking-widest mb-1">
-                Your Bananas
-              </p>
-              <p className="text-4xl font-black tabular-nums">
-                {playerBananas}
-              </p>
-              <p className="text-xs mt-2 uppercase font-black text-zinc-700">
-                Phase: {phase}
-              </p>
-            </Card>
-
-            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-widest mb-2">
-                Main Bet
-              </p>
-              {currentBet ? (
-                <p className="text-sm font-black uppercase">
-                  {currentBet.side} - {currentBet.stake} bananas
-                </p>
-              ) : (
-                <p className="text-sm text-zinc-600">No main bet this round.</p>
-              )}
-              {mainBetResult && (
-                <p className="mt-2 text-sm font-black uppercase">
-                  {mainBetResult.won
-                    ? `Win +${mainBetResult.pnl}`
-                    : `Loss -${mainBetResult.pnl}`}
-                </p>
-              )}
-            </Card>
-
-            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-widest mb-2">
-                Microbet
-              </p>
-              {activeMicrobet ? (
-                <p className="text-sm font-black uppercase">
-                  {activeMicrobet.side} - {activeMicrobet.stake} bananas
-                </p>
-              ) : (
-                <p className="text-sm text-zinc-600">No active microbet.</p>
-              )}
-              {microbetResult && (
-                <p className="mt-2 text-sm font-black uppercase">
-                  {microbetResult.won
-                    ? `Win +${microbetResult.pnl}`
-                    : `Loss -${microbetResult.pnl}`}
-                </p>
-              )}
-            </Card>
-          </div>
         </div>
+
+        <PrematchBetModal
+          open={phase === "prematch"}
+          countdown={phaseCountdown}
+          redHealth={redHealth}
+          blueHealth={blueHealth}
+          bananas={playerBananas}
+          selected={mainBetSelection}
+          minStake={MAIN_BET_MIN_STAKE}
+          onSelectSide={(side) =>
+            setMainBetSelection((prev) => ({ ...prev, side }))
+          }
+          onSelectStake={(stake) =>
+            setMainBetSelection((prev) => ({ ...prev, stake }))
+          }
+          onConfirm={handleMainBetPlace}
+          onSkip={handleMainBetSkip}
+        />
+
+        <VoteEventModal
+          open={phase === "vote"}
+          countdown={phaseCountdown}
+          redHealth={redHealth}
+          blueHealth={blueHealth}
+          bananas={playerBananas}
+          voteWindow={voteWindow}
+          selection={voteSelection}
+          votePower={votePowerStake}
+          onSelectOption={setVoteSelection}
+          onVotePowerChange={setVotePowerStake}
+          onConfirm={handleVoteCast}
+        />
+
+        <MicrobetsModal
+          open={phase === "microbet"}
+          countdown={phaseCountdown}
+          redHealth={redHealth}
+          blueHealth={blueHealth}
+          bananas={playerBananas}
+          insights={microbetInsights}
+          draft={microbetDraft}
+          placedBets={queuedMicrobets}
+          onDraftChange={setMicrobetDraft}
+          onAddBet={handleMicrobetAdd}
+          onAddQuickBet={handleMicrobetQuickAdd}
+          onRemoveBet={handleMicrobetRemove}
+          onConfirm={handleMicrobetConfirm}
+          onSkip={handleMicrobetSkip}
+        />
+
+        <Card className="mt-6 border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+          <p className="text-xs font-black uppercase tracking-widest mb-2">
+            Recent microbet results
+          </p>
+          <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+            {lastMicrobetSettlements.map((entry, index) => (
+              <p key={`${entry.label}-${index}`} className="text-xs">
+                {entry.won ? "Win" : "Loss"} - {entry.label}
+                {entry.won ? ` (+${entry.payout})` : ""}
+              </p>
+            ))}
+            {lastMicrobetSettlements.length === 0 && (
+              <p className="text-xs text-zinc-600">
+                Place interval microbets to see settlement results here.
+              </p>
+            )}
+          </div>
+          {phase === "microbet" && queuedStakeTotal > 0 && (
+            <p className="text-xs font-black uppercase mt-3">
+              Queued stake total: {queuedStakeTotal} bananas
+            </p>
+          )}
+        </Card>
       </div>
     </div>
   );
