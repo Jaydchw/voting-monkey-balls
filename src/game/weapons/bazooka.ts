@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
 
-const BAZOOKA_REACH = 70;
+const BAZOOKA_REACH = 54;
 const BAZOOKA_LENGTH = 44;
 
 export class BazookaWeapon extends RangedWeapon {
@@ -11,23 +11,34 @@ export class BazookaWeapon extends RangedWeapon {
   readonly description =
     "Launches explosive rockets that detonate on players or walls with splash damage.";
   readonly attackSpeedMs = 1650;
+  readonly sound = "explosion" as const;
 
   protected readonly orbitRadius = BAZOOKA_REACH;
   protected readonly projectileStartDistance = 36;
-  protected readonly projectileSpeed = 360;
+  protected readonly projectileSpeed = 460;
   protected readonly projectileRadius = 14;
   protected readonly projectileDamage = 8;
-  protected readonly projectileColor = 0xfb923c;
+  protected readonly projectileColor = 0xf97316;
   protected readonly projectileTrailWidth = 9;
-  protected readonly projectileTrailColor = 0xfb923c;
-  protected readonly projectileTrailAlpha = 0.3;
+  protected readonly projectileTrailColor = 0xea580c;
+  protected readonly projectileTrailAlpha = 0.38;
+  protected readonly projectileTrailParticleRadius = 7;
+  protected readonly projectileTrailParticleAlpha = 0.16;
   protected readonly projectileGlowRadius = 18;
-  protected readonly projectileGlowColor = 0xfcd34d;
-  protected readonly projectileGlowAlpha = 0.16;
+  protected readonly projectileGlowColor = 0xfb923c;
+  protected readonly projectileGlowAlpha = 0.24;
+  protected readonly projectileLightRadius = 28;
+  protected readonly projectileLightColor = 0x9a3412;
+  protected readonly projectileLightAlpha = 0.16;
+  protected readonly projectileHitEffect = "explosive" as const;
   protected readonly impactEffectRadius = 54;
   protected readonly impactEffectColor = 0xfb923c;
   protected readonly impactSplashRadius = 86;
   protected readonly impactSplashDamage = 5;
+  protected readonly impactSparkCount = 8;
+  protected readonly impactSparkLength = 22;
+  protected readonly impactSparkWidth = 4;
+  protected readonly impactSparkAlpha = 0.45;
 
   private graphics!: Phaser.GameObjects.Graphics;
 
@@ -54,12 +65,12 @@ export class BazookaWeapon extends RangedWeapon {
     const perp = aimAngle + Math.PI / 2;
 
     this.graphics.clear();
-    this.graphics.lineStyle(10, 0x334155, 1);
+    this.graphics.lineStyle(12, 0x334155, 1);
     this.graphics.beginPath();
     this.graphics.moveTo(baseX, baseY);
     this.graphics.lineTo(tipX, tipY);
     this.graphics.strokePath();
-    this.graphics.lineStyle(6, 0x94a3b8, 1);
+    this.graphics.lineStyle(7, 0x94a3b8, 1);
     this.graphics.beginPath();
     this.graphics.moveTo(
       baseX - Math.cos(perp) * 7,
@@ -70,6 +81,8 @@ export class BazookaWeapon extends RangedWeapon {
       baseY + Math.sin(perp) * 7,
     );
     this.graphics.strokePath();
+    this.graphics.fillStyle(0xfb923c, 0.18);
+    this.graphics.fillCircle(tipX, tipY, 14);
   }
 
   protected onProjectileImpact(

@@ -6,11 +6,17 @@ import {
   Ball,
   BLUE_BALL_CATEGORY,
   RED_BALL_CATEGORY,
+  ROGUE_BALL_CATEGORY,
   WALL_COLLISION_CATEGORY,
 } from "@/game/ball";
 import type { BallModifier } from "@/game/ball-modifier";
-import type { ArenaModifier, ArenaWalls } from "@/game/arena-modifier";
+import type {
+  ArenaModifier,
+  ArenaRuntimeContext,
+  ArenaWalls,
+} from "@/game/arena-modifier";
 import type { Weapon } from "@/game/weapon";
+import { playGameSfx, preloadGameSfx } from "@/lib/game-sfx";
 
 const ARENA_WIDTH = 640;
 const ARENA_HEIGHT = 420;
@@ -42,9 +48,20 @@ function createMainScene(
 ): Phaser.Types.Scenes.SceneType {
   let redBall: Ball;
   let blueBall: Ball;
+  const extraBalls: Ball[] = [];
   const arenaModifiers: ArenaModifier[] = [];
   let arenaWalls: ArenaWalls;
   const collisionCooldowns = new Set<string>();
+
+  const getAllMasterBalls = (): Ball[] => [redBall, blueBall, ...extraBalls];
+
+  const syncArenaBallSettings = (ball: Ball) => {
+    ball.simulationSpeedMultiplier = redBall.simulationSpeedMultiplier;
+    ball.gravityY = redBall.gravityY;
+    ball.projectileGravityY = redBall.projectileGravityY;
+    ball.modifierApplicationMultiplier = redBall.modifierApplicationMultiplier;
+    ball.weaponApplicationMultiplier = redBall.weaponApplicationMultiplier;
+  };
 
   const trackCollisionPair = (bodyA: CollisionBody, bodyB: CollisionBody) => {
     const idA = bodyA.id;
@@ -54,6 +71,12 @@ function createMainScene(
 
   return {
     key: "MainScene",
+    preload(this: Phaser.Scene) {
+      preloadGameSfx(this);
+      if (!this.textures.exists("monkey-face")) {
+        this.load.image("monkey-face", "/monkey_face.png");
+      }
+    },
     create(this: Phaser.Scene) {
       // Health is emitted by Ball constructor via onHealthChange callbacks.
       // The game API is exposed to React after both balls are initialised.
@@ -67,7 +90,7 @@ function createMainScene(
         label: "arena-wall",
         collisionFilter: {
           category: WALL_COLLISION_CATEGORY,
-          mask: RED_BALL_CATEGORY | BLUE_BALL_CATEGORY,
+          mask: RED_BALL_CATEGORY | BLUE_BALL_CATEGORY | ROGUE_BALL_CATEGORY,
         },
       };
 
@@ -138,6 +161,27 @@ function createMainScene(
       redBall.enemy = blueBall;
       blueBall.enemy = redBall;
 
+      const runtimeContext: ArenaRuntimeContext = {
+        getAllMasterBalls,
+        registerExtraBall: (ball) => {
+          syncArenaBallSettings(ball);
+          extraBalls.push(ball);
+        },
+        unregisterExtraBall: (ball) => {
+          const index = extraBalls.indexOf(ball);
+          if (index !== -1) {
+            extraBalls.splice(index, 1);
+          }
+        },
+        getSimulationTimeScale: () =>
+          (this.data.get("simulationTimeScale") as number | undefined) ?? 1,
+        setSimulationTimeScale: (timeScale) => {
+          this.data.set("simulationTimeScale", Math.max(0.2, timeScale));
+        },
+      };
+      this.data.set("arenaRuntimeContext", runtimeContext);
+      this.data.set("simulationTimeScale", 1);
+
       onGameReady?.({
         addModifier: (ballId, modifier) => {
           if (ballId === "red") redBall.addModifier(modifier);
@@ -196,8 +240,16 @@ function createMainScene(
               if (ballA.id === ballB.id) {
                 return;
               }
-              ballA.takeDamage(1);
-              ballB.takeDamage(1);
+              ballA.takeDamage(1, {
+                effect: "explosive",
+                intensity: 1.9,
+                source: "collision",
+              });
+              ballB.takeDamage(1, {
+                effect: "explosive",
+                intensity: 1.9,
+                source: "collision",
+              });
               for (const mod of ballA.modifiers) mod.onBallHitBall(ballB);
               for (const mod of ballB.modifiers) mod.onBallHitBall(ballA);
               ballA.nudgeDirection();
@@ -206,11 +258,13 @@ function createMainScene(
             }
 
             if (aBall && bWall && ballA) {
+              playGameSfx(this, "hit", { volume: 0.35 });
               for (const mod of ballA.modifiers) mod.onBallHitWall();
               ballA.nudgeDirection();
             }
 
             if (bBall && aWall && ballB) {
+              playGameSfx(this, "hit", { volume: 0.35 });
               for (const mod of ballB.modifiers) mod.onBallHitWall();
               ballB.nudgeDirection();
             }
@@ -229,26 +283,34 @@ function createMainScene(
         },
       );
     },
-    update(_time: number, delta: number) {
-      redBall?.updateStatusEffects(delta);
-      for (const ghost of redBall?.ghostBalls ?? [])
-        ghost.updateStatusEffects(delta);
-      blueBall?.updateStatusEffects(delta);
-      for (const ghost of blueBall?.ghostBalls ?? [])
-        ghost.updateStatusEffects(delta);
-      redBall?.updateModifiers(delta);
-      redBall?.updateWeapons(delta);
-      for (const ghost of redBall?.ghostBalls ?? [])
-        ghost.updateModifiers(delta);
-      blueBall?.updateModifiers(delta);
-      blueBall?.updateWeapons(delta);
-      for (const ghost of blueBall?.ghostBalls ?? [])
-        ghost.updateModifiers(delta);
-      for (const mod of arenaModifiers) mod.update(delta);
-      redBall?.maintainSpeed();
-      for (const ghost of redBall?.ghostBalls ?? []) ghost.maintainSpeed();
-      blueBall?.maintainSpeed();
-      for (const ghost of blueBall?.ghostBalls ?? []) ghost.maintainSpeed();
+    update(this: Phaser.Scene, _time: number, delta: number) {
+      const simulationTimeScale =
+        (this.data.get("simulationTimeScale") as number | undefined) ?? 1;
+      const scaledDelta = delta * simulationTimeScale;
+
+      for (const ball of getAllMasterBalls()) {
+        ball.updateStatusEffects(scaledDelta);
+        for (const ghost of ball.ghostBalls) {
+          ghost.updateStatusEffects(scaledDelta);
+        }
+      }
+
+      for (const ball of getAllMasterBalls()) {
+        ball.updateModifiers(scaledDelta);
+        ball.updateWeapons(scaledDelta);
+        for (const ghost of ball.ghostBalls) {
+          ghost.updateModifiers(scaledDelta);
+        }
+      }
+
+      for (const mod of arenaModifiers) mod.update(scaledDelta);
+
+      for (const ball of getAllMasterBalls()) {
+        ball.maintainSpeed(scaledDelta);
+        for (const ghost of ball.ghostBalls) {
+          ghost.maintainSpeed(scaledDelta);
+        }
+      }
     },
   };
 }

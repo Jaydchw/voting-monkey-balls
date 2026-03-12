@@ -19,6 +19,8 @@ export class PortalModifier extends ArenaModifier {
     }
     this.redBall.ignoreArenaWalls = true;
     this.blueBall.ignoreArenaWalls = true;
+    this.redBall.projectilesEndless = true;
+    this.blueBall.projectilesEndless = true;
     this.graphics = this.scene.add.graphics();
     this.graphics.setDepth(3);
   }
@@ -30,6 +32,8 @@ export class PortalModifier extends ArenaModifier {
     }
     this.redBall.ignoreArenaWalls = false;
     this.blueBall.ignoreArenaWalls = false;
+    this.redBall.projectilesEndless = false;
+    this.blueBall.projectilesEndless = false;
     this.graphics.destroy();
   }
 

@@ -9,6 +9,14 @@ export type ArenaWalls = {
   right: MatterJS.BodyType;
 };
 
+export type ArenaRuntimeContext = {
+  getAllMasterBalls: () => Ball[];
+  registerExtraBall: (ball: Ball) => void;
+  unregisterExtraBall: (ball: Ball) => void;
+  getSimulationTimeScale: () => number;
+  setSimulationTimeScale: (timeScale: number) => void;
+};
+
 /**
  * Base class for arena-wide modifiers.
  * Mirrors the BallModifier structure: subclasses override `onApply`,
@@ -53,10 +61,22 @@ export abstract class ArenaModifier {
   }
 
   /** Called every frame with delta in milliseconds. */
-  update(_delta: number): void {}
+  update(delta: number): void {
+    void delta;
+  }
 
   /** Convenience accessor for both balls. */
   protected get balls(): Ball[] {
     return [this.redBall, this.blueBall];
+  }
+
+  protected get runtime(): ArenaRuntimeContext {
+    const runtime = this.scene.data.get("arenaRuntimeContext") as
+      | ArenaRuntimeContext
+      | undefined;
+    if (!runtime) {
+      throw new Error("Arena runtime context is unavailable.");
+    }
+    return runtime;
   }
 }

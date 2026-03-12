@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
 
-const SNIPER_REACH = 68;
+const SNIPER_REACH = 52;
 const SNIPER_LENGTH = 48;
 
 export class SniperWeapon extends RangedWeapon {
@@ -11,16 +11,22 @@ export class SniperWeapon extends RangedWeapon {
   readonly description =
     "A high-caliber rifle with a red sight line and devastating shots.";
   readonly attackSpeedMs = 1450;
+  readonly sound = "stab" as const;
 
   protected readonly orbitRadius = SNIPER_REACH;
   protected readonly projectileStartDistance = 42;
-  protected readonly projectileSpeed = 1100;
+  protected readonly projectileSpeed = 1450;
   protected readonly projectileRadius = 8;
   protected readonly projectileDamage = 15;
-  protected readonly projectileColor = 0xf8fafc;
+  protected readonly projectileColor = 0x2563eb;
   protected readonly projectileTrailWidth = 4;
-  protected readonly projectileTrailColor = 0xfca5a5;
-  protected readonly projectileTrailAlpha = 0.42;
+  protected readonly projectileTrailColor = 0x1d4ed8;
+  protected readonly projectileTrailAlpha = 0.5;
+  protected readonly projectileTrailParticleRadius = 4;
+  protected readonly projectileTrailParticleAlpha = 0.18;
+  protected readonly projectileLightRadius = 18;
+  protected readonly projectileLightColor = 0x1e3a8a;
+  protected readonly projectileLightAlpha = 0.16;
   protected readonly impactEffectRadius = 26;
   protected readonly impactEffectColor = 0xef4444;
 
@@ -55,13 +61,15 @@ export class SniperWeapon extends RangedWeapon {
     const scopeY = y - Math.sin(aimAngle) * 3;
 
     this.rifle.clear();
-    this.rifle.lineStyle(7, 0x111827, 1);
+    this.rifle.lineStyle(8, 0x111827, 1);
     this.rifle.beginPath();
     this.rifle.moveTo(baseX, baseY);
     this.rifle.lineTo(tipX, tipY);
     this.rifle.strokePath();
     this.rifle.fillStyle(0x991b1b, 1);
     this.rifle.fillCircle(scopeX, scopeY, 5);
+    this.rifle.fillStyle(0xffffff, 0.1);
+    this.rifle.fillCircle(tipX, tipY, 10);
 
     this.sight.clear();
     if (enemy) {

@@ -11,11 +11,13 @@ export class ScytheWeapon extends MeleeWeapon {
   readonly description =
     "A sweeping reaper blade that steals life on every hit.";
   readonly attackSpeedMs = 360;
+  readonly sound = "slice" as const;
 
   protected readonly orbitRadius = SCYTHE_REACH;
   protected readonly swingSpeed = Math.PI * 1.75;
   protected readonly contactRadius = 28;
   protected readonly contactDamage = 7;
+  protected readonly contactHitEffect = "slash" as const;
 
   private graphics!: Phaser.GameObjects.Graphics;
 

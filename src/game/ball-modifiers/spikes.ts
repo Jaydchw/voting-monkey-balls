@@ -31,7 +31,7 @@ export class SpikesModifier extends BallModifier {
   }
 
   onBallHitBall(other: Ball): void {
-    other.takeDamage(EXTRA_DAMAGE);
+    other.takeDamage(EXTRA_DAMAGE, { source: "modifier" });
   }
 
   private drawSpikes(): void {

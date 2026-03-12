@@ -13,11 +13,13 @@ export class SwordWeapon extends MeleeWeapon {
   readonly description =
     "A simple sword that spins around the ball and deals contact damage.";
   readonly attackSpeedMs = 300;
+  readonly sound = "slice" as const;
 
   protected readonly orbitRadius = SWORD_REACH;
   protected readonly swingSpeed = SWORD_SWING_SPEED;
   protected readonly contactRadius = 26;
   protected readonly contactDamage = SWORD_DAMAGE;
+  protected readonly contactHitEffect = "slash" as const;
 
   private graphics!: ReturnType<Phaser.Scene["add"]["graphics"]>;
 

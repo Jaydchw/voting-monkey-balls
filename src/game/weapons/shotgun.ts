@@ -1,7 +1,7 @@
 import type * as Phaser from "phaser";
 import { RangedWeapon } from "./ranged-weapon";
 
-const SHOTGUN_REACH = 58;
+const SHOTGUN_REACH = 45;
 const SHOTGUN_LENGTH = 34;
 
 export class ShotgunWeapon extends RangedWeapon {
@@ -11,18 +11,24 @@ export class ShotgunWeapon extends RangedWeapon {
   readonly description =
     "Blasts three shells in a spread for brutal close-range pressure.";
   readonly attackSpeedMs = 860;
+  readonly sound = { charge: "flick", fire: "shotgun", wall: "clash" } as const;
 
   protected readonly orbitRadius = SHOTGUN_REACH;
   protected readonly projectileStartDistance = 24;
-  protected readonly projectileSpeed = 520;
+  protected readonly projectileSpeed = 680;
   protected readonly projectileRadius = 8;
   protected readonly projectileDamage = 4;
-  protected readonly projectileColor = 0xfde68a;
+  protected readonly projectileColor = 0xf59e0b;
   protected readonly projectilesPerShot = 3;
   protected readonly projectileSpreadAngle = 0.18;
   protected readonly projectileTrailWidth = 5;
-  protected readonly projectileTrailColor = 0xfbbf24;
-  protected readonly projectileTrailAlpha = 0.24;
+  protected readonly projectileTrailColor = 0xd97706;
+  protected readonly projectileTrailAlpha = 0.32;
+  protected readonly projectileTrailParticleRadius = 4;
+  protected readonly projectileTrailParticleAlpha = 0.14;
+  protected readonly projectileLightRadius = 16;
+  protected readonly projectileLightColor = 0x9a3412;
+  protected readonly projectileLightAlpha = 0.14;
 
   private graphics!: Phaser.GameObjects.Graphics;
 
@@ -33,6 +39,16 @@ export class ShotgunWeapon extends RangedWeapon {
 
   protected onUnequip(): void {
     this.graphics.destroy();
+  }
+
+  protected onBeforeFire(shotCount: number): void {
+    void shotCount;
+    this.playWeaponSound("charge", "flick");
+  }
+
+  protected onAfterFire(shotCount: number): void {
+    void shotCount;
+    this.playWeaponSound("fire", "shotgun");
   }
 
   protected updateVisual(
@@ -49,7 +65,7 @@ export class ShotgunWeapon extends RangedWeapon {
     const perp = aimAngle + Math.PI / 2;
 
     this.graphics.clear();
-    this.graphics.lineStyle(7, 0x713f12, 1);
+    this.graphics.lineStyle(8, 0x713f12, 1);
     this.graphics.beginPath();
     this.graphics.moveTo(baseX, baseY);
     this.graphics.lineTo(tipX, tipY);

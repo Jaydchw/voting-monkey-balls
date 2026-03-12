@@ -2,7 +2,7 @@ import type * as Phaser from "phaser";
 import { RangedWeapon, type ProjectileState } from "./ranged-weapon";
 import type { Ball } from "../ball";
 
-const ELECTRIC_STAFF_REACH = 64;
+const ELECTRIC_STAFF_REACH = 48;
 const ELECTRIC_STAFF_LENGTH = 56;
 
 export class ElectricStaffWeapon extends RangedWeapon {
@@ -12,19 +12,26 @@ export class ElectricStaffWeapon extends RangedWeapon {
   readonly description =
     "Fires shocking bolts that stun the enemy ball for a full second.";
   readonly attackSpeedMs = 980;
+  readonly sound = "zap" as const;
 
   protected readonly orbitRadius = ELECTRIC_STAFF_REACH;
   protected readonly projectileStartDistance = 32;
-  protected readonly projectileSpeed = 580;
+  protected readonly projectileSpeed = 720;
   protected readonly projectileRadius = 10;
   protected readonly projectileDamage = 4;
   protected readonly projectileColor = 0x22d3ee;
   protected readonly projectileTrailWidth = 6;
   protected readonly projectileTrailColor = 0x67e8f9;
   protected readonly projectileTrailAlpha = 0.3;
+  protected readonly projectileTrailParticleRadius = 5;
+  protected readonly projectileTrailParticleAlpha = 0.16;
   protected readonly projectileGlowRadius = 14;
   protected readonly projectileGlowColor = 0xa5f3fc;
   protected readonly projectileGlowAlpha = 0.18;
+  protected readonly projectileLightRadius = 22;
+  protected readonly projectileLightColor = 0x0e7490;
+  protected readonly projectileLightAlpha = 0.16;
+  protected readonly projectileHitEffect = "spark" as const;
 
   private graphics!: Phaser.GameObjects.Graphics;
 
@@ -55,7 +62,7 @@ export class ElectricStaffWeapon extends RangedWeapon {
     const tipY = y + Math.sin(aimAngle) * ELECTRIC_STAFF_LENGTH * 0.5;
 
     this.graphics.clear();
-    this.graphics.lineStyle(7, 0x155e75, 1);
+    this.graphics.lineStyle(8, 0x155e75, 1);
     this.graphics.beginPath();
     this.graphics.moveTo(baseX, baseY);
     this.graphics.lineTo(tipX, tipY);

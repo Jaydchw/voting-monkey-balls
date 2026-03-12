@@ -78,7 +78,7 @@ export class OverchargeModifier extends BallModifier {
       this.flashTargetX = enemy.body.x;
       this.flashTargetY = enemy.body.y;
       this.flashTimer = ZAP_FLASH_DURATION;
-      enemy.takeDamage(ZAP_DAMAGE);
+      enemy.takeDamage(ZAP_DAMAGE, { source: "modifier" });
     }
   }
 }
