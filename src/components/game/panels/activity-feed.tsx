@@ -1,16 +1,12 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import type { Icon } from "@phosphor-icons/react";
 
 export type AppliedEffect = {
   label: string;
   category: string;
-};
-
-const CATEGORY_ICONS: Record<string, string> = {
-  weapon: "⚔️",
-  modifier: "🛡️",
-  arena: "🏟️",
+  icons: Icon[];
 };
 
 type ActivityFeedProps = {
@@ -52,9 +48,15 @@ export function ActivityFeed({
                 key={`${effect.label}-${index}`}
                 className="flex items-center gap-2 border-b border-black/20 pb-1"
               >
-                <span className="text-base leading-none shrink-0">
-                  {CATEGORY_ICONS[effect.category] ?? "✨"}
-                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {effect.icons.map((IconComp, iconIndex) => (
+                    <IconComp
+                      key={`${effect.label}-${iconIndex}`}
+                      size={14}
+                      weight="bold"
+                    />
+                  ))}
+                </div>
                 <span className="text-xs">{effect.label}</span>
               </div>
             ))}

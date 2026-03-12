@@ -2,6 +2,7 @@ import type { GameCatalogEntry } from "@/game/catalog";
 import type { ArenaModifier } from "@/game/arena-modifier";
 import type { BallModifier } from "@/game/ball-modifier";
 import type { Weapon } from "@/game/weapon";
+import type { Icon } from "@phosphor-icons/react";
 
 export type CatalogEntry<T> = GameCatalogEntry<T>;
 
@@ -67,23 +68,36 @@ export type VoteResolution = {
   summary: string;
 };
 
+export type VoteWindow = {
+  category: VoteCategory;
+  optionA: VoteOption;
+  optionB: VoteOption;
+  voteSplit: {
+    optionA: number;
+    optionB: number;
+  };
+};
+
 export type VoteApplication =
   | {
       category: "weapon";
       red: () => Weapon;
       blue: () => Weapon;
       label: string;
+      icons: Icon[];
     }
   | {
       category: "modifier";
       red: () => BallModifier;
       blue: () => BallModifier;
       label: string;
+      icons: Icon[];
     }
   | {
       category: "arena";
       arena: () => ArenaModifier;
       label: string;
+      icons: Icon[];
     };
 
 export type RoundResult = {
@@ -109,10 +123,12 @@ export type EngineStepInput = {
   blueHealth: number;
   statsTotals: StatTotals;
   forcedWinner?: BallId;
+  pauseOnVote?: boolean;
 };
 
 export type EngineStepResult = {
   snapshot: EngineSnapshot;
   applications: VoteApplication[];
   roundResult: RoundResult | null;
+  voteWindow: VoteWindow | null;
 };

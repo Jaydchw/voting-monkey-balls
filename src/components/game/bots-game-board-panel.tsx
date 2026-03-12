@@ -163,7 +163,11 @@ export default function BotsGameBoardPanel() {
 
           setAppliedEffects((prev) =>
             [
-              { label: application.label, category: application.category },
+              {
+                label: application.label,
+                category: application.category,
+                icons: application.icons,
+              },
               ...prev,
             ].slice(0, 6),
           );
@@ -216,11 +220,21 @@ export default function BotsGameBoardPanel() {
 
           <div className="flex flex-col items-center">
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-end gap-6 w-full mb-5">
-              <BattleBar ballId="red" health={redHealth} modifiers={redModifiers} weapons={redWeapons} />
+              <BattleBar
+                ballId="red"
+                health={redHealth}
+                modifiers={redModifiers}
+                weapons={redWeapons}
+              />
               <div className="flex items-center justify-center md:self-start md:pt-12">
                 <span className="text-5xl font-black">VS</span>
               </div>
-              <BattleBar ballId="blue" health={blueHealth} modifiers={blueModifiers} weapons={blueWeapons} />
+              <BattleBar
+                ballId="blue"
+                health={blueHealth}
+                modifiers={blueModifiers}
+                weapons={blueWeapons}
+              />
             </div>
 
             <ArenaBoard

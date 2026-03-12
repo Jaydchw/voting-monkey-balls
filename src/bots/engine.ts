@@ -17,6 +17,7 @@ import type {
   VoteCategory,
   VoteOption,
   VoteResolution,
+  VoteWindow,
 } from "@/bots/types";
 import type { BallModifier } from "@/game/ball-modifier";
 import type { Weapon } from "@/game/weapon";
@@ -141,6 +142,7 @@ export class BotsGameEngine {
   private latestLog: string[] = [];
   private latestVoteSummary: string | null = null;
   private latestMicrobetSummary: string | null = null;
+  private pendingVote: VoteResolution | null = null;
 
   constructor(
     config: Partial<EngineConfig> = {},
@@ -183,6 +185,7 @@ export class BotsGameEngine {
         snapshot: this.getSnapshot(),
         applications: [],
         roundResult: null,
+        voteWindow: null,
       };
     }
 
@@ -194,6 +197,7 @@ export class BotsGameEngine {
 
     const applications: VoteApplication[] = [];
     let roundResult: RoundResult | null = null;
+    let voteWindow: VoteWindow | null = null;
 
     if (input.forcedWinner) {
       roundResult = this.finishRound(input.forcedWinner, "ball-died", input);
@@ -201,12 +205,38 @@ export class BotsGameEngine {
       this.timeLeftSeconds > 0 &&
       this.timeLeftSeconds % this.config.voteIntervalSeconds === 0
     ) {
-      const voteResult = this.executeVoteCycle(
-        input.redHealth,
-        input.blueHealth,
-      );
-      if (voteResult.application) {
-        applications.push(voteResult.application);
+      if (input.pauseOnVote) {
+        if (this.pendingVote) {
+          return {
+            snapshot: this.getSnapshot(),
+            applications,
+            roundResult,
+            voteWindow: {
+              category: this.pendingVote.category,
+              optionA: this.pendingVote.optionA,
+              optionB: this.pendingVote.optionB,
+              voteSplit: this.pendingVote.voteSplit,
+            },
+          };
+        }
+
+        this.settleMicroBets(this.intervalStatsTotals);
+        this.maybeSwapMainBets(input.redHealth, input.blueHealth);
+        this.pendingVote = this.resolveVote(input.redHealth, input.blueHealth);
+        voteWindow = {
+          category: this.pendingVote.category,
+          optionA: this.pendingVote.optionA,
+          optionB: this.pendingVote.optionB,
+          voteSplit: this.pendingVote.voteSplit,
+        };
+      } else {
+        const voteResult = this.executeVoteCycle(
+          input.redHealth,
+          input.blueHealth,
+        );
+        if (voteResult.application) {
+          applications.push(voteResult.application);
+        }
       }
     }
 
@@ -219,6 +249,68 @@ export class BotsGameEngine {
       snapshot: this.getSnapshot(),
       applications,
       roundResult,
+      voteWindow,
+    };
+  }
+
+  resolvePendingVote(
+    playerOption: 0 | 1,
+    playerVotes: number,
+  ): {
+    application: VoteApplication | null;
+    summary: string | null;
+  } {
+    if (!this.pendingVote) {
+      return { application: null, summary: null };
+    }
+
+    const safeVotes = Math.max(0, Math.floor(playerVotes));
+    const optionAVotes =
+      this.pendingVote.voteSplit.optionA + (playerOption === 0 ? safeVotes : 0);
+    const optionBVotes =
+      this.pendingVote.voteSplit.optionB + (playerOption === 1 ? safeVotes : 0);
+    const totalVotes = optionAVotes + optionBVotes;
+
+    const winningOptionIndex: 0 | 1 =
+      totalVotes === 0
+        ? this.rng() < 0.5
+          ? 0
+          : 1
+        : this.rng() < optionAVotes / totalVotes
+          ? 0
+          : 1;
+
+    const resolvedVote: VoteResolution = {
+      ...this.pendingVote,
+      winningOptionIndex,
+      voteSplit: {
+        optionA: optionAVotes,
+        optionB: optionBVotes,
+      },
+    };
+
+    const optionALabel = this.getOptionLabel(resolvedVote.optionA);
+    const optionBLabel = this.getOptionLabel(resolvedVote.optionB);
+    const winnerLabel = winningOptionIndex === 0 ? optionALabel : optionBLabel;
+    const summary = `${resolvedVote.category.toUpperCase()} vote: ${optionAVotes}-${optionBVotes}. Applied: ${winnerLabel}`;
+
+    this.latestVoteSummary = summary;
+    this.pushLog(summary);
+
+    const winners =
+      winningOptionIndex === 0 ? resolvedVote.optionA : resolvedVote.optionB;
+    const application = this.toVoteApplication(winners);
+
+    this.pendingMicroBets = this.createMicroBets();
+    this.latestMicrobetSummary = `${this.pendingMicroBets.length} microbets opened for next interval.`;
+    this.pushLog(this.latestMicrobetSummary);
+    this.intervalStatsTotals = createZeroTotals();
+
+    this.pendingVote = null;
+
+    return {
+      application,
+      summary,
     };
   }
 
@@ -238,6 +330,7 @@ export class BotsGameEngine {
     this.latestVoteSummary = null;
     this.latestMicrobetSummary = null;
     this.latestLog = [];
+    this.pendingVote = null;
     this.lastStatsTotals = createZeroTotals();
     this.intervalStatsTotals = createZeroTotals();
     this.pendingMicroBets = [];
@@ -467,6 +560,7 @@ export class BotsGameEngine {
         category: "arena",
         arena: option.option.arena.create,
         label: option.option.label,
+        icons: [option.option.arena.icon],
       };
     }
 
@@ -476,6 +570,7 @@ export class BotsGameEngine {
         red: option.option.red.create,
         blue: option.option.blue.create,
         label: option.option.label,
+        icons: [option.option.blue.icon, option.option.red.icon],
       };
     }
 
@@ -484,6 +579,7 @@ export class BotsGameEngine {
       red: option.option.red.create,
       blue: option.option.blue.create,
       label: option.option.label,
+      icons: [option.option.blue.icon, option.option.red.icon],
     };
   }
 

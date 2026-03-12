@@ -27,6 +27,7 @@ export type GameApi = {
   addModifier: (ballId: "red" | "blue", modifier: BallModifier) => void;
   addWeapon: (ballId: "red" | "blue", weapon: Weapon) => void;
   addArenaModifier: (modifier: ArenaModifier) => void;
+  setPaused: (paused: boolean) => void;
 };
 
 type HealthCallbacks = {
@@ -58,6 +59,7 @@ function createMainScene(
   const arenaModifiers: ArenaModifier[] = [];
   let arenaWalls: ArenaWalls;
   const collisionCooldowns = new Set<string>();
+  let isPaused = false;
 
   const getAllMasterBalls = (): Ball[] => [redBall, blueBall, ...extraBalls];
 
@@ -208,6 +210,10 @@ function createMainScene(
             arenaWalls,
           );
         },
+        setPaused: (paused) => {
+          isPaused = paused;
+          this.matter.world.enabled = !paused;
+        },
       });
 
       // Matter.js fires collision events on compound-body *parts*, not the
@@ -297,6 +303,10 @@ function createMainScene(
       );
     },
     update(this: Phaser.Scene, _time: number, delta: number) {
+      if (isPaused) {
+        return;
+      }
+
       const simulationTimeScale =
         (this.data.get("simulationTimeScale") as number | undefined) ?? 1;
       const scaledDelta = delta * simulationTimeScale;
