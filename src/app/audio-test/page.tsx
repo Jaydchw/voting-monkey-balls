@@ -25,7 +25,7 @@ const SONGS = {
       "stepper_snare.mp3",
       "tom_plinks.mp3",
       "triplet_kick.mp3",
-      "warm_pad.mp3",
+      "warm_pad.mp3"
     ],
   },
   conga: {
@@ -51,6 +51,37 @@ const SONGS = {
       "conga A-Reverb.mp3",
       "conga AlterEgo.mp3",
       "conga B-Delay.mp3",
+      "conga.mp3"
+    ],
+  },
+  groova: {
+    label: "Groova",
+    files: [
+      "groova chord.mp3",
+      "groova clap.mp3",
+      "groova conga.mp3",
+      "groova conga2.mp3",
+      "groova cowbell.mp3",
+      "groova dronepad.mp3",
+      "groova epaino_low.mp3",
+      "groova epiano_high.mp3",
+      "groova hats.mp3",
+      "groova horn.mp3",
+      "groova kick.mp3",
+      "groova m1_high.mp3",
+      "groova organ.mp3",
+      "groova perc.mp3",
+      "groova perfect stab.mp3",
+      "groova perfect.mp3",
+      "groova plink1.mp3",
+      "groova shaker.mp3",
+      "groova snare-1.mp3",
+      "groova snare.mp3",
+      "groova synth.mp3",
+      "groova synthstabs.mp3",
+      "groova toms.mp3",
+      "groova vox.mp3",
+      "groova wub1.mp3"
     ],
   },
 } as const;
@@ -638,23 +669,54 @@ export default function AudioTestPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {soundFiles.map((file) => {
-              const isOn = active[file];
-              return (
-                <Button
-                  key={file}
-                  onClick={() => toggleFile(file)}
-                  className={`justify-between border-4 border-black rounded-none uppercase font-black tracking-wide ${
-                    isOn
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "bg-white text-black hover:bg-zinc-100"
-                  }`}
-                >
-                  <span>{file.replace(".mp3", "").replaceAll("_", " ")}</span>
-                  <span>{isOn ? "ON" : "OFF"}</span>
-                </Button>
-              );
-            })}
+            {(() => {
+              // Find common prefix for all files in the current song pack
+              function getCommonPrefix(files: string[]): string {
+                if (files.length === 0) return "";
+                // Find the most common prefix ending with space or underscore
+                const prefixCounts: Record<string, number> = {};
+                files.forEach(f => {
+                  const match = f.match(/^([a-zA-Z0-9_]+[ _])/);
+                  if (match) {
+                    const prefix = match[1];
+                    prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+                  }
+                });
+                let bestPrefix = "";
+                let bestCount = 0;
+                for (const prefix in prefixCounts) {
+                  if (prefixCounts[prefix] > bestCount && prefixCounts[prefix] > files.length / 2) {
+                    bestPrefix = prefix;
+                    bestCount = prefixCounts[prefix];
+                  }
+                }
+                return bestPrefix;
+              }
+              const commonPrefix = getCommonPrefix(soundFiles);
+              return soundFiles.map((file) => {
+                const isOn = active[file];
+                // Remove common prefix and .mp3, replace _ with space
+                let displayName = file;
+                if (commonPrefix && file.startsWith(commonPrefix)) {
+                  displayName = file.slice(commonPrefix.length);
+                }
+                displayName = displayName.replace(".mp3", "").replaceAll("_", " ");
+                return (
+                  <Button
+                    key={file}
+                    onClick={() => toggleFile(file)}
+                    className={`justify-between border-4 border-black rounded-none uppercase font-black tracking-wide ${
+                      isOn
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "bg-white text-black hover:bg-zinc-100"
+                    }`}
+                  >
+                    <span>{displayName}</span>
+                    <span>{isOn ? "ON" : "OFF"}</span>
+                  </Button>
+                );
+              });
+            })()}
           </div>
         </Card>
       </div>
