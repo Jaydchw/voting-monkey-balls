@@ -56,6 +56,11 @@ export default function MainMenu() {
               Audio
             </Button>
           </Link>
+            <Link href="/character-test" className="flex-1">
+              <Button className="w-full py-6 border-4 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase font-black tracking-widest bg-orange-300 text-black hover:bg-orange-200 text-sm">
+                Character Select
+              </Button>
+            </Link>
         </div>
       </Card>
 
