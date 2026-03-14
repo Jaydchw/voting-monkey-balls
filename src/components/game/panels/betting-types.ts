@@ -2,7 +2,6 @@ import type {
   BallId,
   MicroBetInsight,
   MicroBetKind,
-  VoteWindow,
 } from "@/bots/types";
 
 export type MainBetSelection = {
@@ -40,18 +39,46 @@ export type PreMatchModalProps = {
   onSkip: () => void;
 };
 
+export type VoteWindowOptionLike =
+  | {
+      label: string;
+    }
+  | {
+      option: {
+        label: string;
+      };
+    };
+
+export type VoteWindowLike = {
+  optionA: VoteWindowOptionLike;
+  optionB: VoteWindowOptionLike;
+  optionC: VoteWindowOptionLike;
+  voteSplit: {
+    optionA: number;
+    optionB: number;
+    optionC: number;
+  };
+};
+
 export type VoteEventModalProps = {
   open: boolean;
   countdown: number;
   redHealth: number;
   blueHealth: number;
   bananas: number;
-  voteWindow: VoteWindow | null;
-  selection: 0 | 1;
+  voteWindow: VoteWindowLike | null;
+  selection: 0 | 1 | 2;
   votePower: number;
-  onSelectOption: (option: 0 | 1) => void;
+  onSelectOption: (option: 0 | 1 | 2) => void;
   onVotePowerChange: (amount: number) => void;
   onConfirm: () => void;
+  confirmLabel?: string;
+  isRemote?: boolean;
+};
+
+export type RevealedVoteOption = {
+  category: "weapon" | "modifier" | "arena";
+  label: string;
 };
 
 export type MicrobetsModalProps = {

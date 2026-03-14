@@ -43,7 +43,7 @@ export type BotState = {
   mainBet: MainBet | null;
 };
 
-export type VoteCategory = "weapon" | "modifier" | "arena";
+export type VoteCategory = "weapon" | "modifier" | "arena" | "mixed";
 
 export type TwoFoldOption<T> = {
   red: CatalogEntry<T>;
@@ -64,24 +64,28 @@ export type VoteOption =
   | { category: "arena"; option: ArenaOption };
 
 export type VoteResolution = {
-  category: VoteCategory;
+  category: "mixed";
   optionA: VoteOption;
   optionB: VoteOption;
-  winningOptionIndex: 0 | 1;
+  optionC: VoteOption;
+  winningOptionIndex: 0 | 1 | 2;
   voteSplit: {
     optionA: number;
     optionB: number;
+    optionC: number;
   };
   summary: string;
 };
 
 export type VoteWindow = {
-  category: VoteCategory;
+  category: "mixed";
   optionA: VoteOption;
   optionB: VoteOption;
+  optionC: VoteOption;
   voteSplit: {
     optionA: number;
     optionB: number;
+    optionC: number;
   };
 };
 

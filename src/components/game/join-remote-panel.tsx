@@ -7,7 +7,8 @@ import { RoundHeader } from "@/components/game/panels/round-header";
 import {
   MicrobetsModal,
   PrematchBetModal,
-  RemoteVoteModal,
+  VoteEventModal,
+  VoteRevealModal,
 } from "@/components/game/panels";
 import type { BallId, MicroBetKind } from "@/bots/types";
 import type {
@@ -82,7 +83,7 @@ export default function JoinRemotePanel({
   const [prematchDecision, setPrematchDecision] = useState<
     "red" | "blue" | "skip" | null
   >(null);
-  const [voteSelection, setVoteSelection] = useState<0 | 1>(0);
+  const [voteSelection, setVoteSelection] = useState<0 | 1 | 2>(0);
   const [votePowerStake, setVotePowerStake] = useState(0);
   const [microbetDraft, setMicrobetDraft] = useState<MicrobetDraft>({
     kind: "redDamageToBlue",
@@ -158,7 +159,7 @@ export default function JoinRemotePanel({
 
           if (payload.state.phase !== "vote") {
             setVotePowerStake(0);
-            setVoteSelection(0);
+            setVoteSelection(0 as 0 | 1 | 2);
           }
 
           if (payload.state.phase !== "prematch") {
@@ -542,7 +543,13 @@ export default function JoinRemotePanel({
           </div>
         )}
 
-        <RemoteVoteModal
+        <VoteRevealModal
+          open={state.phase === "reveal"}
+          countdown={state.phaseCountdown}
+          revealedOption={state.revealedVoteOption}
+        />
+
+        <VoteEventModal
           open={state.phase === "vote"}
           countdown={state.phaseCountdown}
           redHealth={state.redHealth}
@@ -554,6 +561,8 @@ export default function JoinRemotePanel({
           onSelectOption={setVoteSelection}
           onVotePowerChange={setVotePowerStake}
           onConfirm={castVote}
+          confirmLabel={votePowerStake === 0 ? "Hold Vote" : "Cast Vote"}
+          isRemote
         />
 
         <MicrobetsModal

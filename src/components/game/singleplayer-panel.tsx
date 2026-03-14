@@ -21,11 +21,13 @@ import { BotBetsTable } from "./panels/bot-bets-table";
 import { Card } from "@/components/ui/card";
 import { PrematchBetModal } from "./panels/prematch-bet-modal";
 import { VoteEventModal } from "./panels/vote-event-modal";
+import { VoteRevealModal } from "./panels/vote-reveal-modal";
 import { MicrobetsModal } from "./panels/microbets-modal";
 import type {
   MainBetSelection,
   MicrobetDraft,
   PendingPlayerMicrobet,
+  RevealedVoteOption,
 } from "./panels/betting-types";
 
 const STARTING_HEALTH = 100;
@@ -36,7 +38,7 @@ const MICROBET_WINDOW_SECONDS = 10;
 const MAIN_BET_MIN_STAKE = 20;
 
 type BetResult = { won: boolean; pnl: number };
-type MatchPhase = "prematch" | "running" | "vote" | "microbet";
+type MatchPhase = "prematch" | "running" | "vote" | "reveal" | "microbet";
 
 const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
   redDamageToBlue: "Red deals damage to Blue",
@@ -139,8 +141,10 @@ export default function SingleplayerPanel() {
 
   // Vote popup state
   const [voteWindow, setVoteWindow] = useState<VoteWindow | null>(null);
-  const [voteSelection, setVoteSelection] = useState<0 | 1>(0);
+  const [voteSelection, setVoteSelection] = useState<0 | 1 | 2>(0);
   const [votePowerStake, setVotePowerStake] = useState(0);
+  const [revealedVoteOption, setRevealedVoteOption] =
+    useState<RevealedVoteOption | null>(null);
 
   // Microbet state
   const [microbetInsights, setMicrobetInsights] = useState<MicroBetInsight[]>(
@@ -303,6 +307,7 @@ export default function SingleplayerPanel() {
     setVoteWindow(null);
     setVoteSelection(0);
     setVotePowerStake(0);
+    setRevealedVoteOption(null);
 
     // Reset microbet
     setMicrobetInsights([]);
@@ -385,17 +390,16 @@ export default function SingleplayerPanel() {
       const resolved = engine.resolvePendingVote(voteSelection, spend);
       if (resolved.application) {
         applyVoteApplication(resolved.application);
+        setRevealedVoteOption({
+          category: resolved.application.category,
+          label: resolved.application.label,
+        });
       }
       setSnapshot(engine.getSnapshot());
 
       setVoteWindow(null);
       setVotePowerStake(0);
-
-      setMicrobetInsights(engine.getPendingMicrobetInsights());
-      setQueuedMicrobets([]);
-      setMicrobetDraft({ kind: "redDamageToBlue", min: 0, max: 8, stake: 5 });
-
-      transitionPhase("microbet", MICROBET_WINDOW_SECONDS);
+      transitionPhase("reveal", 3);
     },
     [applyVoteApplication, engine, transitionPhase, voteSelection],
   );
@@ -522,6 +526,24 @@ export default function SingleplayerPanel() {
         return;
       }
 
+      if (phaseRef.current === "reveal") {
+        const next = Math.max(0, phaseCountdownRef.current - 1);
+        phaseCountdownRef.current = next;
+        setPhaseCountdown(next);
+        if (next === 0) {
+          setMicrobetInsights(engine.getPendingMicrobetInsights());
+          setQueuedMicrobets([]);
+          setMicrobetDraft({
+            kind: "redDamageToBlue",
+            min: 0,
+            max: 8,
+            stake: 5,
+          });
+          transitionPhase("microbet", MICROBET_WINDOW_SECONDS);
+        }
+        return;
+      }
+
       const stepResult = engine.step({
         redHealth: healthRef.current.red,
         blueHealth: healthRef.current.blue,
@@ -545,6 +567,7 @@ export default function SingleplayerPanel() {
         setVoteWindow(stepResult.voteWindow);
         setVoteSelection(0);
         setVotePowerStake(0);
+        setRevealedVoteOption(null);
         transitionPhase("vote", VOTE_WINDOW_SECONDS);
       }
 
@@ -754,6 +777,12 @@ export default function SingleplayerPanel() {
           onSelectOption={setVoteSelection}
           onVotePowerChange={setVotePowerStake}
           onConfirm={handleVoteCast}
+        />
+
+        <VoteRevealModal
+          open={phase === "reveal"}
+          countdown={phaseCountdown}
+          revealedOption={revealedVoteOption}
         />
 
         <MicrobetsModal

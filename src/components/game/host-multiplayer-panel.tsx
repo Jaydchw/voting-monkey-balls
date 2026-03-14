@@ -98,15 +98,20 @@ function getMicrobetActual(kind: MicroBetKind, delta: StatTotals): number {
 }
 
 function serializeVoteWindow(voteWindow: VoteWindow): SerializableVoteWindow {
-  const getLabel = (option: VoteWindow["optionA"]) => option.option.label;
+  const serializeOption = (option: VoteWindow["optionA"]) => ({
+    category: option.category,
+    label: option.option.label,
+  });
 
   return {
     category: voteWindow.category,
-    optionA: { label: getLabel(voteWindow.optionA) },
-    optionB: { label: getLabel(voteWindow.optionB) },
+    optionA: serializeOption(voteWindow.optionA),
+    optionB: serializeOption(voteWindow.optionB),
+    optionC: serializeOption(voteWindow.optionC),
     voteSplit: {
       optionA: voteWindow.voteSplit.optionA,
       optionB: voteWindow.voteSplit.optionB,
+      optionC: voteWindow.voteSplit.optionC,
     },
   };
 }
@@ -144,6 +149,9 @@ export default function HostMultiplayerPanel({
   const [redWeapons, setRedWeapons] = useState<ActiveModifier[]>([]);
   const [blueWeapons, setBlueWeapons] = useState<ActiveModifier[]>([]);
   const [voteWindow, setVoteWindow] = useState<VoteWindow | null>(null);
+  const [revealedVoteOption, setRevealedVoteOption] = useState<
+    HostBroadcastState["revealedVoteOption"]
+  >(null);
   const [microbetInsights, setMicrobetInsights] = useState<MicroBetInsight[]>(
     [],
   );
@@ -178,7 +186,7 @@ export default function HostMultiplayerPanel({
   >([]);
   const mainBetsRef = useRef<Record<string, MainBetSelection | null>>({});
   const voteActionsRef = useRef<
-    Record<string, { selection: 0 | 1; power: number }>
+    Record<string, { selection: 0 | 1 | 2; power: number }>
   >({});
   const queuedMicrobetsRef = useRef<Record<string, PendingPlayerMicrobet[]>>(
     {},
@@ -369,6 +377,7 @@ export default function HostMultiplayerPanel({
       blueHealth,
       snapshot,
       voteWindow: voteWindow ? serializeVoteWindow(voteWindow) : null,
+      revealedVoteOption,
       microbetInsights,
       participants,
       roundWinner,
@@ -383,6 +392,7 @@ export default function HostMultiplayerPanel({
     phase,
     phaseCountdown,
     redHealth,
+    revealedVoteOption,
     roomCode,
     roomParticipants,
     roundWinner,
@@ -501,6 +511,7 @@ export default function HostMultiplayerPanel({
   const resolveVoteAndOpenMicrobet = useCallback(() => {
     let optionAExtraVotes = 0;
     let optionBExtraVotes = 0;
+    let optionCExtraVotes = 0;
     let anySpend = false;
 
     for (const [participantId, vote] of Object.entries(
@@ -516,8 +527,10 @@ export default function HostMultiplayerPanel({
       banksRef.current[participantId] = currentBananas - spend;
       if (vote.selection === 0) {
         optionAExtraVotes += spend;
-      } else {
+      } else if (vote.selection === 1) {
         optionBExtraVotes += spend;
+      } else {
+        optionCExtraVotes += spend;
       }
       anySpend = true;
     }
@@ -528,9 +541,14 @@ export default function HostMultiplayerPanel({
     const resolved = engine.resolvePendingVoteTotals(
       optionAExtraVotes,
       optionBExtraVotes,
+      optionCExtraVotes,
     );
     if (resolved.application) {
       applyVoteApplication(resolved.application);
+      setRevealedVoteOption({
+        category: resolved.application.category,
+        label: resolved.application.label,
+      });
     }
 
     if (anySpend) {
@@ -539,8 +557,7 @@ export default function HostMultiplayerPanel({
 
     setSnapshot(engine.getSnapshot());
     setVoteWindow(null);
-    setMicrobetInsights(engine.getPendingMicrobetInsights());
-    transitionPhase("microbet", settings.decisionTimerSeconds);
+    transitionPhase("reveal", 3);
   }, [
     applyVoteApplication,
     engine,
@@ -569,6 +586,7 @@ export default function HostMultiplayerPanel({
     setRedWeapons([]);
     setBlueWeapons([]);
     setVoteWindow(null);
+    setRevealedVoteOption(null);
     setMicrobetInsights([]);
     mainBetsRef.current = {};
     voteActionsRef.current = {};
@@ -780,6 +798,17 @@ export default function HostMultiplayerPanel({
         return;
       }
 
+      if (phaseRef.current === "reveal") {
+        const next = Math.max(0, phaseCountdownRef.current - 1);
+        phaseCountdownRef.current = next;
+        setPhaseCountdown(next);
+        if (next === 0) {
+          setMicrobetInsights(engine.getPendingMicrobetInsights());
+          transitionPhase("microbet", settings.decisionTimerSeconds);
+        }
+        return;
+      }
+
       if (phaseRef.current === "microbet") {
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
@@ -813,6 +842,7 @@ export default function HostMultiplayerPanel({
         };
 
         setVoteWindow(stepResult.voteWindow);
+        setRevealedVoteOption(null);
         transitionPhase("vote", settings.decisionTimerSeconds);
       }
 
@@ -903,6 +933,8 @@ export default function HostMultiplayerPanel({
       ? "Make your bets!"
       : phase === "vote"
         ? "Vote now!"
+        : phase === "reveal"
+          ? "Applying vote result..."
         : phase === "microbet"
           ? "Place your microbets!"
           : null;

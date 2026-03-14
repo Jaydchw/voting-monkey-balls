@@ -10,20 +10,24 @@ export type MatchPhase =
   | "prematch"
   | "running"
   | "vote"
+  | "reveal"
   | "microbet"
   | "finished";
 
 export type SerializableVoteOption = {
+  category: "weapon" | "modifier" | "arena";
   label: string;
 };
 
 export type SerializableVoteWindow = {
-  category: "weapon" | "modifier" | "arena";
+  category: "mixed";
   optionA: SerializableVoteOption;
   optionB: SerializableVoteOption;
+  optionC: SerializableVoteOption;
   voteSplit: {
     optionA: number;
     optionB: number;
+    optionC: number;
   };
 };
 
@@ -69,6 +73,7 @@ export type HostBroadcastState = {
   blueHealth: number;
   snapshot: EngineSnapshot;
   voteWindow: SerializableVoteWindow | null;
+  revealedVoteOption: SerializableVoteOption | null;
   microbetInsights: MicroBetInsight[];
   participants: ParticipantPublicState[];
   roundWinner: BallId | null;
@@ -93,7 +98,7 @@ export type PlayerAction =
     }
   | {
       kind: "vote";
-      selection: 0 | 1;
+      selection: 0 | 1 | 2;
       power: number;
     }
   | {
