@@ -27,8 +27,8 @@ import { BotBetsTable } from "@/components/game/panels/bot-bets-table";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  getPartyKitHost,
   getSocketProtocol,
-  PARTYKIT_HOST,
   PARTYKIT_PARTY,
 } from "@/lib/multiplayer";
 import type {
@@ -50,6 +50,7 @@ const DEFAULT_SETTINGS: HostRoomSettings = {
   botCount: 0,
   startingBananas: 100,
   decisionTimerSeconds: DEFAULT_DECISION_TIMER_SECONDS,
+  waitForAllDecisions: false,
   roundTimerSeconds: 120,
   roundsTotal: 3,
 };
@@ -134,6 +135,8 @@ export default function HostMultiplayerPanel({
   const [phaseCountdown, setPhaseCountdown] = useState(0);
   const [settings, setSettings] = useState<HostRoomSettings>(DEFAULT_SETTINGS);
   const [copied, setCopied] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [socketError, setSocketError] = useState<string | null>(null);
 
   const [snapshot, setSnapshot] = useState<EngineSnapshot>(
     engine.getSnapshot(),
@@ -194,6 +197,7 @@ export default function HostMultiplayerPanel({
   const activeMicrobetsRef = useRef<Record<string, PendingPlayerMicrobet[]>>(
     {},
   );
+  const maybeAdvanceDecisionPhaseRef = useRef<() => void>(() => {});
 
   const transitionPhase = useCallback((next: MatchPhase, seconds: number) => {
     phaseRef.current = next;
@@ -201,6 +205,28 @@ export default function HostMultiplayerPanel({
     setPhase(next);
     setPhaseCountdown(seconds);
   }, []);
+
+  const getDecisionWindowSeconds = useCallback(
+    () => (settings.waitForAllDecisions ? 0 : settings.decisionTimerSeconds),
+    [settings.waitForAllDecisions, settings.decisionTimerSeconds],
+  );
+
+  const haveAllConnectedPlayersDecided = useCallback(
+    (hasDecision: (participantId: string) => boolean) => {
+      const connectedParticipants = roomParticipantsRef.current.filter(
+        (participant) => participant.connected,
+      );
+
+      if (connectedParticipants.length === 0) {
+        return true;
+      }
+
+      return connectedParticipants.every((participant) =>
+        hasDecision(participant.id),
+      );
+    },
+    [],
+  );
 
   const syncParticipantBananas = useCallback(
     (
@@ -332,6 +358,12 @@ export default function HostMultiplayerPanel({
     [engine],
   );
 
+  const closeMicrobetWindow = useCallback(() => {
+    activeMicrobetsRef.current = queuedMicrobetsRef.current;
+    queuedMicrobetsRef.current = {};
+    transitionPhase("running", 0);
+  }, [transitionPhase]);
+
   const publishState = useCallback(() => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -424,6 +456,7 @@ export default function HostMultiplayerPanel({
           banksRef.current[playerId] = restoredBalance - stake;
           mainBetsRef.current[playerId] = { side, stake };
           syncParticipantBananas();
+          maybeAdvanceDecisionPhaseRef.current();
           return;
         }
 
@@ -436,6 +469,12 @@ export default function HostMultiplayerPanel({
             mainBetsRef.current[playerId] = null;
             syncParticipantBananas();
           }
+
+          if (!Object.prototype.hasOwnProperty.call(mainBetsRef.current, playerId)) {
+            mainBetsRef.current[playerId] = null;
+          }
+
+          maybeAdvanceDecisionPhaseRef.current();
         }
 
         return;
@@ -447,6 +486,7 @@ export default function HostMultiplayerPanel({
           power: Math.max(0, Math.floor(action.power)),
         };
         setQueuedVoteCount(Object.keys(voteActionsRef.current).length);
+        maybeAdvanceDecisionPhaseRef.current();
         return;
       }
 
@@ -487,6 +527,7 @@ export default function HostMultiplayerPanel({
           queuedMicrobetsRef.current[playerId] = sanitizedBets;
           banksRef.current[playerId] = restoredBalance - totalStake;
           syncParticipantBananas();
+          maybeAdvanceDecisionPhaseRef.current();
           return;
         }
 
@@ -502,6 +543,7 @@ export default function HostMultiplayerPanel({
             syncParticipantBananas();
           }
           queuedMicrobetsRef.current[playerId] = [];
+          maybeAdvanceDecisionPhaseRef.current();
         }
       }
     },
@@ -561,11 +603,59 @@ export default function HostMultiplayerPanel({
   }, [
     applyVoteApplication,
     engine,
-    settings.decisionTimerSeconds,
     settings.startingBananas,
     syncParticipantBananas,
     transitionPhase,
   ]);
+
+  const maybeAdvanceDecisionPhase = useCallback(() => {
+    if (!matchStarted) {
+      return;
+    }
+
+    if (phaseRef.current === "prematch") {
+      if (
+        haveAllConnectedPlayersDecided((participantId) =>
+          Object.prototype.hasOwnProperty.call(mainBetsRef.current, participantId),
+        )
+      ) {
+        transitionPhase("running", 0);
+      }
+      return;
+    }
+
+    if (phaseRef.current === "vote") {
+      if (
+        haveAllConnectedPlayersDecided(
+          (participantId) => voteActionsRef.current[participantId] !== undefined,
+        )
+      ) {
+        resolveVoteAndOpenMicrobet();
+      }
+      return;
+    }
+
+    if (phaseRef.current === "microbet") {
+      if (
+        haveAllConnectedPlayersDecided(
+          (participantId) =>
+            queuedMicrobetsRef.current[participantId] !== undefined,
+        )
+      ) {
+        closeMicrobetWindow();
+      }
+    }
+  }, [
+    closeMicrobetWindow,
+    haveAllConnectedPlayersDecided,
+    matchStarted,
+    resolveVoteAndOpenMicrobet,
+    transitionPhase,
+  ]);
+
+  useEffect(() => {
+    maybeAdvanceDecisionPhaseRef.current = maybeAdvanceDecisionPhase;
+  }, [maybeAdvanceDecisionPhase]);
 
   const resetBoardForNextRound = useCallback(() => {
     setGameKey((value) => value + 1);
@@ -598,8 +688,8 @@ export default function HostMultiplayerPanel({
     }
     lastVoteStatsRef.current = null;
     gameApiRef.current = null;
-    transitionPhase("prematch", settings.decisionTimerSeconds);
-  }, [settings.decisionTimerSeconds, transitionPhase]);
+    transitionPhase("prematch", getDecisionWindowSeconds());
+  }, [getDecisionWindowSeconds, transitionPhase]);
 
   const handleGameReady = useCallback((api: GameApi) => {
     gameApiRef.current = api;
@@ -700,8 +790,9 @@ export default function HostMultiplayerPanel({
   }, [roomCode]);
 
   useEffect(() => {
+    const host = getPartyKitHost();
     const socket = new PartySocket({
-      host: PARTYKIT_HOST,
+      host,
       party: PARTYKIT_PARTY,
       room: roomCode,
       protocol: getSocketProtocol(),
@@ -710,10 +801,23 @@ export default function HostMultiplayerPanel({
     socketRef.current = socket;
 
     socket.addEventListener("open", () => {
+      setSocketConnected(true);
+      setSocketError(null);
       const hello: ClientEnvelope = { type: "hello", role: "host" };
       socket.send(JSON.stringify(hello));
       socket.send(
         JSON.stringify({ type: "request-state" } satisfies ClientEnvelope),
+      );
+    });
+
+    socket.addEventListener("close", () => {
+      setSocketConnected(false);
+    });
+
+    socket.addEventListener("error", () => {
+      setSocketConnected(false);
+      setSocketError(
+        `Unable to connect to PartyKit server at ${host}. Run npm run dev:party and verify port 1999 is reachable.`,
       );
     });
 
@@ -746,6 +850,7 @@ export default function HostMultiplayerPanel({
         setRoomParticipants(nextParticipants);
         roomParticipantsRef.current = nextParticipants;
         syncParticipantBananas(nextParticipants);
+        maybeAdvanceDecisionPhaseRef.current();
         return;
       }
 
@@ -779,6 +884,10 @@ export default function HostMultiplayerPanel({
 
     const interval = setInterval(() => {
       if (phaseRef.current === "prematch") {
+        if (settings.waitForAllDecisions) {
+          return;
+        }
+
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
@@ -789,6 +898,10 @@ export default function HostMultiplayerPanel({
       }
 
       if (phaseRef.current === "vote") {
+        if (settings.waitForAllDecisions) {
+          return;
+        }
+
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
@@ -804,19 +917,21 @@ export default function HostMultiplayerPanel({
         setPhaseCountdown(next);
         if (next === 0) {
           setMicrobetInsights(engine.getPendingMicrobetInsights());
-          transitionPhase("microbet", settings.decisionTimerSeconds);
+          transitionPhase("microbet", getDecisionWindowSeconds());
         }
         return;
       }
 
       if (phaseRef.current === "microbet") {
+        if (settings.waitForAllDecisions) {
+          return;
+        }
+
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
         if (next === 0) {
-          activeMicrobetsRef.current = queuedMicrobetsRef.current;
-          queuedMicrobetsRef.current = {};
-          transitionPhase("running", 0);
+          closeMicrobetWindow();
         }
         return;
       }
@@ -843,7 +958,7 @@ export default function HostMultiplayerPanel({
 
         setVoteWindow(stepResult.voteWindow);
         setRevealedVoteOption(null);
-        transitionPhase("vote", settings.decisionTimerSeconds);
+        transitionPhase("vote", getDecisionWindowSeconds());
       }
 
       setSnapshot(stepResult.snapshot);
@@ -901,12 +1016,14 @@ export default function HostMultiplayerPanel({
     };
   }, [
     engine,
+    getDecisionWindowSeconds,
     matchStarted,
     resetBoardForNextRound,
     resolveVoteAndOpenMicrobet,
-    settings.decisionTimerSeconds,
+    settings.waitForAllDecisions,
     settings.startingBananas,
     settlePlayerMicrobets,
+    closeMicrobetWindow,
     syncParticipantBananas,
     transitionPhase,
   ]);
@@ -986,6 +1103,15 @@ export default function HostMultiplayerPanel({
             </p>
           )}
 
+          <p className="text-xs font-black uppercase tracking-widest text-zinc-600 mb-2">
+            Socket: {socketConnected ? "Connected" : "Connecting..."}
+          </p>
+          {socketError && !socketConnected && (
+            <p className="text-xs font-black uppercase text-red-700 mb-4">
+              {socketError}
+            </p>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="border-4 border-black rounded-none p-4">
               <p className="text-xs font-black uppercase tracking-widest mb-3">
@@ -1039,6 +1165,7 @@ export default function HostMultiplayerPanel({
                     min={5}
                     max={60}
                     value={settings.decisionTimerSeconds}
+                    disabled={settings.waitForAllDecisions}
                     onChange={(event) =>
                       setSettings((prev) => ({
                         ...prev,
@@ -1050,6 +1177,23 @@ export default function HostMultiplayerPanel({
                     }
                     className="mt-1 w-full border-4 border-black p-2 text-lg font-black"
                   />
+                </label>
+
+                <label className="flex items-center gap-3 border-2 border-black p-2">
+                  <input
+                    type="checkbox"
+                    checked={settings.waitForAllDecisions}
+                    onChange={(event) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        waitForAllDecisions: event.target.checked,
+                      }))
+                    }
+                    className="h-5 w-5 accent-black"
+                  />
+                  <span className="text-xs font-black uppercase tracking-widest leading-tight">
+                    Wait for all players (no decision timer)
+                  </span>
                 </label>
 
                 <label className="block text-xs font-black uppercase tracking-widest">

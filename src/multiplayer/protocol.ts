@@ -35,6 +35,7 @@ export type HostRoomSettings = {
   botCount: number;
   startingBananas: number;
   decisionTimerSeconds: number;
+  waitForAllDecisions: boolean;
   roundTimerSeconds: number;
   roundsTotal: number;
 };
