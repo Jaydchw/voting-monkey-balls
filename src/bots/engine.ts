@@ -216,6 +216,7 @@ export class BotsGameEngine {
               category: this.pendingVote.category,
               optionA: this.pendingVote.optionA,
               optionB: this.pendingVote.optionB,
+              optionC: this.pendingVote.optionC,
               voteSplit: this.pendingVote.voteSplit,
             },
           };
@@ -228,6 +229,7 @@ export class BotsGameEngine {
           category: this.pendingVote.category,
           optionA: this.pendingVote.optionA,
           optionB: this.pendingVote.optionB,
+          optionC: this.pendingVote.optionC,
           voteSplit: this.pendingVote.voteSplit,
         };
       } else {
@@ -255,7 +257,7 @@ export class BotsGameEngine {
   }
 
   resolvePendingVote(
-    playerOption: 0 | 1,
+    playerOption: 0 | 1 | 2,
     playerVotes: number,
   ): {
     application: VoteApplication | null;
@@ -264,12 +266,14 @@ export class BotsGameEngine {
     return this.resolvePendingVoteTotals(
       playerOption === 0 ? playerVotes : 0,
       playerOption === 1 ? playerVotes : 0,
+      playerOption === 2 ? playerVotes : 0,
     );
   }
 
   resolvePendingVoteTotals(
     optionAExtraVotes: number,
     optionBExtraVotes: number,
+    optionCExtraVotes: number,
   ): {
     application: VoteApplication | null;
     summary: string | null;
@@ -280,18 +284,31 @@ export class BotsGameEngine {
 
     const safeOptionAVotes = Math.max(0, Math.floor(optionAExtraVotes));
     const safeOptionBVotes = Math.max(0, Math.floor(optionBExtraVotes));
+    const safeOptionCVotes = Math.max(0, Math.floor(optionCExtraVotes));
     const optionAVotes = this.pendingVote.voteSplit.optionA + safeOptionAVotes;
     const optionBVotes = this.pendingVote.voteSplit.optionB + safeOptionBVotes;
-    const totalVotes = optionAVotes + optionBVotes;
+    const optionCVotes = this.pendingVote.voteSplit.optionC + safeOptionCVotes;
+    const totalVotes = optionAVotes + optionBVotes + optionCVotes;
 
-    const winningOptionIndex: 0 | 1 =
+    const weightedVotes: Array<{ index: 0 | 1 | 2; votes: number }> = [
+      { index: 0, votes: optionAVotes },
+      { index: 1, votes: optionBVotes },
+      { index: 2, votes: optionCVotes },
+    ];
+
+    const winningOptionIndex: 0 | 1 | 2 =
       totalVotes === 0
-        ? this.rng() < 0.5
-          ? 0
-          : 1
-        : this.rng() < optionAVotes / totalVotes
-          ? 0
-          : 1;
+        ? weightedVotes[randomInt(0, weightedVotes.length - 1, this.rng)].index
+        : (() => {
+            let roll = this.rng() * totalVotes;
+            for (const bucket of weightedVotes) {
+              roll -= bucket.votes;
+              if (roll <= 0) {
+                return bucket.index;
+              }
+            }
+            return 2;
+          })();
 
     const resolvedVote: VoteResolution = {
       ...this.pendingVote,
@@ -299,19 +316,30 @@ export class BotsGameEngine {
       voteSplit: {
         optionA: optionAVotes,
         optionB: optionBVotes,
+        optionC: optionCVotes,
       },
     };
 
     const optionALabel = this.getOptionLabel(resolvedVote.optionA);
     const optionBLabel = this.getOptionLabel(resolvedVote.optionB);
-    const winnerLabel = winningOptionIndex === 0 ? optionALabel : optionBLabel;
-    const summary = `${resolvedVote.category.toUpperCase()} vote: ${optionAVotes}-${optionBVotes}. Applied: ${winnerLabel}`;
+    const optionCLabel = this.getOptionLabel(resolvedVote.optionC);
+    const winnerLabel =
+      winningOptionIndex === 0
+        ? optionALabel
+        : winningOptionIndex === 1
+          ? optionBLabel
+          : optionCLabel;
+    const summary = `VOTE (W/M/A): ${optionAVotes}-${optionBVotes}-${optionCVotes}. Applied: ${winnerLabel}`;
 
     this.latestVoteSummary = summary;
     this.pushLog(summary);
 
     const winners =
-      winningOptionIndex === 0 ? resolvedVote.optionA : resolvedVote.optionB;
+      winningOptionIndex === 0
+        ? resolvedVote.optionA
+        : winningOptionIndex === 1
+          ? resolvedVote.optionB
+          : resolvedVote.optionC;
     const application = this.toVoteApplication(winners);
 
     this.pendingMicroBets = this.createMicroBets();
@@ -417,7 +445,12 @@ export class BotsGameEngine {
     this.latestVoteSummary = vote.summary;
     this.pushLog(vote.summary);
 
-    const winners = vote.winningOptionIndex === 0 ? vote.optionA : vote.optionB;
+    const winners =
+      vote.winningOptionIndex === 0
+        ? vote.optionA
+        : vote.winningOptionIndex === 1
+          ? vote.optionB
+          : vote.optionC;
     const application = this.toVoteApplication(winners);
 
     this.pendingMicroBets = this.createMicroBets();
@@ -449,14 +482,13 @@ export class BotsGameEngine {
   }
 
   private resolveVote(redHealth: number, blueHealth: number): VoteResolution {
-    const category: VoteCategory =
-      this.rng() < 0.34 ? "weapon" : this.rng() < 0.67 ? "modifier" : "arena";
-
-    const optionA = this.buildVoteOption(category, redHealth, blueHealth);
-    const optionB = this.buildVoteOption(category, redHealth, blueHealth);
+    const optionA = this.buildVoteOption("weapon", redHealth, blueHealth);
+    const optionB = this.buildVoteOption("modifier", redHealth, blueHealth);
+    const optionC = this.buildVoteOption("arena", redHealth, blueHealth);
 
     let optionAVotes = 0;
     let optionBVotes = 0;
+    let optionCVotes = 0;
 
     for (const bot of this.bots) {
       if (bot.bananas <= 0) {
@@ -466,35 +498,54 @@ export class BotsGameEngine {
       const votes = randomInt(1, maxVotes, this.rng);
       bot.bananas -= votes;
 
-      const picksA = this.rng() < 0.5;
-      if (picksA) optionAVotes += votes;
-      else optionBVotes += votes;
+      const pick = randomInt(0, 2, this.rng);
+      if (pick === 0) optionAVotes += votes;
+      else if (pick === 1) optionBVotes += votes;
+      else optionCVotes += votes;
     }
 
-    const totalVotes = optionAVotes + optionBVotes;
-    const winningOptionIndex: 0 | 1 =
+    const totalVotes = optionAVotes + optionBVotes + optionCVotes;
+    const weightedVotes: Array<{ index: 0 | 1 | 2; votes: number }> = [
+      { index: 0, votes: optionAVotes },
+      { index: 1, votes: optionBVotes },
+      { index: 2, votes: optionCVotes },
+    ];
+    const winningOptionIndex: 0 | 1 | 2 =
       totalVotes === 0
-        ? this.rng() < 0.5
-          ? 0
-          : 1
-        : this.rng() < optionAVotes / totalVotes
-          ? 0
-          : 1;
+        ? weightedVotes[randomInt(0, weightedVotes.length - 1, this.rng)].index
+        : (() => {
+            let roll = this.rng() * totalVotes;
+            for (const bucket of weightedVotes) {
+              roll -= bucket.votes;
+              if (roll <= 0) {
+                return bucket.index;
+              }
+            }
+            return 2;
+          })();
 
     const optionALabel = this.getOptionLabel(optionA);
     const optionBLabel = this.getOptionLabel(optionB);
-    const winnerLabel = winningOptionIndex === 0 ? optionALabel : optionBLabel;
+    const optionCLabel = this.getOptionLabel(optionC);
+    const winnerLabel =
+      winningOptionIndex === 0
+        ? optionALabel
+        : winningOptionIndex === 1
+          ? optionBLabel
+          : optionCLabel;
 
     return {
-      category,
+      category: "mixed",
       optionA,
       optionB,
+      optionC,
       winningOptionIndex,
       voteSplit: {
         optionA: optionAVotes,
         optionB: optionBVotes,
+        optionC: optionCVotes,
       },
-      summary: `${category.toUpperCase()} vote: ${optionAVotes}-${optionBVotes}. Applied: ${winnerLabel}`,
+      summary: `VOTE (W/M/A): ${optionAVotes}-${optionBVotes}-${optionCVotes}. Applied: ${winnerLabel}`,
     };
   }
 
