@@ -5,53 +5,93 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-const SOUND_FILES = [
-  "4x4_kick.mp3",
-  "conflict_bongos.mp3",
-  "dub_blip.mp3",
-  "dubsnare_pair.mp3",
-  "forest_birds.mp3",
-  "happy_melody.mp3",
-  "jersey_snare.mp3",
-  "onbeat_step.mp3",
-  "rims.mp3",
-  "shakers1.mp3",
-  "shakers2.mp3",
-  "spooky_melody.mp3",
-  "stepper_hats.mp3",
-  "stepper_snare.mp3",
-  "tom_plinks.mp3",
-  "triplet_kick.mp3",
-  "warm_pad.mp3",
-] as const;
+const SONGS = {
+  mirage: {
+    label: "Mirage",
+    files: [
+      "4x4_kick.mp3",
+      "conflict_bongos.mp3",
+      "dub_blip.mp3",
+      "dubsnare_pair.mp3",
+      "forest_birds.mp3",
+      "happy_melody.mp3",
+      "jersey_snare.mp3",
+      "onbeat_step.mp3",
+      "rims.mp3",
+      "shakers1.mp3",
+      "shakers2.mp3",
+      "spooky_melody.mp3",
+      "stepper_hats.mp3",
+      "stepper_snare.mp3",
+      "tom_plinks.mp3",
+      "triplet_kick.mp3",
+      "warm_pad.mp3",
+    ],
+  },
+  conga: {
+    label: "Conga",
+    files: [
+      "conga 1-Conga Bongo Timbales.mp3",
+      "conga 10-Group.mp3",
+      "conga 11-909 Core Kit.mp3",
+      "conga 12-909 Core Kit.mp3",
+      "conga 13-909 Core Kit.mp3",
+      "conga 14-909 Core Kit.mp3",
+      "conga 15-Basic Trigger Bass.mp3",
+      "conga 16-Chord Afterfade.mp3",
+      "conga 17-Typical Sound.mp3",
+      "conga 18-Stab Horn Wah Soul.mp3",
+      "conga 2-Conga Bongo Timbales.mp3",
+      "conga 3-Conga Bongo Timbales.mp3",
+      "conga 4-DD_DISC_114_perc_loop_tambourine_accent_on_2___4.mp3",
+      "conga 5-Group.mp3",
+      "conga 6-Guitar Bass.mp3",
+      "conga 7-Guitar Bass.mp3",
+      "conga 9-SRX ORCHESTRA.mp3",
+      "conga A-Reverb.mp3",
+      "conga AlterEgo.mp3",
+      "conga B-Delay.mp3",
+    ],
+  },
+} as const;
 
 const LOOP_VOLUME = 0.35;
 const DEFAULT_LOOP_ATTACK = 0.07;
-const BPM = 136;
-const BEATS_PER_BAR = 4;
-const LOOP_BARS = 8;
-const CALCULATED_LOOP_DURATION = (LOOP_BARS * 60) / (BPM / BEATS_PER_BAR); // 8 bars at 136 BPM (fallback)
+const DEFAULT_LOOP_DURATION = 8;
+const DEFAULT_SONG = "mirage" as const;
 
-type SoundFile = (typeof SOUND_FILES)[number];
+type SongId = keyof typeof SONGS;
+type SoundFile = string;
 type ToggleState = Record<SoundFile, boolean>;
 
-function createInitialState(): ToggleState {
-  return SOUND_FILES.reduce((acc, file) => {
+function createInitialState(files: readonly SoundFile[]): ToggleState {
+  return files.reduce((acc, file) => {
     acc[file] = false;
     return acc;
   }, {} as ToggleState);
 }
 
+function toFileKey(songId: SongId, file: SoundFile) {
+  return `${songId}::${file}`;
+}
+
+function buildSongPath(songId: SongId, file: SoundFile) {
+  return `/audio/${songId}/${encodeURIComponent(file)}`;
+}
+
 export default function AudioTestPage() {
-  const [active, setActive] = useState<ToggleState>(() => createInitialState());
-  const [loopDuration, setLoopDuration] = useState<number>(CALCULATED_LOOP_DURATION);
+  const [song, setSong] = useState<SongId>(DEFAULT_SONG);
+  const [active, setActive] = useState<ToggleState>(() =>
+    createInitialState(SONGS[DEFAULT_SONG].files),
+  );
+  const [loopDuration, setLoopDuration] = useState<number>(DEFAULT_LOOP_DURATION);
   const [mode, setMode] = useState<"notail" | "withTail">("notail");
   const [attack, setAttack] = useState<number>(DEFAULT_LOOP_ATTACK);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const buffersRef = useRef<Partial<Record<SoundFile, AudioBuffer>>>({});
-  const buffersWithTailRef = useRef<Partial<Record<SoundFile, AudioBuffer>>>({});
-  const loadingRef = useRef<Partial<Record<SoundFile, Promise<AudioBuffer>>>>({});
-  const loadingWithTailRef = useRef<Partial<Record<SoundFile, Promise<AudioBuffer>>>>({});
+  const buffersRef = useRef<Partial<Record<string, AudioBuffer>>>({});
+  const buffersWithTailRef = useRef<Partial<Record<string, AudioBuffer>>>({});
+  const loadingRef = useRef<Partial<Record<string, Promise<AudioBuffer>>>>({});
+  const loadingWithTailRef = useRef<Partial<Record<string, Promise<AudioBuffer>>>>({});
   const loopSourcesRef = useRef<Partial<Record<SoundFile, AudioBufferSourceNode>>>({});
   const loopGainsRef = useRef<Partial<Record<SoundFile, GainNode>>>({});
   const tailInstancesRef = useRef<
@@ -62,12 +102,15 @@ export default function AudioTestPage() {
   const transportRef = useRef<{ startTime: number; loopDuration: number } | null>(
     null,
   );
-  const activeRef = useRef<ToggleState>(createInitialState());
+  const soundFiles = useMemo(() => SONGS[song].files, [song]);
+  const activeRef = useRef<ToggleState>(createInitialState(SONGS[DEFAULT_SONG].files));
+  const soundFilesRef = useRef<readonly SoundFile[]>(SONGS[DEFAULT_SONG].files);
   const attackRef = useRef<number>(DEFAULT_LOOP_ATTACK);
+  const songRef = useRef<SongId>(DEFAULT_SONG);
 
   const allEnabled = useMemo(
-    () => SOUND_FILES.every((file) => active[file]),
-    [active],
+    () => soundFiles.length > 0 && soundFiles.every((file) => active[file]),
+    [active, soundFiles],
   );
 
   useEffect(() => {
@@ -75,8 +118,16 @@ export default function AudioTestPage() {
   }, [active]);
 
   useEffect(() => {
+    soundFilesRef.current = soundFiles;
+  }, [soundFiles]);
+
+  useEffect(() => {
     attackRef.current = attack;
   }, [attack]);
+
+  useEffect(() => {
+    songRef.current = song;
+  }, [song]);
 
   const getAudioContext = () => {
     let ctx = audioContextRef.current;
@@ -87,24 +138,52 @@ export default function AudioTestPage() {
     return ctx;
   };
 
-  const loadBuffer = async (file: SoundFile, useWithTail: boolean = false) => {
+  const loadBuffer = async (
+    songId: SongId,
+    file: SoundFile,
+    useWithTail: boolean = false,
+  ) => {
     const buffers = useWithTail ? buffersWithTailRef : buffersRef;
     const loading = useWithTail ? loadingWithTailRef : loadingRef;
+    const key = toFileKey(songId, file);
 
-    if (buffers.current[file]) return buffers.current[file] as AudioBuffer;
-    if (!loading.current[file]) {
-      loading.current[file] = (async () => {
+    if (buffers.current[key]) return buffers.current[key] as AudioBuffer;
+    if (!loading.current[key]) {
+      loading.current[key] = (async () => {
         const ctx = getAudioContext();
-        const path = useWithTail ? `/audio/${file}` : `/audio/no_tail/notail_${file}`;
-        const response = await fetch(path);
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = await ctx.decodeAudioData(arrayBuffer);
-        buffers.current[file] = buffer;
+        const withTailPath = buildSongPath(songId, file);
+        const noTailPath = `/audio/no_tail/notail_${encodeURIComponent(file)}`;
+        const candidatePaths = useWithTail
+          ? [withTailPath]
+          : songId === "mirage"
+            ? [noTailPath, withTailPath]
+            : [withTailPath];
 
-        return buffer;
+        let lastError: Error | null = null;
+        for (const path of candidatePaths) {
+          try {
+            const response = await fetch(path);
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = await ctx.decodeAudioData(arrayBuffer);
+            buffers.current[key] = buffer;
+            return buffer;
+          } catch (error) {
+            lastError = error instanceof Error ? error : new Error("Failed to load audio file");
+          }
+        }
+
+        throw (
+          lastError ??
+          new Error(
+            `Failed to load audio file for ${songId}/${file} (${useWithTail ? "with tail" : "no tail"})`,
+          )
+        );
       })();
     }
-    return loading.current[file] as Promise<AudioBuffer>;
+    return loading.current[key] as Promise<AudioBuffer>;
   };
 
   const ensureTransport = () => {
@@ -189,7 +268,7 @@ export default function AudioTestPage() {
   const startLoopingSource = (
     file: SoundFile,
     buffer: AudioBuffer,
-    loopDuration: number,
+    loopDurationSeconds: number,
     startAt: number,
     offset: number,
   ) => {
@@ -201,11 +280,11 @@ export default function AudioTestPage() {
     source.buffer = buffer;
     source.loop = true;
     source.loopStart = 0;
-    source.loopEnd = loopDuration;
+    source.loopEnd = loopDurationSeconds;
 
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, startAt);
-  gain.gain.linearRampToValueAtTime(LOOP_VOLUME, startAt + currentAttack);
+    gain.gain.linearRampToValueAtTime(LOOP_VOLUME, startAt + currentAttack);
 
     source.connect(gain);
     gain.connect(ctx.destination);
@@ -241,7 +320,7 @@ export default function AudioTestPage() {
   const scheduleWithTailTrack = async (file: SoundFile) => {
     const ctx = getAudioContext();
     const transport = ensureTransport();
-    const buffer = await loadBuffer(file, true);
+    const buffer = await loadBuffer(songRef.current, file, true);
     if (!activeRef.current[file]) return;
 
     const scheduleAheadTime = 0.75;
@@ -274,11 +353,11 @@ export default function AudioTestPage() {
     clearScheduler();
     if (mode !== "withTail") return;
 
-    const hasActiveTracks = SOUND_FILES.some((file) => activeRef.current[file]);
+    const hasActiveTracks = soundFilesRef.current.some((file) => activeRef.current[file]);
     if (!hasActiveTracks) return;
 
     schedulerRef.current = window.setInterval(() => {
-      for (const file of SOUND_FILES) {
+      for (const file of soundFilesRef.current) {
         if (!activeRef.current[file]) continue;
         void scheduleWithTailTrack(file);
       }
@@ -289,8 +368,8 @@ export default function AudioTestPage() {
     const ctx = getAudioContext();
     if (ctx.state !== "running") await ctx.resume();
 
-    await loadBuffer(file, false);
-    const buffer = await loadBuffer(file, mode === "withTail");
+    await loadBuffer(songRef.current, file, false);
+    const buffer = await loadBuffer(songRef.current, file, mode === "withTail");
     if (!activeRef.current[file]) return;
 
     const transport = ensureTransport();
@@ -312,15 +391,16 @@ export default function AudioTestPage() {
     const ctx = getAudioContext();
     if (ctx.state !== "running") await ctx.resume();
 
-    await Promise.all(SOUND_FILES.map((file) => loadBuffer(file, false)));
+    const files = soundFilesRef.current;
+    await Promise.all(files.map((file) => loadBuffer(songRef.current, file, false)));
 
     const buffers = await Promise.all(
-      SOUND_FILES.map((file) => loadBuffer(file, mode === "withTail")),
+      files.map((file) => loadBuffer(songRef.current, file, mode === "withTail")),
     );
     const startAt = ctx.currentTime + 0.08;
     transportRef.current = { startTime: startAt, loopDuration };
 
-    SOUND_FILES.forEach((file, index) => {
+    files.forEach((file, index) => {
       if (!activeRef.current[file]) return;
 
       if (mode === "notail") {
@@ -350,8 +430,10 @@ export default function AudioTestPage() {
   };
 
   const setAll = (enabled: boolean) => {
+    const files = soundFilesRef.current;
+
     if (enabled) {
-      const nextState = SOUND_FILES.reduce((acc, file) => {
+      const nextState = files.reduce((acc, file) => {
         acc[file] = true;
         return acc;
       }, {} as ToggleState);
@@ -361,20 +443,20 @@ export default function AudioTestPage() {
       return;
     }
 
-    SOUND_FILES.forEach((file) => {
+    files.forEach((file) => {
       stopFile(file);
     });
     clearScheduler();
-    const nextState = createInitialState();
+    const nextState = createInitialState(files);
     activeRef.current = nextState;
     setActive(nextState);
   };
 
   const switchMode = (newMode: "notail" | "withTail") => {
-    SOUND_FILES.forEach((file) => stopFile(file));
+    soundFilesRef.current.forEach((file) => stopFile(file));
     clearScheduler();
 
-    const nextState = createInitialState();
+    const nextState = createInitialState(soundFilesRef.current);
     activeRef.current = nextState;
     setActive(nextState);
 
@@ -383,20 +465,34 @@ export default function AudioTestPage() {
     setMode(newMode);
   };
 
+  const switchSong = (newSong: SongId) => {
+    if (newSong === songRef.current) return;
+
+    soundFilesRef.current.forEach((file) => stopFile(file));
+    clearScheduler();
+
+    const nextFiles = SONGS[newSong].files;
+    const nextState = createInitialState(nextFiles);
+    activeRef.current = nextState;
+    setActive(nextState);
+    transportRef.current = null;
+
+    setSong(newSong);
+  };
+
   useEffect(() => {
     const loadReferenceDuration = async () => {
-      const ctx = getAudioContext();
-      const response = await fetch("/audio/no_tail/notail_4x4_kick.mp3");
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      const firstTrack = SONGS[song].files[0];
+      if (!firstTrack) return;
+      const buffer = await loadBuffer(song, firstTrack, true);
       setLoopDuration(buffer.duration);
     };
     void loadReferenceDuration();
-  }, []);
+  }, [song]);
 
   useEffect(() => {
     return () => {
-      SOUND_FILES.forEach((file) => {
+      soundFilesRef.current.forEach((file) => {
         stopFile(file);
       });
       clearScheduler();
@@ -431,11 +527,34 @@ export default function AudioTestPage() {
           Audio Test Deck
         </h1>
         <p className="text-center font-bold uppercase tracking-wide mb-8">
-          All tracks are phase-locked 8-bar loops at fixed volume {LOOP_VOLUME}
+          All tracks are phase-locked loop stems at fixed volume {LOOP_VOLUME}
         </p>
 
         <Card className="p-6 border-8 border-black rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] bg-white">
           <div className="mb-6 p-4 border-4 border-black bg-gray-100">
+            <div className="mb-4 border-b-4 border-black pb-4">
+              <label className="block text-sm font-bold uppercase tracking-wide mb-3" htmlFor="song-pack-select">
+                Song Pack:
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  id="song-pack-select"
+                  value={song}
+                  onChange={(event) => switchSong(event.target.value as SongId)}
+                  className="min-w-44 border-4 border-black bg-white px-3 py-2 text-sm font-bold uppercase tracking-wide"
+                >
+                  {Object.entries(SONGS).map(([id, config]) => (
+                    <option key={id} value={id}>
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-sm font-bold uppercase tracking-wide">
+                  {soundFiles.length} stems loaded
+                </span>
+              </div>
+            </div>
+
             <p className="text-sm font-bold uppercase tracking-wide mb-3">Loop Mode:</p>
             <div className="flex flex-wrap gap-3">
               <Button
@@ -514,12 +633,12 @@ export default function AudioTestPage() {
               Stop All
             </Button>
             <span className="self-center text-sm font-bold uppercase tracking-wide">
-              Status: {allEnabled ? "All On" : "Mixed"} | Mode: {mode === "notail" ? "No Tail (Perfect 8B)" : "With Tail (Looped)"} | Attack: {attack.toFixed(2)}s
+              Status: {allEnabled ? "All On" : "Mixed"} | Song: {SONGS[song].label} | Mode: {mode === "notail" ? "No Tail (Perfect 8B)" : "With Tail (Looped)"} | Attack: {attack.toFixed(2)}s
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {SOUND_FILES.map((file) => {
+            {soundFiles.map((file) => {
               const isOn = active[file];
               return (
                 <Button
