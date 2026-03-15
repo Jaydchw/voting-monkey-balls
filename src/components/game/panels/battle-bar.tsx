@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { Heart, Shield, Sword } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ModifierIcon } from "./modifier-icon";
@@ -101,34 +104,92 @@ export function BattleBar({
   modifiers = [],
   weapons = [],
 }: BattleBarProps) {
+  const prevHealthRef = useRef(health);
+  const [damageTick, setDamageTick] = useState(0);
+  const [damageDelta, setDamageDelta] = useState(0);
+
+  useEffect(() => {
+    const prev = prevHealthRef.current;
+    if (health < prev) {
+      setDamageDelta(prev - health);
+      setDamageTick((value) => value + 1);
+    }
+    prevHealthRef.current = health;
+  }, [health]);
+
   const label = ballId === "red" ? "Red" : "Blue";
   const ringClass = getRingClass(modifiers);
   const indicatorStyle = getIndicatorStyle(ballId, modifiers);
+  const showHeavyDamage = damageDelta >= 10;
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <motion.div
+      className="flex flex-col gap-2 w-full relative"
+      animate={damageTick > 0 ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
+      transition={{ duration: 0.36, ease: "easeOut" }}
+    >
+      <AnimatePresence>
+        {showHeavyDamage && (
+          <motion.div
+            key={`impact-${damageTick}`}
+            className="pointer-events-none absolute inset-0"
+            initial={{ opacity: 0.8 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45 }}
+          >
+            {[0, 1, 2, 3, 4, 5].map((particle) => (
+              <motion.span
+                key={`particle-${particle}`}
+                className={`absolute top-8 left-1/2 block h-2 w-2 rounded-full ${
+                  ballId === "red" ? "bg-red-500" : "bg-blue-500"
+                }`}
+                initial={{ x: 0, y: 0, scale: 1 }}
+                animate={{
+                  x: (particle - 2.5) * 16,
+                  y: -18 - Math.abs(particle - 2.5) * 8,
+                  scale: [1, 0.8, 0],
+                }}
+                transition={{ duration: 0.45, ease: "easeOut" }}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between">
         <Badge
-          className={`text-2xl px-4 py-3.5 leading-none border-4 border-black rounded-none shadow-[4px_4px_0_0_rgba(0,0,0,1)] uppercase font-black tracking-widest ${
+          className={`text-xl px-3 py-2 leading-none border-0 rounded-none shadow-none uppercase font-black tracking-widest inline-flex items-center gap-1.5 ${
             ballId === "red"
               ? "bg-destructive text-destructive-foreground"
               : "bg-primary text-primary-foreground"
           }`}
         >
+          <Shield size={16} weight="fill" />
           {label}
         </Badge>
-        <span className="text-xl font-black uppercase">
+        <span className="text-xl font-black uppercase inline-flex items-center gap-1.5">
+          <Heart
+            size={17}
+            weight="fill"
+            className={ballId === "red" ? "text-red-600" : "text-blue-600"}
+          />
           {Math.round(health)} HP
         </span>
       </div>
 
       <Progress
         value={health}
-        className={`h-10 border-4 border-black rounded-none bg-zinc-100 shadow-[4px_4px_0_0_rgba(0,0,0,1)] **:data-[slot=progress-track]:h-full **:data-[slot=progress-track]:bg-zinc-200 ${ringClass}`}
+        className={`h-10 border-0 rounded-none bg-zinc-100 shadow-none **:data-[slot=progress-track]:h-full **:data-[slot=progress-track]:bg-zinc-200 ${ringClass}`}
         indicatorStyle={indicatorStyle}
       />
 
       <div className="flex gap-1 flex-wrap min-h-8">
+        {modifiers.length > 0 && (
+          <span className="inline-flex items-center mr-1 text-zinc-600">
+            <Heart size={14} weight="fill" />
+          </span>
+        )}
         {modifiers.map((mod, i) => (
           <ModifierIcon
             key={i}
@@ -141,6 +202,11 @@ export function BattleBar({
       </div>
 
       <div className="flex gap-1 flex-wrap min-h-8">
+        {weapons.length > 0 && (
+          <span className="inline-flex items-center mr-1 text-zinc-600">
+            <Sword size={14} weight="fill" />
+          </span>
+        )}
         {weapons.map((weapon, i) => (
           <ModifierIcon
             key={`${weapon.name}-${i}`}
@@ -151,6 +217,6 @@ export function BattleBar({
           />
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

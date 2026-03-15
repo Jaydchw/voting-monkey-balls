@@ -1,6 +1,8 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { DiceFive } from "@phosphor-icons/react";
+import { BananaInline } from "./banana-inline";
 import type { BotState } from "@/bots/types";
 
 type BotBetsTableProps = {
@@ -9,41 +11,43 @@ type BotBetsTableProps = {
 
 export function BotBetsTable({ bots }: BotBetsTableProps) {
   return (
-    <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-      <h2 className="text-sm font-black uppercase tracking-widest mb-3">
+    <section className="bg-white px-2 py-1">
+      <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
+        <DiceFive size={16} weight="fill" />
         Bot Bets
       </h2>
-      <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
-        {bots.map((bot) => (
-          <div
+      <div className="max-h-72 divide-y divide-zinc-200/80 overflow-y-auto pr-1">
+        {bots.map((bot, index) => (
+          <motion.div
             key={bot.id}
-            className="border-2 border-black px-2 py-1.5 flex items-center gap-2"
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: index * 0.03 }}
+            className="flex items-center gap-2 px-1 py-2.5"
           >
             <span className="text-xs font-bold uppercase flex-1 truncate">
               {bot.name}
             </span>
-            <span className="text-xs font-black text-zinc-500 shrink-0">
-              {bot.bananas}b
-            </span>
+            <BananaInline className="shrink-0 text-xs font-bold">
+              {bot.bananas}
+            </BananaInline>
             {bot.mainBet ? (
               <span
-                className={`border-2 border-black px-2 py-0.5 text-xs font-black uppercase shrink-0 ${
-                  bot.mainBet.side === "red"
-                    ? "bg-red-500 text-white border-red-800"
-                    : "bg-blue-500 text-white border-blue-800"
+                className={`px-2 py-0.5 text-xs font-bold uppercase shrink-0 ${
+                  bot.mainBet.side === "red" ? "text-red-700" : "text-blue-700"
                 }`}
               >
-                {bot.mainBet.side} {bot.mainBet.stake}b
+                {bot.mainBet.side} {bot.mainBet.stake}
                 {bot.mainBet.swapped && " ↕"}
               </span>
             ) : (
-              <span className="text-xs text-zinc-400 shrink-0 italic">
+              <span className="shrink-0 text-xs italic text-zinc-400">
                 no bet
               </span>
             )}
-          </div>
+          </motion.div>
         ))}
       </div>
-    </Card>
+    </section>
   );
 }

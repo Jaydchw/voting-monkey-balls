@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { GearSix, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FullscreenModal } from "@/components/game/panels/fullscreen-modal";
 import {
   getAudioSettings,
   setAudioSettings,
@@ -37,16 +38,18 @@ function AudioSettingsDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/45 flex items-center justify-center p-3"
-      style={{ zIndex: 2147483647 }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Audio settings"
-      onClick={onClose}
+    <FullscreenModal
+      open={open}
+      maxWidthClassName="max-w-md"
+      zIndexClassName="z-[2147483647]"
+      overlayClassName="bg-black/45"
+      onBackdropClick={onClose}
     >
       <Card
-        className="w-full max-w-md rounded-none border-4 border-black bg-white shadow-[0_10px_0_0_rgba(0,0,0,1)]"
+        className="w-full rounded-none border-0 bg-white shadow-none sm:border-0"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Audio settings"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="px-4 py-3 border-b-2 border-black/25 flex items-center justify-between">
@@ -133,11 +136,16 @@ function AudioSettingsDialog({
           </div>
         </div>
       </Card>
-    </div>
+    </FullscreenModal>
   );
 }
 
 export function GlobalAudioSettings() {
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [audioSettings, setAudioSettingsState] = useState<AudioSettings>(() =>
     getAudioSettings(),
@@ -168,7 +176,7 @@ export function GlobalAudioSettings() {
     };
   }, [settingsOpen]);
 
-  if (typeof document === "undefined") {
+  if (!isClient || typeof document === "undefined") {
     return null;
   }
 

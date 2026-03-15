@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FullscreenModal } from "./fullscreen-modal";
+import { FlipOptionCard } from "./flip-option-card";
+import { ShuffleMonkey } from "./shuffle-monkey";
 import type { VoteEventModalProps } from "./betting-types";
 
 type IconLike = (props: { size?: number; className?: string }) => ReactNode;
@@ -265,25 +268,12 @@ function VoteCard({
   const WatermarkIcon = option.icons[0];
 
   return (
-    <button
-      type="button"
+    <FlipOptionCard
+      index={index}
+      revealed={revealed}
       disabled={!revealed}
-      className={`w-full rounded-none text-left transition-all duration-500 perspective-distant ${
-        revealed
-          ? "opacity-100 translate-y-0"
-          : "opacity-0 -translate-y-6 pointer-events-none"
-      }`}
-      style={{ transitionDelay: `${index * 120}ms` }}
-      onClick={onPick}
-    >
-      <div
-        className="relative w-full transform-3d transition-transform duration-700"
-        style={{
-          transform: revealed
-            ? "rotateY(180deg) translate3d(0px,0px,0px)"
-            : "rotateY(0deg) translate3d(0px,-6px,0px)",
-        }}
-      >
+      onPick={onPick}
+      back={
         <Card className="absolute inset-0 h-56 rounded-none border-2 border-black bg-yellow-200 ring-0 backface-hidden shadow-[0_6px_0_0_rgba(0,0,0,1)]">
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
@@ -294,7 +284,8 @@ function VoteCard({
             </div>
           </div>
         </Card>
-
+      }
+      front={
         <Card
           className={`relative h-56 rounded-none border-2 p-2.5 ring-0 transform-[rotateY(180deg)] backface-hidden transition-all duration-150 bg-linear-to-b ${quality.cardTone} ${quality.borderTone} ${quality.glowTone} ${theme.shell} ${
             option.selected
@@ -399,8 +390,8 @@ function VoteCard({
             )}
           </div>
         </Card>
-      </div>
-    </button>
+      }
+    />
   );
 }
 
@@ -487,101 +478,87 @@ function SharedVoteModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-100/95 overflow-y-auto flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-4xl">
-        <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-4 sm:border-black">
-          <div className="px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-black/20 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
-                {countdown > 0 ? `Event vote (${countdown}s)` : "Event vote"}
+    <FullscreenModal
+      open={open}
+      maxWidthClassName="max-w-4xl"
+      zIndexClassName="z-50"
+    >
+      <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-0 sm:shadow-none">
+        <div className="px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-black/20 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
+              {countdown > 0 ? `Event vote (${countdown}s)` : "Event vote"}
+            </p>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
+              Draw Event Cards
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
+            <Image
+              src="/Banana.svg"
+              alt="Banana"
+              width={18}
+              height={18}
+              className="w-4 h-auto sm:w-5"
+            />
+            <span>{bananas}</span>
+          </div>
+        </div>
+
+        <div className="p-3 sm:p-4">
+          <ShuffleMonkey
+            monkeyImageSrc={monkeyImageSrc}
+            shuffling={shuffling}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {options.map((option, index) => (
+              <VoteCard
+                key={option.key}
+                option={option}
+                index={index}
+                votePercent={Math.round(
+                  (option.projectedVotes / totalProjectedVotes) * 100,
+                )}
+                revealed={revealedCount > index}
+                onPick={() => pickVote(option)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-3 p-3 bg-zinc-50 border border-black/20">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-black uppercase tracking-wider text-zinc-700">
+                Vote Power Stake
               </p>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
-                Draw Event Cards
-              </h2>
+              <p className="text-base sm:text-lg font-black text-amber-700">
+                {votePower}
+              </p>
             </div>
-            <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
-              <Image
-                src="/Banana.svg"
-                alt="Banana"
-                width={18}
-                height={18}
-                className="w-4 h-4 sm:w-5 sm:h-5"
-              />
-              <span>{bananas}</span>
-            </div>
-          </div>
-
-          <div className="p-3 sm:p-4">
-            <div className="relative h-24 sm:h-28 mb-3 -mt-2 sm:-mt-3">
-              <Image
-                src={monkeyImageSrc}
-                alt="Monkey"
-                width={136}
-                height={136}
-                className="absolute left-1/2 -top-2 sm:-top-3 -translate-x-1/2 w-24 h-24 sm:w-28 sm:h-28 object-contain"
-              />
-              <div className="absolute left-1/2 top-9 sm:top-10 -translate-x-1/2 flex">
-                <div
-                  className={`w-14 h-18 sm:w-16 sm:h-20 border-4 border-black bg-yellow-200 -rotate-12 transition-transform duration-200 ${shuffling ? "-translate-y-1" : "translate-y-0"}`}
-                />
-                <div
-                  className={`w-14 h-18 sm:w-16 sm:h-20 border-4 border-black bg-blue-200 -ml-8 sm:-ml-9 transition-transform duration-200 ${shuffling ? "translate-y-1" : "translate-y-0"}`}
-                />
-                <div
-                  className={`w-14 h-18 sm:w-16 sm:h-20 border-4 border-black bg-pink-200 -ml-8 sm:-ml-9 rotate-12 transition-transform duration-200 ${shuffling ? "-translate-y-1" : "translate-y-0"}`}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {options.map((option, index) => (
-                <VoteCard
-                  key={option.key}
-                  option={option}
-                  index={index}
-                  votePercent={Math.round(
-                    (option.projectedVotes / totalProjectedVotes) * 100,
-                  )}
-                  revealed={revealedCount > index}
-                  onPick={() => pickVote(option)}
-                />
-              ))}
-            </div>
-
-            <div className="mt-3 p-3 bg-zinc-50 border border-black/20">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] font-black uppercase tracking-wider text-zinc-700">
-                  Vote Power Stake
-                </p>
-                <p className="text-base sm:text-lg font-black text-amber-700">
-                  {votePower}
-                </p>
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 px-3 border-2 border-black rounded-none bg-white text-sm font-black shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
-                  onClick={() => onVotePowerChange(Math.max(1, votePower - 5))}
-                >
-                  -5
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 px-3 border-2 border-black rounded-none bg-white text-sm font-black shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
-                  onClick={() =>
-                    onVotePowerChange(Math.min(bananas, votePower + 5))
-                  }
-                >
-                  +5
-                </Button>
-              </div>
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 px-3 border-2 border-black rounded-none bg-white text-sm font-black shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
+                onClick={() => onVotePowerChange(Math.max(1, votePower - 5))}
+              >
+                -5
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 px-3 border-2 border-black rounded-none bg-white text-sm font-black shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
+                onClick={() =>
+                  onVotePowerChange(Math.min(bananas, votePower + 5))
+                }
+              >
+                +5
+              </Button>
             </div>
           </div>
-        </Card>
-      </div>
-    </div>
+        </div>
+      </Card>
+    </FullscreenModal>
   );
 }
 
@@ -743,8 +720,12 @@ export function VoteRevealModal({
         : "Arena Modifier";
 
   return (
-    <div className="fixed inset-0 z-60 bg-zinc-100/95 flex items-center justify-center p-3 sm:p-4">
-      <Card className="w-full max-w-3xl rounded-none p-4 sm:p-5 bg-white text-center ring-0 border-4 border-black shadow-[0_8px_0_0_rgba(0,0,0,1)]">
+    <FullscreenModal
+      open={open && Boolean(revealedOption)}
+      maxWidthClassName="max-w-3xl"
+      zIndexClassName="z-60"
+    >
+      <Card className="w-full rounded-none p-4 sm:p-5 bg-white text-center ring-0 border-0 sm:border-0 shadow-none">
         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-600">
           Vote settled {countdown > 0 ? `(${countdown}s)` : ""}
         </p>
@@ -801,6 +782,6 @@ export function VoteRevealModal({
           </h3>
         </div>
       </Card>
-    </div>
+    </FullscreenModal>
   );
 }

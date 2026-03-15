@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Gear, TrendUp } from "@phosphor-icons/react";
 import { BotsGameEngine } from "@/bots/engine";
 import type {
   BallId,
@@ -18,9 +20,10 @@ import { ArenaBoard } from "./panels/arena-board";
 import { BotStandings } from "./panels/bot-standings";
 import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
 import { BotBetsTable } from "./panels/bot-bets-table";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  BananaInline,
+  MatchDashboardShell,
   MicrobetsModal,
   PrematchBetModal,
   VoteEventModal,
@@ -98,11 +101,16 @@ function didMicrobetWin(
   return outcome ? delta.ballCollisions >= 10 : delta.ballCollisions < 10;
 }
 
-export default function SingleplayerPanel() {
+type SingleplayerPanelProps = {
+  initialBotCount?: number;
+};
+
+export default function SingleplayerPanel({
+  initialBotCount = DEFAULT_SINGLEPLAYER_BOTS,
+}: SingleplayerPanelProps) {
   const [engine, setEngine] = useState(
-    () => new BotsGameEngine({ botCount: DEFAULT_SINGLEPLAYER_BOTS }),
+    () => new BotsGameEngine({ botCount: initialBotCount }),
   );
-  const [botCount, setBotCount] = useState(DEFAULT_SINGLEPLAYER_BOTS);
   const gameApiRef = useRef<GameApi | null>(null);
 
   // Engine / game state
@@ -286,7 +294,7 @@ export default function SingleplayerPanel() {
         ].slice(0, 6),
       );
     },
-    [],
+    [engine],
   );
 
   const resetBoardForNextRound = useCallback(() => {
@@ -332,7 +340,7 @@ export default function SingleplayerPanel() {
   }, [transitionPhase]);
 
   const restartSingleplayerMatch = useCallback(() => {
-    const nextEngine = new BotsGameEngine({ botCount });
+    const nextEngine = new BotsGameEngine({ botCount: initialBotCount });
     setEngine(nextEngine);
     setSnapshot(nextEngine.getSnapshot());
 
@@ -374,7 +382,7 @@ export default function SingleplayerPanel() {
     lastVoteStatsRef.current = null;
 
     transitionPhase("prematch", 0);
-  }, [botCount, transitionPhase]);
+  }, [initialBotCount, transitionPhase]);
 
   const handleGameReady = useCallback((api: GameApi) => {
     gameApiRef.current = api;
@@ -638,22 +646,28 @@ export default function SingleplayerPanel() {
     (sum, bet) => sum + bet.stake,
     0,
   );
+  const hasBots = snapshot.bots.length > 0;
 
   return (
-    <div className="w-screen min-h-screen bg-white text-black p-6 md:p-10">
-      <div className="max-w-475 mx-auto">
-        <RoundHeader
-          roundNumber={snapshot.roundNumber}
-          roundsTotal={snapshot.roundsTotal}
-          timeLeftSeconds={snapshot.timeLeftSeconds}
-        />
-
-        <div className="grid grid-cols-1 xl:grid-cols-[280px_auto_320px] gap-6">
-          <BotStandings
-            leaderboard={snapshot.leaderboard}
-            latestLog={snapshot.latestLog}
+    <>
+      <MatchDashboardShell
+        reserveLeftSpace
+        header={
+          <RoundHeader
+            roundNumber={snapshot.roundNumber}
+            roundsTotal={snapshot.roundsTotal}
+            timeLeftSeconds={snapshot.timeLeftSeconds}
           />
-
+        }
+        leftPanel={
+          hasBots ? (
+            <BotStandings
+              leaderboard={snapshot.leaderboard}
+              latestLog={snapshot.latestLog}
+            />
+          ) : undefined
+        }
+        centerPanel={
           <div className="flex flex-col items-center">
             <HealthBars
               redHealth={redHealth}
@@ -675,26 +689,27 @@ export default function SingleplayerPanel() {
               onBallCollision={handleBallCollision}
             />
 
-            <div className="mt-5 w-full grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-yellow-300">
-                <p className="text-xs font-black uppercase tracking-widest mb-1">
-                  Your Bananas
+            <div className="mt-5 grid w-full grid-cols-1 gap-4 border-t border-zinc-200 pt-4 lg:ml-20 lg:grid-cols-3">
+              <div className="px-2 py-1">
+                <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                  Your <BananaInline>Bananas</BananaInline>
                 </p>
                 <p className="text-3xl font-black tabular-nums">
-                  {playerBananas}
+                  <BananaInline iconSize={18}>{playerBananas}</BananaInline>
                 </p>
-                <p className="text-xs mt-2 uppercase font-black text-zinc-700">
+                <p className="mt-2 text-xs font-black uppercase text-zinc-700">
                   Phase: {phase}
                 </p>
-              </Card>
+              </div>
 
-              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest mb-2">
+              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
+                <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
                   Main Bet
                 </p>
                 {currentBet ? (
                   <p className="text-sm font-black uppercase">
-                    {currentBet.side} - {currentBet.stake} bananas
+                    {currentBet.side} -{" "}
+                    <BananaInline>{currentBet.stake}</BananaInline>
                   </p>
                 ) : (
                   <p className="text-sm text-zinc-600">
@@ -708,27 +723,30 @@ export default function SingleplayerPanel() {
                       : `Loss -${mainBetResult.pnl}`}
                   </p>
                 )}
-              </Card>
+              </div>
 
-              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest mb-2">
+              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
+                <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
                   Active Microbets
+                </p>
+                <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-zinc-700">
+                  <TrendUp size={14} weight="fill" /> Live
                 </p>
                 <p className="text-sm font-black uppercase">
                   {activeMicrobets.length} running
                 </p>
-                {lastMicrobetSettlements.length > 0 && (
-                  <p className="text-xs text-zinc-700 mt-2">
+                {lastMicrobetSettlements.length > 0 ? (
+                  <p className="mt-2 text-xs text-zinc-700">
                     Last interval:{" "}
                     {lastMicrobetSettlements.filter((item) => item.won).length}{" "}
                     / {lastMicrobetSettlements.length} won
                   </p>
-                )}
-              </Card>
+                ) : null}
+              </div>
             </div>
 
-            {roundWinner && (
-              <div className="mt-5 w-full border-4 border-black py-3 text-center shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+            {roundWinner ? (
+              <div className="mt-5 w-full rounded-2xl border border-black/15 bg-white/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]">
                 <span
                   className="text-2xl font-black uppercase"
                   style={{
@@ -738,108 +756,109 @@ export default function SingleplayerPanel() {
                   {roundWinner.toUpperCase()} wins this round
                 </span>
               </div>
-            )}
+            ) : null}
 
-            {snapshot.tournamentFinished && (
-              <div className="mt-5 w-full border-4 border-black py-3 text-center bg-yellow-300 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+            {snapshot.tournamentFinished ? (
+              <div className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]">
                 <span className="text-2xl font-black uppercase">
                   Tournament Complete
                 </span>
               </div>
-            )}
+            ) : null}
           </div>
-
+        }
+        rightPanel={
           <div className="flex flex-col gap-6">
-            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-white">
-              <p className="text-xs font-black uppercase tracking-widest text-zinc-600 mb-2">
-                Singleplayer Bots
+            <div className="border-t border-zinc-200 px-2 pt-4">
+              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                <Gear size={14} weight="fill" /> Match Controls
               </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min={0}
-                  max={20}
-                  step={1}
-                  value={botCount}
-                  className="flex-1 accent-black"
-                  onChange={(event) => setBotCount(Number(event.target.value))}
-                />
-                <p className="w-10 text-right font-black text-lg">{botCount}</p>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/singleplayer">
+                  <Button
+                    variant="outline"
+                    className="rounded-xl border-black/15 font-semibold uppercase"
+                  >
+                    Match Settings
+                  </Button>
+                </Link>
+                <Button
+                  variant="outline"
+                  className="rounded-xl border-black/15 font-semibold uppercase"
+                  onClick={restartSingleplayerMatch}
+                >
+                  Restart Match
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                className="mt-3 border-4 border-black rounded-none font-black uppercase"
-                onClick={restartSingleplayerMatch}
-              >
-                Apply And Restart
-              </Button>
-            </Card>
+            </div>
 
             <ActivityFeed
               latestVoteSummary={snapshot.latestVoteSummary}
               latestMicrobetSummary={snapshot.latestMicrobetSummary}
               appliedEffects={appliedEffects}
             />
-            <BotBetsTable bots={snapshot.bots} />
+            {hasBots ? <BotBetsTable bots={snapshot.bots} /> : null}
           </div>
-        </div>
+        }
+      />
 
-        <PrematchBetModal
-          open={phase === "prematch"}
-          countdown={phaseCountdown}
-          redHealth={redHealth}
-          blueHealth={blueHealth}
-          bananas={playerBananas}
-          selected={mainBetSelection}
-          minStake={MAIN_BET_MIN_STAKE}
-          onSelectSide={(side) =>
-            setMainBetSelection((prev) => ({ ...prev, side }))
-          }
-          onSelectStake={(stake) =>
-            setMainBetSelection((prev) => ({ ...prev, stake }))
-          }
-          onConfirm={handleMainBetPlace}
-          onSkip={handleMainBetSkip}
-        />
+      <PrematchBetModal
+        open={phase === "prematch"}
+        countdown={phaseCountdown}
+        redHealth={redHealth}
+        blueHealth={blueHealth}
+        bananas={playerBananas}
+        selected={mainBetSelection}
+        minStake={MAIN_BET_MIN_STAKE}
+        onSelectSide={(side) =>
+          setMainBetSelection((prev) => ({ ...prev, side }))
+        }
+        onSelectStake={(stake) =>
+          setMainBetSelection((prev) => ({ ...prev, stake }))
+        }
+        onConfirm={handleMainBetPlace}
+        onSkip={handleMainBetSkip}
+      />
 
-        <VoteEventModal
-          open={phase === "vote"}
-          countdown={phaseCountdown}
-          redHealth={redHealth}
-          blueHealth={blueHealth}
-          bananas={playerBananas}
-          voteWindow={voteWindow}
-          selection={voteSelection}
-          votePower={votePowerStake}
-          onSelectOption={setVoteSelection}
-          onVotePowerChange={setVotePowerStake}
-          onConfirm={handleVoteCast}
-        />
+      <VoteEventModal
+        open={phase === "vote"}
+        countdown={phaseCountdown}
+        redHealth={redHealth}
+        blueHealth={blueHealth}
+        bananas={playerBananas}
+        voteWindow={voteWindow}
+        selection={voteSelection}
+        votePower={votePowerStake}
+        onSelectOption={setVoteSelection}
+        onVotePowerChange={setVotePowerStake}
+        onConfirm={handleVoteCast}
+      />
 
-        <VoteRevealModal
-          open={false}
-          countdown={phaseCountdown}
-          revealedOption={revealedVoteOption}
-        />
+      <VoteRevealModal
+        open={false}
+        countdown={phaseCountdown}
+        revealedOption={revealedVoteOption}
+      />
 
-        <MicrobetsModal
-          open={phase === "microbet"}
-          countdown={phaseCountdown}
-          redHealth={redHealth}
-          blueHealth={blueHealth}
-          bananas={playerBananas}
-          insights={microbetInsights}
-          draft={microbetDraft}
-          placedBets={queuedMicrobets}
-          onDraftChange={setMicrobetDraft}
-          onAddBet={handleMicrobetAdd}
-          onAddQuickBet={handleMicrobetQuickAdd}
-          onRemoveBet={handleMicrobetRemove}
-          onConfirm={handleMicrobetConfirm}
-          onSkip={handleMicrobetConfirm}
-        />
+      <MicrobetsModal
+        open={phase === "microbet"}
+        countdown={phaseCountdown}
+        redHealth={redHealth}
+        blueHealth={blueHealth}
+        bananas={playerBananas}
+        insights={microbetInsights}
+        draft={microbetDraft}
+        placedBets={queuedMicrobets}
+        onDraftChange={setMicrobetDraft}
+        onAddBet={handleMicrobetAdd}
+        onAddQuickBet={handleMicrobetQuickAdd}
+        onRemoveBet={handleMicrobetRemove}
+        onConfirm={handleMicrobetConfirm}
+        onSkip={handleMicrobetSkip}
+      />
 
-        <Card className="mt-6 border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+      <div className="mx-auto mt-6 max-w-475 px-6 md:px-10">
+        <div className="border-t border-zinc-200 p-4">
           <p className="text-xs font-black uppercase tracking-widest mb-2">
             Recent microbet results
           </p>
@@ -858,11 +877,12 @@ export default function SingleplayerPanel() {
           </div>
           {phase === "microbet" && queuedStakeTotal > 0 && (
             <p className="text-xs font-black uppercase mt-3">
-              Queued stake total: {queuedStakeTotal} bananas
+              Queued stake total:{" "}
+              <BananaInline>{queuedStakeTotal}</BananaInline>
             </p>
           )}
-        </Card>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

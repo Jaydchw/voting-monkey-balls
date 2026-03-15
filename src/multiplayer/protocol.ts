@@ -63,6 +63,8 @@ export type ParticipantPublicState = {
   id: string;
   name: string;
   token?: string;
+  characterSvg?: string;
+  characterColor?: string;
   bananas: number;
   totalPayout: number;
   roundPayout: number;
@@ -94,6 +96,11 @@ export type PendingMicrobetWire = {
 };
 
 export type PlayerAction =
+  | {
+      kind: "set-character";
+      svgType: string;
+      color: string;
+    }
   | {
       kind: "main-bet";
       side: BallId;

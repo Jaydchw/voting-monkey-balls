@@ -5,10 +5,12 @@ import Image from "next/image";
 import PartySocket from "partysocket";
 import { RoundHeader } from "@/components/game/panels/round-header";
 import {
+  CharacterSelectModal,
   MicrobetsModal,
   PrematchBetModal,
   VoteEventModal,
 } from "@/components/game/panels";
+import { CharacterAvatar } from "@/components/game/character-avatar";
 import type { BallId, MicroBetKind } from "@/bots/types";
 import type {
   MainBetSelection,
@@ -85,6 +87,8 @@ export default function JoinRemotePanel({
     outcome: true,
     stake: 5,
   });
+  const [characterSelectionSubmitted, setCharacterSelectionSubmitted] =
+    useState(false);
   const [queuedMicrobets, setQueuedMicrobets] = useState<
     PendingPlayerMicrobet[]
   >([]);
@@ -106,6 +110,16 @@ export default function JoinRemotePanel({
   }, [playerToken, state]);
 
   const bananas = myParticipant?.bananas ?? 0;
+  const participantLeaderboard = useMemo(() => {
+    if (!state) return [];
+    return [...state.participants].sort((a, b) => b.bananas - a.bananas);
+  }, [state]);
+
+  const needsCharacterSelection =
+    Boolean(myParticipant) &&
+    state?.phase === "prematch" &&
+    state.snapshot.roundNumber === 1 &&
+    !myParticipant?.characterSvg;
 
   useEffect(() => {
     const socket = new PartySocket({
@@ -188,6 +202,22 @@ export default function JoinRemotePanel({
       return;
     }
     socket.send(JSON.stringify(action));
+  };
+
+  const submitCharacter = (svgType: string, color: string) => {
+    if (characterSelectionSubmitted || myParticipant?.characterSvg) {
+      return;
+    }
+
+    sendAction({
+      type: "player-action",
+      action: {
+        kind: "set-character",
+        svgType,
+        color,
+      },
+    });
+    setCharacterSelectionSubmitted(true);
   };
 
   const placeMainBet = () => {
@@ -295,6 +325,10 @@ export default function JoinRemotePanel({
 
   useEffect(() => {
     if (!state) {
+      return;
+    }
+
+    if (needsCharacterSelection) {
       return;
     }
 
@@ -428,8 +462,10 @@ export default function JoinRemotePanel({
     }
   }, [
     bananas,
+    characterSelectionSubmitted,
     mainBetSelection.side,
     mainBetSelection.stake,
+    needsCharacterSelection,
     prematchDecisionSubmitted,
     queuedMicrobets,
     state,
@@ -566,6 +602,43 @@ export default function JoinRemotePanel({
           <div className="space-y-5">
             <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600 mb-3">
+                Player Leaderboard
+              </p>
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {participantLeaderboard.map((participant, index) => (
+                  <div
+                    key={participant.id}
+                    className="border-2 border-black p-3 bg-zinc-50"
+                  >
+                    <p className="text-[11px] font-black uppercase tracking-widest text-zinc-600 text-center mb-1">
+                      #{index + 1}
+                    </p>
+                    <p className="text-xs font-black uppercase tracking-wider text-center mb-2">
+                      {participant.name}
+                    </p>
+                    <div className="flex justify-center">
+                      <CharacterAvatar
+                        svgType={participant.characterSvg}
+                        color={participant.characterColor}
+                        size={54}
+                        className="border-2 border-black bg-white"
+                      />
+                    </div>
+                    <p className="text-xs font-black uppercase text-center mt-2">
+                      {participant.bananas} bananas
+                    </p>
+                  </div>
+                ))}
+                {participantLeaderboard.length === 0 && (
+                  <p className="text-xs text-zinc-600">
+                    No players in leaderboard.
+                  </p>
+                )}
+              </div>
+            </Card>
+
+            <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600 mb-3">
                 Active Bets
               </p>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -628,7 +701,11 @@ export default function JoinRemotePanel({
         </div>
 
         <PrematchBetModal
-          open={state.phase === "prematch" && !prematchDecisionSubmitted}
+          open={
+            state.phase === "prematch" &&
+            !prematchDecisionSubmitted &&
+            !needsCharacterSelection
+          }
           countdown={state.phaseCountdown}
           redHealth={state.redHealth}
           blueHealth={state.blueHealth}
@@ -648,6 +725,14 @@ export default function JoinRemotePanel({
           }}
           onConfirm={placeMainBet}
           onSkip={skipMainBet}
+        />
+
+        <CharacterSelectModal
+          open={Boolean(
+            needsCharacterSelection && !characterSelectionSubmitted,
+          )}
+          playerName={playerName}
+          onConfirm={({ svgType, color }) => submitCharacter(svgType, color)}
         />
 
         {state.phase === "prematch" && prematchDecisionSubmitted && (

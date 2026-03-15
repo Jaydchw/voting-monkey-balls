@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FullscreenModal } from "./fullscreen-modal";
 import type { MicroBetKind } from "@/bots/types";
 import type {
   MicrobetDraft,
@@ -176,109 +177,109 @@ export function MicrobetsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-100/95 overflow-y-auto flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-350">
-        <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-4 sm:border-black sm:shadow-[12px_12px_0_0_rgba(0,0,0,1)]">
-          <div className="border-b-2 border-black/20 px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
-                {countdown > 0
-                  ? `Microbet market (${countdown}s)`
-                  : "Microbet market"}
-              </p>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
-                Tap To Lock Bets
-              </h2>
-              <p className="text-xs sm:text-sm font-bold text-zinc-700 mt-2 leading-relaxed">
-                Pick exactly what you believe will happen. One tap locks it.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
-              <Image
-                src="/Banana.svg"
-                alt="Banana"
-                width={18}
-                height={18}
-                className="w-4 h-4 sm:w-5 sm:h-5"
-              />
-              <span>{bananas}</span>
-            </div>
+    <FullscreenModal
+      open={open}
+      maxWidthClassName="max-w-350"
+      zIndexClassName="z-50"
+    >
+      <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-0 sm:shadow-none">
+        <div className="border-b-2 border-black/20 px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
+              {countdown > 0
+                ? `Microbet market (${countdown}s)`
+                : "Microbet market"}
+            </p>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
+              Tap To Lock Bets
+            </h2>
+            <p className="text-xs sm:text-sm font-bold text-zinc-700 mt-2 leading-relaxed">
+              Pick exactly what you believe will happen. One tap locks it.
+            </p>
           </div>
 
-          <div className="p-3 sm:p-4">
-            <Card className="p-3 bg-zinc-50 ring-0 border-0 sm:border sm:border-black/20">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-[0.2em]">
-                  Stake per click
-                </p>
-                <p className="text-lg font-black text-yellow-700">
-                  {draft.stake}
-                </p>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={Math.max(1, bananas)}
-                step={1}
-                value={Math.max(1, Math.min(bananas, draft.stake))}
-                className="mt-3 w-full accent-black"
-                onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    stake: Math.max(
-                      1,
-                      Math.min(bananas, Number(event.target.value)),
-                    ),
-                  })
-                }
-              />
-            </Card>
-
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-              {MARKET_PRESETS.map((preset) => {
-                const odds = calcOdds(preset.kind);
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className="text-left p-3 rounded-none border-2 border-black bg-white transition-all duration-150 shadow-[0_4px_0_0_rgba(0,0,0,1)] hover:bg-zinc-50 active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
-                    onClick={() => lockPreset(preset)}
-                  >
-                    <p className="text-sm font-black leading-tight">
-                      {emphasizeMatchupText(preset.proposition)}
-                    </p>
-                    <p className="text-xs font-bold text-zinc-700 mt-1 leading-relaxed">
-                      <span className="text-yellow-700">
-                        Stake {draft.stake}
-                      </span>{" "}
-                      | {odds.toFixed(2)}x odds
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-5">
-              <QueuedList placed={placedBets} onRemove={onRemoveBet} />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <p className="text-xs font-black uppercase text-zinc-700">
-                Locked <span className="text-yellow-700">stake</span> total:{" "}
-                {queuedStakeTotal}
-              </p>
-              <Button
-                variant="outline"
-                className={`h-11 font-black uppercase ${pressButtonClass}`}
-                onClick={onSkip}
-              >
-                Continue
-              </Button>
-            </div>
+          <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
+            <Image
+              src="/Banana.svg"
+              alt="Banana"
+              width={18}
+              height={18}
+              className="w-4 h-auto sm:w-5"
+            />
+            <span>{bananas}</span>
           </div>
-        </Card>
-      </div>
-    </div>
+        </div>
+
+        <div className="p-3 sm:p-4">
+          <Card className="p-3 bg-zinc-50 ring-0 border-0 sm:border sm:border-black/20">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-[0.2em]">
+                Stake per click
+              </p>
+              <p className="text-lg font-black text-yellow-700">
+                {draft.stake}
+              </p>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={Math.max(1, bananas)}
+              step={1}
+              value={Math.max(1, Math.min(bananas, draft.stake))}
+              className="mt-3 w-full accent-black"
+              onChange={(event) =>
+                onDraftChange({
+                  ...draft,
+                  stake: Math.max(
+                    1,
+                    Math.min(bananas, Number(event.target.value)),
+                  ),
+                })
+              }
+            />
+          </Card>
+
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            {MARKET_PRESETS.map((preset) => {
+              const odds = calcOdds(preset.kind);
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className="text-left p-3 rounded-none border-2 border-black bg-white transition-all duration-150 shadow-[0_4px_0_0_rgba(0,0,0,1)] hover:bg-zinc-50 active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
+                  onClick={() => lockPreset(preset)}
+                >
+                  <p className="text-sm font-black leading-tight">
+                    {emphasizeMatchupText(preset.proposition)}
+                  </p>
+                  <p className="text-xs font-bold text-zinc-700 mt-1 leading-relaxed">
+                    <span className="text-yellow-700">Stake {draft.stake}</span>{" "}
+                    | {odds.toFixed(2)}x odds
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-5">
+            <QueuedList placed={placedBets} onRemove={onRemoveBet} />
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <p className="text-xs font-black uppercase text-zinc-700">
+              Locked <span className="text-yellow-700">stake</span> total:{" "}
+              {queuedStakeTotal}
+            </p>
+            <Button
+              variant="outline"
+              className={`h-11 font-black uppercase ${pressButtonClass}`}
+              onClick={onSkip}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </FullscreenModal>
   );
 }

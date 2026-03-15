@@ -1,6 +1,8 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { Crown, Pulse } from "@phosphor-icons/react";
+import { BananaInline } from "./banana-inline";
 import type { BotState } from "@/bots/types";
 
 type BotStandingsProps = {
@@ -12,38 +14,50 @@ export function BotStandings({ leaderboard, latestLog }: BotStandingsProps) {
   const topFive = leaderboard.slice(0, 5);
 
   return (
-    <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-      <h2 className="text-sm font-black uppercase tracking-widest mb-3">
+    <section className="bg-white px-2 py-1">
+      <h2 className="mb-3 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
+        <Crown size={16} weight="fill" />
         Bot Standings
       </h2>
-      <div className="space-y-2">
+      <div className="divide-y divide-zinc-200/80">
         {topFive.map((bot, index) => (
-          <div
+          <motion.div
             key={bot.id}
-            className="border-2 border-black px-3 py-2 flex items-center justify-between"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: index * 0.05 }}
+            className="flex items-center justify-between px-1 py-2.5"
           >
-            <span className="font-bold uppercase text-sm">
+            <span className="text-sm font-semibold uppercase">
               #{index + 1} {bot.name}
             </span>
-            <span className="font-black">{bot.bananas}b</span>
-          </div>
+            <BananaInline className="text-xs font-bold">
+              {bot.bananas}
+            </BananaInline>
+          </motion.div>
         ))}
       </div>
 
-      <h3 className="text-xs font-black uppercase tracking-widest mt-5 mb-2">
+      <h3 className="mt-5 mb-2 inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-widest text-zinc-500">
+        <Pulse size={13} weight="fill" />
         Recent Engine Logs
       </h3>
-      <div className="space-y-2">
+      <div className="divide-y divide-zinc-200/70">
         {latestLog.map((line, index) => (
-          <p
+          <motion.p
             key={`${line}-${index}`}
-            className="text-xs leading-5 border-b border-black/20 pb-1"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, delay: index * 0.03 }}
+            className="px-1 py-2 text-xs leading-5"
           >
             {line}
-          </p>
+          </motion.p>
         ))}
-        {latestLog.length === 0 && <p className="text-xs">No logs yet.</p>}
+        {latestLog.length === 0 && (
+          <p className="text-xs text-zinc-500">No logs yet.</p>
+        )}
       </div>
-    </Card>
+    </section>
   );
 }

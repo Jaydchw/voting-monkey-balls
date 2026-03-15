@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import PartySocket from "partysocket";
-import { CopySimple, ShareNetwork } from "@phosphor-icons/react";
+import {
+  CopySimple,
+  Pulse,
+  ShareNetwork,
+  Trophy,
+  Users,
+} from "@phosphor-icons/react";
 import { BotsGameEngine } from "@/bots/engine";
 import type {
   BallId,
@@ -18,14 +24,22 @@ import type { ActiveModifier } from "@/components/game/panels/battle-bar";
 import { RoundHeader } from "@/components/game/panels/round-header";
 import { HealthBars } from "@/components/game/panels/health-bars";
 import { ArenaBoard } from "@/components/game/panels/arena-board";
+import { BananaInline } from "@/components/game/panels/banana-inline";
 import { BotStandings } from "@/components/game/panels/bot-standings";
+import { MatchDashboardShell } from "@/components/game/panels/match-dashboard-shell";
+import { CharacterAvatar } from "@/components/game/character-avatar";
 import {
   ActivityFeed,
   type AppliedEffect,
 } from "@/components/game/panels/activity-feed";
 import { BotBetsTable } from "@/components/game/panels/bot-bets-table";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  DEFAULT_MONKEY_COLOR,
+  DEFAULT_MONKEY_SVG,
+  isValidCharacterColor,
+  isValidMonkeySvgType,
+} from "@/lib/monkey-characters";
 import {
   getPartyKitHost,
   getSocketProtocol,
@@ -201,6 +215,9 @@ export default function HostMultiplayerPanel({
     Record<string, number>
   >({});
   const [queuedVoteCount, setQueuedVoteCount] = useState(0);
+  const [participantCharacters, setParticipantCharacters] = useState<
+    Record<string, { svgType: string; color: string }>
+  >({});
 
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
   const previousHealthRef = useRef({
@@ -405,32 +422,37 @@ export default function HostMultiplayerPanel({
     }
 
     const participants: ParticipantPublicState[] = roomParticipants.map(
-      (participant) => ({
-        id: participant.id,
-        name: participant.name,
-        token: participant.token,
-        connected: participant.connected,
-        bananas: banksRef.current[participant.id] ?? settings.startingBananas,
-        totalPayout: totalPayoutRef.current[participant.id] ?? 0,
-        roundPayout: roundPayoutRef.current[participant.id] ?? 0,
-        activeMainBet: mainBetsRef.current[participant.id] ?? null,
-        queuedMicrobets: (queuedMicrobetsRef.current[participant.id] ?? []).map(
-          (bet) => ({
+      (participant) => {
+        const character = participantCharacters[participant.id];
+        return {
+          id: participant.id,
+          name: participant.name,
+          token: participant.token,
+          characterSvg: character?.svgType,
+          characterColor: character?.color,
+          connected: participant.connected,
+          bananas: banksRef.current[participant.id] ?? settings.startingBananas,
+          totalPayout: totalPayoutRef.current[participant.id] ?? 0,
+          roundPayout: roundPayoutRef.current[participant.id] ?? 0,
+          activeMainBet: mainBetsRef.current[participant.id] ?? null,
+          queuedMicrobets: (
+            queuedMicrobetsRef.current[participant.id] ?? []
+          ).map((bet) => ({
             kind: bet.kind,
             outcome: bet.outcome,
             stake: bet.stake,
             odds: bet.odds,
-          }),
-        ),
-        activeMicrobets: (activeMicrobetsRef.current[participant.id] ?? []).map(
-          (bet) => ({
+          })),
+          activeMicrobets: (
+            activeMicrobetsRef.current[participant.id] ?? []
+          ).map((bet) => ({
             kind: bet.kind,
             outcome: bet.outcome,
             stake: bet.stake,
             odds: bet.odds,
-          }),
-        ),
-      }),
+          })),
+        };
+      },
     );
 
     const state: HostBroadcastState = {
@@ -458,6 +480,7 @@ export default function HostMultiplayerPanel({
     redHealth,
     revealedVoteOption,
     roomCode,
+    participantCharacters,
     roomParticipants,
     roundWinner,
     settings,
@@ -467,6 +490,20 @@ export default function HostMultiplayerPanel({
 
   const handleIncomingAction = useCallback(
     (playerId: string, action: PlayerAction) => {
+      if (action.kind === "set-character") {
+        const svgType = isValidMonkeySvgType(action.svgType)
+          ? action.svgType
+          : DEFAULT_MONKEY_SVG;
+        const color = isValidCharacterColor(action.color)
+          ? action.color
+          : DEFAULT_MONKEY_COLOR;
+        setParticipantCharacters((prev) => ({
+          ...prev,
+          [playerId]: { svgType, color },
+        }));
+        return;
+      }
+
       if (phaseRef.current === "prematch") {
         if (action.kind === "main-bet") {
           const minStake = Math.max(
@@ -1079,6 +1116,15 @@ export default function HostMultiplayerPanel({
   );
 
   const hasBots = snapshot.bots.length > 0;
+  const participantLeaderboard = useMemo(
+    () =>
+      [...roomParticipants].sort(
+        (a, b) =>
+          (participantBananas[b.id] ?? settings.startingBananas) -
+          (participantBananas[a.id] ?? settings.startingBananas),
+      ),
+    [participantBananas, roomParticipants, settings.startingBananas],
+  );
 
   const pausePrompt =
     phase === "prematch"
@@ -1094,7 +1140,7 @@ export default function HostMultiplayerPanel({
   if (!matchStarted) {
     return (
       <div className="w-screen min-h-screen flex flex-col items-center justify-center bg-white text-black p-8">
-        <Card className="w-full max-w-3xl border-8 border-black rounded-none p-8 shadow-[16px_16px_0_0_rgba(0,0,0,1)]">
+        <section className="w-full max-w-3xl border-t border-zinc-200 bg-white p-8">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
@@ -1107,7 +1153,7 @@ export default function HostMultiplayerPanel({
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                className="h-10 w-10 p-0 border-4 border-black rounded-none"
+                className="h-10 w-10 p-0 rounded-xl border border-black/15"
                 onClick={copyRoomCode}
                 title="Copy room code"
               >
@@ -1115,7 +1161,7 @@ export default function HostMultiplayerPanel({
               </Button>
               <Button
                 variant="outline"
-                className="h-10 w-10 p-0 border-4 border-black rounded-none"
+                className="h-10 w-10 p-0 rounded-xl border border-black/15"
                 onClick={shareRoomLink}
                 title="Share join link"
               >
@@ -1124,7 +1170,7 @@ export default function HostMultiplayerPanel({
               <Link href="/">
                 <Button
                   variant="secondary"
-                  className="border-4 border-black rounded-none font-black uppercase"
+                  className="rounded-xl border border-black/15 font-semibold uppercase"
                 >
                   Exit
                 </Button>
@@ -1148,7 +1194,7 @@ export default function HostMultiplayerPanel({
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-4 border-black rounded-none p-4">
+            <div className="border-t border-zinc-200 p-4">
               <p className="text-xs font-black uppercase tracking-widest mb-3">
                 Match Settings
               </p>
@@ -1169,12 +1215,12 @@ export default function HostMultiplayerPanel({
                         ),
                       }))
                     }
-                    className="mt-1 w-full border-4 border-black p-2 text-lg font-black"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 p-2 text-lg font-semibold"
                   />
                 </label>
 
                 <label className="block text-xs font-black uppercase tracking-widest">
-                  Starting Bananas
+                  Starting <BananaInline>Bananas</BananaInline>
                   <input
                     type="number"
                     min={20}
@@ -1189,7 +1235,7 @@ export default function HostMultiplayerPanel({
                         ),
                       }))
                     }
-                    className="mt-1 w-full border-4 border-black p-2 text-lg font-black"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 p-2 text-lg font-semibold"
                   />
                 </label>
 
@@ -1210,11 +1256,11 @@ export default function HostMultiplayerPanel({
                         ),
                       }))
                     }
-                    className="mt-1 w-full border-4 border-black p-2 text-lg font-black"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 p-2 text-lg font-semibold"
                   />
                 </label>
 
-                <label className="flex items-center gap-3 border-2 border-black p-2">
+                <label className="flex items-center gap-3 rounded-lg border border-zinc-300 p-2">
                   <input
                     type="checkbox"
                     checked={settings.waitForAllDecisions}
@@ -1247,7 +1293,7 @@ export default function HostMultiplayerPanel({
                         ),
                       }))
                     }
-                    className="mt-1 w-full border-4 border-black p-2 text-lg font-black"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 p-2 text-lg font-semibold"
                   />
                 </label>
 
@@ -1267,13 +1313,13 @@ export default function HostMultiplayerPanel({
                         ),
                       }))
                     }
-                    className="mt-1 w-full border-4 border-black p-2 text-lg font-black"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 p-2 text-lg font-semibold"
                   />
                 </label>
               </div>
-            </Card>
+            </div>
 
-            <Card className="border-4 border-black rounded-none p-4">
+            <div className="border-t border-zinc-200 p-4">
               <p className="text-xs font-black uppercase tracking-widest mb-2">
                 Joined Players ({roomParticipants.length})
               </p>
@@ -1281,7 +1327,7 @@ export default function HostMultiplayerPanel({
                 {roomParticipants.map((participant) => (
                   <div
                     key={participant.id}
-                    className="border-2 border-black p-2 flex items-center justify-between"
+                    className="border-b border-zinc-200 py-2 flex items-center justify-between"
                   >
                     <span className="text-sm font-black uppercase">
                       {participant.name}
@@ -1299,189 +1345,190 @@ export default function HostMultiplayerPanel({
               </div>
 
               <Button
-                className="w-full mt-5 border-4 border-black rounded-none font-black uppercase text-xl py-7"
+                className="w-full mt-5 rounded-xl border border-black/15 font-semibold uppercase text-xl py-7"
                 onClick={startMatch}
                 disabled={roomParticipants.length === 0}
               >
                 Start Match
               </Button>
-            </Card>
+            </div>
           </div>
-        </Card>
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="w-screen min-h-screen bg-white text-black p-6 md:p-10">
-      {pausePrompt && (
-        <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
-          <div className="text-center text-white px-6">
-            <p className="text-sm uppercase tracking-[0.4em] font-black opacity-80">
-              Match Paused
-            </p>
-            <h2 className="text-7xl md:text-8xl font-black uppercase mt-3">
-              {pausePrompt}
-            </h2>
-            <p className="text-lg font-bold uppercase mt-5">
-              Waiting on players...
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-475 mx-auto">
+    <MatchDashboardShell
+      reserveLeftSpace
+      header={
         <RoundHeader
           roundNumber={snapshot.roundNumber}
           roundsTotal={snapshot.roundsTotal}
           timeLeftSeconds={snapshot.timeLeftSeconds}
         />
-
-        <div className="grid grid-cols-1 xl:grid-cols-[280px_auto_320px] gap-6">
-          {hasBots ? (
-            <BotStandings
-              leaderboard={snapshot.leaderboard}
-              latestLog={snapshot.latestLog}
-            />
-          ) : (
-            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-zinc-100">
-              <p className="text-sm font-black uppercase">
-                No bots in this match.
+      }
+      overlay={
+        pausePrompt ? (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
+            <div className="px-6 text-center text-white">
+              <p className="text-sm font-black uppercase tracking-[0.4em] opacity-80">
+                Match Paused
               </p>
-              <p className="text-xs text-zinc-700 mt-2">
-                All voting and bets are purely from real players.
+              <h2 className="mt-3 text-7xl font-black uppercase md:text-8xl">
+                {pausePrompt}
+              </h2>
+              <p className="mt-5 text-lg font-bold uppercase">
+                Waiting on players...
               </p>
-            </Card>
-          )}
+            </div>
+          </div>
+        ) : null
+      }
+      leftPanel={
+        hasBots ? (
+          <BotStandings
+            leaderboard={snapshot.leaderboard}
+            latestLog={snapshot.latestLog}
+          />
+        ) : undefined
+      }
+      centerPanel={
+        <div className="flex flex-col items-center">
+          <HealthBars
+            redHealth={redHealth}
+            blueHealth={blueHealth}
+            redModifiers={redModifiers}
+            blueModifiers={blueModifiers}
+            redWeapons={redWeapons}
+            blueWeapons={blueWeapons}
+          />
 
-          <div className="flex flex-col items-center">
-            <HealthBars
-              redHealth={redHealth}
-              blueHealth={blueHealth}
-              redModifiers={redModifiers}
-              blueModifiers={blueModifiers}
-              redWeapons={redWeapons}
-              blueWeapons={blueWeapons}
-            />
+          <ArenaBoard
+            gameKey={gameKey}
+            isCircleArena={isCircleArena}
+            onRedHealthChange={handleRedHealthChange}
+            onBlueHealthChange={handleBlueHealthChange}
+            onBallDied={handleBallDied}
+            onGameReady={handleGameReady}
+            onWallCollision={handleWallCollision}
+            onBallCollision={handleBallCollision}
+          />
 
-            <ArenaBoard
-              gameKey={gameKey}
-              isCircleArena={isCircleArena}
-              onRedHealthChange={handleRedHealthChange}
-              onBlueHealthChange={handleBlueHealthChange}
-              onBallDied={handleBallDied}
-              onGameReady={handleGameReady}
-              onWallCollision={handleWallCollision}
-              onBallCollision={handleBallCollision}
-            />
-
-            <div className="mt-5 w-full grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-yellow-300">
-                <p className="text-xs font-black uppercase tracking-widest mb-1">
-                  Phase
-                </p>
-                <p className="text-3xl font-black tabular-nums">{phase}</p>
-                <p className="text-xs mt-2 uppercase font-black text-zinc-700">
-                  Countdown: {phaseCountdown}s
-                </p>
-              </Card>
-
-              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest mb-2">
-                  Players
-                </p>
-                <p className="text-sm font-black uppercase">
-                  {roomParticipants.length} connected
-                </p>
-                <p className="text-xs text-zinc-700 mt-2">
-                  Combined bananas: {totalBananasInPlay}
-                </p>
-              </Card>
-
-              <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest mb-2">
-                  Live Votes
-                </p>
-                {phase === "vote" ? (
-                  <p className="text-sm font-black uppercase">
-                    {queuedVoteCount} player votes queued
-                  </p>
-                ) : (
-                  <p className="text-sm text-zinc-600">
-                    No active vote window.
-                  </p>
-                )}
-              </Card>
+          <div className="mt-5 grid w-full grid-cols-1 gap-4 border-t border-zinc-200 pt-4 lg:grid-cols-3">
+            <div className="px-2 py-1">
+              <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                <Pulse size={14} weight="fill" /> Phase
+              </p>
+              <p className="text-3xl font-black tabular-nums">{phase}</p>
+              <p className="mt-2 text-xs font-black uppercase text-zinc-700">
+                Countdown: {phaseCountdown}s
+              </p>
             </div>
 
-            {roundWinner && (
-              <div className="mt-5 w-full border-4 border-black py-3 text-center shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <span
-                  className="text-2xl font-black uppercase"
-                  style={{
-                    color: roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
-                  }}
-                >
-                  {roundWinner.toUpperCase()} wins this round
-                </span>
-              </div>
-            )}
-
-            {snapshot.tournamentFinished && (
-              <div className="mt-5 w-full border-4 border-black py-3 text-center bg-yellow-300 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <span className="text-2xl font-black uppercase">
-                  Tournament Complete
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-6">
-            <ActivityFeed
-              latestVoteSummary={snapshot.latestVoteSummary}
-              latestMicrobetSummary={snapshot.latestMicrobetSummary}
-              appliedEffects={appliedEffects}
-            />
-            {hasBots && <BotBetsTable bots={snapshot.bots} />}
-
-            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-widest mb-2">
-                Player Wallets
+            <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
+              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                <Users size={14} weight="fill" /> Players
               </p>
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                {roomParticipants.map((participant) => (
-                  <div
-                    key={participant.id}
-                    className="border-2 border-black p-2 flex items-center justify-between"
-                  >
-                    <span className="text-xs font-black uppercase">
-                      {participant.name}
-                    </span>
-                    <span className="text-xs font-black uppercase">
-                      {participantBananas[participant.id] ??
-                        settings.startingBananas}{" "}
-                      bananas
-                    </span>
-                  </div>
-                ))}
-                {roomParticipants.length === 0 && (
-                  <p className="text-xs text-zinc-600">
-                    No participants joined.
-                  </p>
-                )}
-              </div>
-            </Card>
-          </div>
-        </div>
-      </div>
+              <p className="text-sm font-black uppercase">
+                {roomParticipants.length} connected
+              </p>
+              <p className="mt-2 text-xs text-zinc-700">
+                Combined <BananaInline>{totalBananasInPlay}</BananaInline>
+              </p>
+            </div>
 
-      <Button
-        variant="secondary"
-        className="fixed top-4 left-4 z-50 border-4 border-black rounded-none font-black uppercase"
-        onClick={onExit}
-      >
-        Leave
-      </Button>
-    </div>
+            <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
+              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                <Pulse size={14} weight="fill" /> Live Votes
+              </p>
+              {phase === "vote" ? (
+                <p className="text-sm font-black uppercase">
+                  {queuedVoteCount} player votes queued
+                </p>
+              ) : (
+                <p className="text-sm text-zinc-600">No active vote window.</p>
+              )}
+            </div>
+          </div>
+
+          {roundWinner ? (
+            <div className="mt-5 w-full rounded-2xl border border-black/15 bg-white/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]">
+              <span
+                className="text-2xl font-black uppercase"
+                style={{ color: roundWinner === "red" ? "#b91c1c" : "#1d4ed8" }}
+              >
+                {roundWinner.toUpperCase()} wins this round
+              </span>
+            </div>
+          ) : null}
+
+          {snapshot.tournamentFinished ? (
+            <div className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]">
+              <span className="text-2xl font-black uppercase">
+                Tournament Complete
+              </span>
+            </div>
+          ) : null}
+        </div>
+      }
+      rightPanel={
+        <div className="flex flex-col gap-6">
+          <ActivityFeed
+            latestVoteSummary={snapshot.latestVoteSummary}
+            latestMicrobetSummary={snapshot.latestMicrobetSummary}
+            appliedEffects={appliedEffects}
+          />
+          {hasBots ? <BotBetsTable bots={snapshot.bots} /> : null}
+
+          <section className="border-t border-zinc-200 px-2 pt-4">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+              <Trophy size={14} weight="fill" /> Player Wallets
+            </p>
+            <div className="max-h-80 divide-y divide-zinc-200/80 overflow-y-auto pr-1">
+              {participantLeaderboard.map((participant, index) => {
+                const character = participantCharacters[participant.id];
+                return (
+                  <div key={participant.id} className="px-1 py-2.5">
+                    <p className="text-[10px] font-black uppercase text-zinc-500">
+                      #{index + 1}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <CharacterAvatar
+                        svgType={character?.svgType}
+                        color={character?.color}
+                        size={44}
+                        className="bg-transparent"
+                      />
+                      <p className="text-xs font-semibold uppercase">
+                        {participant.name}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold uppercase">
+                      <BananaInline>
+                        {participantBananas[participant.id] ??
+                          settings.startingBananas}
+                      </BananaInline>
+                    </p>
+                  </div>
+                );
+              })}
+              {roomParticipants.length === 0 ? (
+                <p className="text-xs text-zinc-600">No participants joined.</p>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      }
+      floatingAction={
+        <Button
+          variant="secondary"
+          className="fixed top-4 left-4 z-50 rounded-xl border border-black/20 font-black uppercase"
+          onClick={onExit}
+        >
+          Leave
+        </Button>
+      }
+    />
   );
 }
