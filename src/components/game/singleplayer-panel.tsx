@@ -19,6 +19,7 @@ import { BotStandings } from "./panels/bot-standings";
 import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
 import { BotBetsTable } from "./panels/bot-bets-table";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   MicrobetsModal,
   PrematchBetModal,
@@ -34,10 +35,8 @@ import type {
 
 const STARTING_HEALTH = 100;
 const STARTING_BANANAS = 100;
-const PREMATCH_WINDOW_SECONDS = 10;
-const VOTE_WINDOW_SECONDS = 10;
-const MICROBET_WINDOW_SECONDS = 10;
 const MAIN_BET_MIN_STAKE = 20;
+const DEFAULT_SINGLEPLAYER_BOTS = 0;
 
 type BetResult = { won: boolean; pnl: number };
 type MatchPhase = "prematch" | "running" | "vote" | "reveal" | "microbet";
@@ -47,15 +46,7 @@ const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
   blueDamageToRed: "Blue deals damage to Red",
   redWallHits: "Red wall hits",
   blueWallHits: "Blue wall hits",
-  ballCollisions: "Ball collisions",
-};
-
-const MICROBET_METRIC_CAP: Record<MicroBetKind, number> = {
-  redDamageToBlue: 40,
-  blueDamageToRed: 40,
-  redWallHits: 20,
-  blueWallHits: 20,
-  ballCollisions: 20,
+  ballCollisions: "Collisions reach 10+",
 };
 
 function createZeroTotals(): StatTotals {
@@ -68,31 +59,50 @@ function createZeroTotals(): StatTotals {
   };
 }
 
-function calcRangeOdds(kind: MicroBetKind, min: number, max: number): number {
-  const cap = MICROBET_METRIC_CAP[kind];
-  const width = Math.max(1, max - min + 1);
-  const probability = Math.min(0.95, Math.max(0.05, width / (cap + 1)));
-  return Number((0.92 / probability).toFixed(2));
+function calcBooleanOdds(kind: MicroBetKind): number {
+  const probabilityByKind: Record<MicroBetKind, number> = {
+    redDamageToBlue: 0.5,
+    blueDamageToRed: 0.5,
+    redWallHits: 0.5,
+    blueWallHits: 0.5,
+    ballCollisions: 0.45,
+  };
+  return Number((0.92 / probabilityByKind[kind]).toFixed(2));
 }
 
-function getMicrobetActual(kind: MicroBetKind, delta: StatTotals): number {
+function didMicrobetWin(
+  kind: MicroBetKind,
+  outcome: boolean,
+  delta: StatTotals,
+): boolean {
   if (kind === "redDamageToBlue") {
-    return delta.blueDamageTaken;
+    return outcome
+      ? delta.blueDamageTaken > delta.redDamageTaken
+      : delta.blueDamageTaken <= delta.redDamageTaken;
   }
   if (kind === "blueDamageToRed") {
-    return delta.redDamageTaken;
+    return outcome
+      ? delta.redDamageTaken > delta.blueDamageTaken
+      : delta.redDamageTaken <= delta.blueDamageTaken;
   }
   if (kind === "redWallHits") {
-    return delta.wallHitsRed;
+    return outcome
+      ? delta.wallHitsRed > delta.wallHitsBlue
+      : delta.wallHitsRed <= delta.wallHitsBlue;
   }
   if (kind === "blueWallHits") {
-    return delta.wallHitsBlue;
+    return outcome
+      ? delta.wallHitsBlue > delta.wallHitsRed
+      : delta.wallHitsBlue <= delta.wallHitsRed;
   }
-  return delta.ballCollisions;
+  return outcome ? delta.ballCollisions >= 10 : delta.ballCollisions < 10;
 }
 
 export default function SingleplayerPanel() {
-  const [engine] = useState(() => new BotsGameEngine());
+  const [engine, setEngine] = useState(
+    () => new BotsGameEngine({ botCount: DEFAULT_SINGLEPLAYER_BOTS }),
+  );
+  const [botCount, setBotCount] = useState(DEFAULT_SINGLEPLAYER_BOTS);
   const gameApiRef = useRef<GameApi | null>(null);
 
   // Engine / game state
@@ -110,7 +120,7 @@ export default function SingleplayerPanel() {
   const [redWeapons, setRedWeapons] = useState<ActiveModifier[]>([]);
   const [blueWeapons, setBlueWeapons] = useState<ActiveModifier[]>([]);
   const [phase, setPhase] = useState<MatchPhase>("prematch");
-  const [phaseCountdown, setPhaseCountdown] = useState(PREMATCH_WINDOW_SECONDS);
+  const [phaseCountdown, setPhaseCountdown] = useState(0);
 
   // Health / stats refs
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
@@ -124,7 +134,7 @@ export default function SingleplayerPanel() {
     null,
   );
   const phaseRef = useRef<MatchPhase>("prematch");
-  const phaseCountdownRef = useRef(PREMATCH_WINDOW_SECONDS);
+  const phaseCountdownRef = useRef(0);
 
   // Player bananas
   const [playerBananas, setPlayerBananas] = useState(STARTING_BANANAS);
@@ -132,7 +142,7 @@ export default function SingleplayerPanel() {
 
   // Main bet state (pre-match only)
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
-    side: "red",
+    side: "blue",
     stake: MAIN_BET_MIN_STAKE,
   });
   const [currentBet, setCurrentBet] = useState<MainBetSelection | null>(null);
@@ -144,7 +154,7 @@ export default function SingleplayerPanel() {
   // Vote popup state
   const [voteWindow, setVoteWindow] = useState<VoteWindow | null>(null);
   const [voteSelection, setVoteSelection] = useState<0 | 1 | 2>(0);
-  const [votePowerStake, setVotePowerStake] = useState(0);
+  const [votePowerStake, setVotePowerStake] = useState(1);
   const [revealedVoteOption, setRevealedVoteOption] =
     useState<RevealedVoteOption | null>(null);
 
@@ -154,8 +164,7 @@ export default function SingleplayerPanel() {
   );
   const [microbetDraft, setMicrobetDraft] = useState<MicrobetDraft>({
     kind: "redDamageToBlue",
-    min: 0,
-    max: 8,
+    outcome: true,
     stake: 5,
   });
   const [queuedMicrobets, setQueuedMicrobets] = useState<
@@ -191,12 +200,11 @@ export default function SingleplayerPanel() {
     let payoutTotal = 0;
 
     for (const bet of active) {
-      const actual = getMicrobetActual(bet.kind, delta);
-      const won = actual >= bet.min && actual <= bet.max;
+      const won = didMicrobetWin(bet.kind, bet.outcome, delta);
       const payout = won ? Math.floor(bet.stake * bet.odds) : 0;
       payoutTotal += payout;
       settlements.push({
-        label: `${MICROBET_KIND_LABEL[bet.kind]} (${bet.min}-${bet.max})`,
+        label: `${MICROBET_KIND_LABEL[bet.kind]}: ${bet.outcome ? "YES" : "NO"}`,
         won,
         payout,
       });
@@ -301,27 +309,72 @@ export default function SingleplayerPanel() {
     // Reset main bet
     currentBetRef.current = null;
     roundBetSettledRef.current = false;
-    setMainBetSelection({ side: "red", stake: MAIN_BET_MIN_STAKE });
+    setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
     setCurrentBet(null);
     setMainBetResult(null);
 
     // Reset vote popup
     setVoteWindow(null);
     setVoteSelection(0);
-    setVotePowerStake(0);
+    setVotePowerStake(1);
     setRevealedVoteOption(null);
 
     // Reset microbet
     setMicrobetInsights([]);
-    setMicrobetDraft({ kind: "redDamageToBlue", min: 0, max: 8, stake: 5 });
+    setMicrobetDraft({ kind: "redDamageToBlue", outcome: true, stake: 5 });
     setQueuedMicrobets([]);
     activeMicrobetsRef.current = [];
     setActiveMicrobets([]);
     setLastMicrobetSettlements([]);
     lastVoteStatsRef.current = null;
 
-    transitionPhase("prematch", PREMATCH_WINDOW_SECONDS);
+    transitionPhase("prematch", 0);
   }, [transitionPhase]);
+
+  const restartSingleplayerMatch = useCallback(() => {
+    const nextEngine = new BotsGameEngine({ botCount });
+    setEngine(nextEngine);
+    setSnapshot(nextEngine.getSnapshot());
+
+    setGameKey((v) => v + 1);
+    setRedHealth(STARTING_HEALTH);
+    setBlueHealth(STARTING_HEALTH);
+    healthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
+    previousHealthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
+    statsTotalsRef.current = createZeroTotals();
+    forcedWinnerRef.current = undefined;
+    setRoundWinner(null);
+    setIsCircleArena(false);
+    setAppliedEffects([]);
+    setRedModifiers([]);
+    setBlueModifiers([]);
+    setRedWeapons([]);
+    setBlueWeapons([]);
+    gameApiRef.current = null;
+
+    playerBananasRef.current = STARTING_BANANAS;
+    setPlayerBananas(STARTING_BANANAS);
+    currentBetRef.current = null;
+    roundBetSettledRef.current = false;
+    setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
+    setCurrentBet(null);
+    setMainBetResult(null);
+
+    setVoteWindow(null);
+    setVoteSelection(0);
+    setVotePowerStake(1);
+    setRevealedVoteOption(null);
+
+    setMicrobetInsights([]);
+    setMicrobetDraft({ kind: "redDamageToBlue", outcome: true, stake: 5 });
+    setQueuedMicrobets([]);
+    activeMicrobetsRef.current = [];
+    setActiveMicrobets([]);
+    setLastMicrobetSettlements([]);
+    lastVoteStatsRef.current = null;
+
+    transitionPhase("prematch", 0);
+  }, [botCount, transitionPhase]);
 
   const handleGameReady = useCallback((api: GameApi) => {
     gameApiRef.current = api;
@@ -400,8 +453,15 @@ export default function SingleplayerPanel() {
       setSnapshot(engine.getSnapshot());
 
       setVoteWindow(null);
-      setVotePowerStake(0);
-      transitionPhase("reveal", 3);
+      setVotePowerStake(1);
+      setMicrobetInsights(engine.getPendingMicrobetInsights());
+      setQueuedMicrobets([]);
+      setMicrobetDraft({
+        kind: "redDamageToBlue",
+        outcome: true,
+        stake: 5,
+      });
+      transitionPhase("microbet", 0);
     },
     [applyVoteApplication, engine, transitionPhase, voteSelection],
   );
@@ -413,11 +473,7 @@ export default function SingleplayerPanel() {
 
   const handleMicrobetAdd = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
-    const odds = calcRangeOdds(
-      microbetDraft.kind,
-      microbetDraft.min,
-      microbetDraft.max,
-    );
+    const odds = calcBooleanOdds(microbetDraft.kind);
     setQueuedMicrobets((prev) => {
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
@@ -429,8 +485,7 @@ export default function SingleplayerPanel() {
       const bet: PendingPlayerMicrobet = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         kind: microbetDraft.kind,
-        min: microbetDraft.min,
-        max: microbetDraft.max,
+        outcome: microbetDraft.outcome,
         stake,
         odds,
       };
@@ -440,7 +495,7 @@ export default function SingleplayerPanel() {
 
   const handleMicrobetQuickAdd = useCallback((draft: MicrobetDraft) => {
     if (phaseRef.current !== "microbet") return;
-    const odds = calcRangeOdds(draft.kind, draft.min, draft.max);
+    const odds = calcBooleanOdds(draft.kind);
     setQueuedMicrobets((prev) => {
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
@@ -452,8 +507,7 @@ export default function SingleplayerPanel() {
       const bet: PendingPlayerMicrobet = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         kind: draft.kind,
-        min: draft.min,
-        max: draft.max,
+        outcome: draft.outcome,
         stake,
         odds,
       };
@@ -498,51 +552,7 @@ export default function SingleplayerPanel() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (phaseRef.current === "prematch") {
-        const next = Math.max(0, phaseCountdownRef.current - 1);
-        phaseCountdownRef.current = next;
-        setPhaseCountdown(next);
-        if (next === 0) {
-          transitionPhase("running", 0);
-        }
-        return;
-      }
-
-      if (phaseRef.current === "vote") {
-        const next = Math.max(0, phaseCountdownRef.current - 1);
-        phaseCountdownRef.current = next;
-        setPhaseCountdown(next);
-        if (next === 0) {
-          resolveVoteAndOpenMicrobet(0);
-        }
-        return;
-      }
-
-      if (phaseRef.current === "microbet") {
-        const next = Math.max(0, phaseCountdownRef.current - 1);
-        phaseCountdownRef.current = next;
-        setPhaseCountdown(next);
-        if (next === 0) {
-          transitionPhase("running", 0);
-        }
-        return;
-      }
-
-      if (phaseRef.current === "reveal") {
-        const next = Math.max(0, phaseCountdownRef.current - 1);
-        phaseCountdownRef.current = next;
-        setPhaseCountdown(next);
-        if (next === 0) {
-          setMicrobetInsights(engine.getPendingMicrobetInsights());
-          setQueuedMicrobets([]);
-          setMicrobetDraft({
-            kind: "redDamageToBlue",
-            min: 0,
-            max: 8,
-            stake: 5,
-          });
-          transitionPhase("microbet", MICROBET_WINDOW_SECONDS);
-        }
+      if (phaseRef.current !== "running") {
         return;
       }
 
@@ -568,9 +578,9 @@ export default function SingleplayerPanel() {
 
         setVoteWindow(stepResult.voteWindow);
         setVoteSelection(0);
-        setVotePowerStake(0);
+        setVotePowerStake(1);
         setRevealedVoteOption(null);
-        transitionPhase("vote", VOTE_WINDOW_SECONDS);
+        transitionPhase("vote", 0);
       }
 
       setSnapshot(stepResult.snapshot);
@@ -740,6 +750,31 @@ export default function SingleplayerPanel() {
           </div>
 
           <div className="flex flex-col gap-6">
+            <Card className="border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)] bg-white">
+              <p className="text-xs font-black uppercase tracking-widest text-zinc-600 mb-2">
+                Singleplayer Bots
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={botCount}
+                  className="flex-1 accent-black"
+                  onChange={(event) => setBotCount(Number(event.target.value))}
+                />
+                <p className="w-10 text-right font-black text-lg">{botCount}</p>
+              </div>
+              <Button
+                variant="outline"
+                className="mt-3 border-4 border-black rounded-none font-black uppercase"
+                onClick={restartSingleplayerMatch}
+              >
+                Apply And Restart
+              </Button>
+            </Card>
+
             <ActivityFeed
               latestVoteSummary={snapshot.latestVoteSummary}
               latestMicrobetSummary={snapshot.latestMicrobetSummary}
@@ -782,7 +817,7 @@ export default function SingleplayerPanel() {
         />
 
         <VoteRevealModal
-          open={phase === "reveal"}
+          open={false}
           countdown={phaseCountdown}
           revealedOption={revealedVoteOption}
         />
@@ -801,7 +836,7 @@ export default function SingleplayerPanel() {
           onAddQuickBet={handleMicrobetQuickAdd}
           onRemoveBet={handleMicrobetRemove}
           onConfirm={handleMicrobetConfirm}
-          onSkip={handleMicrobetSkip}
+          onSkip={handleMicrobetConfirm}
         />
 
         <Card className="mt-6 border-4 border-black rounded-none p-4 shadow-[6px_6px_0_0_rgba(0,0,0,1)]">

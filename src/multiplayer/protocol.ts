@@ -17,6 +17,13 @@ export type MatchPhase =
 export type SerializableVoteOption = {
   category: "weapon" | "modifier" | "arena";
   label: string;
+  qualityScore?: number;
+  redLabel?: string;
+  blueLabel?: string;
+  arenaLabel?: string;
+  redDescription?: string;
+  blueDescription?: string;
+  arenaDescription?: string;
 };
 
 export type SerializableVoteWindow = {
@@ -47,8 +54,7 @@ export type ParticipantBetSummary = {
 
 export type ParticipantMicrobetSummary = {
   kind: MicroBetKind;
-  min: number;
-  max: number;
+  outcome: boolean;
   stake: number;
   odds: number;
 };
@@ -83,8 +89,7 @@ export type HostBroadcastState = {
 
 export type PendingMicrobetWire = {
   kind: MicroBetKind;
-  min: number;
-  max: number;
+  outcome: boolean;
   stake: number;
 };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { MicroBetKind } from "@/bots/types";
@@ -10,162 +11,98 @@ import type {
 } from "./betting-types";
 
 const KIND_LABEL: Record<MicroBetKind, string> = {
-  redDamageToBlue: "Red does more damage to Blue",
-  blueDamageToRed: "Blue does more damage to Red",
-  redWallHits: "Red wall hits",
-  blueWallHits: "Blue wall hits",
-  ballCollisions: "Ball collisions",
+  redDamageToBlue: "Red outdamages Blue",
+  blueDamageToRed: "Blue outdamages Red",
+  redWallHits: "Red gets more wall hits",
+  blueWallHits: "Blue gets more wall hits",
+  ballCollisions: "Collisions hit 10+",
 };
 
-const KIND_MAX: Record<MicroBetKind, number> = {
-  redDamageToBlue: 40,
-  blueDamageToRed: 40,
-  redWallHits: 20,
-  blueWallHits: 20,
-  ballCollisions: 20,
+const pressButtonClass =
+  "border-2 border-black rounded-none bg-white shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-[3px] active:shadow-[0_1px_0_0_rgba(0,0,0,1)]";
+
+type MarketPreset = {
+  id: string;
+  kind: MicroBetKind;
+  outcome: boolean;
+  proposition: string;
 };
 
-function calcOdds(kind: MicroBetKind, min: number, max: number): number {
-  const cap = KIND_MAX[kind];
-  const width = Math.max(1, max - min + 1);
-  const probability = Math.min(0.95, Math.max(0.05, width / (cap + 1)));
-  return Number((0.92 / probability).toFixed(2));
+const MARKET_PRESETS: readonly MarketPreset[] = [
+  {
+    id: "red-dmg-vs-blue",
+    kind: "redDamageToBlue",
+    outcome: true,
+    proposition: "Red outdamages Blue",
+  },
+  {
+    id: "blue-dmg-vs-red",
+    kind: "blueDamageToRed",
+    outcome: true,
+    proposition: "Blue outdamages Red",
+  },
+  {
+    id: "red-wall-vs-blue",
+    kind: "redWallHits",
+    outcome: true,
+    proposition: "Red gets more wall hits",
+  },
+  {
+    id: "blue-wall-vs-red",
+    kind: "blueWallHits",
+    outcome: true,
+    proposition: "Blue gets more wall hits",
+  },
+  {
+    id: "collisions-hit",
+    kind: "ballCollisions",
+    outcome: true,
+    proposition: "Collisions hit 10+",
+  },
+  {
+    id: "collisions-under",
+    kind: "ballCollisions",
+    outcome: false,
+    proposition: "Collisions stay under 10",
+  },
+];
+
+function emphasizeMatchupText(text: string): React.ReactNode {
+  return text.split(/(Red|Blue|stake|Stake)/g).map((part, index) => {
+    if (part === "Red") {
+      return (
+        <span key={`part-${index}`} className="text-red-600">
+          {part}
+        </span>
+      );
+    }
+    if (part === "Blue") {
+      return (
+        <span key={`part-${index}`} className="text-blue-600">
+          {part}
+        </span>
+      );
+    }
+    if (part.toLowerCase() === "stake") {
+      return (
+        <span key={`part-${index}`} className="text-yellow-700">
+          {part}
+        </span>
+      );
+    }
+    return <span key={`part-${index}`}>{part}</span>;
+  });
 }
 
-function estimatePayout(stake: number, odds: number): number {
-  return Math.floor(stake * odds);
-}
-
-function buildSimpleQuickDrafts(bananas: number): MicrobetDraft[] {
-  const baseStake = Math.max(
-    2,
-    Math.min(bananas, Math.max(5, Math.floor(bananas * 0.08))),
-  );
-  return [
-    {
-      kind: "blueDamageToRed",
-      min: 10,
-      max: 24,
-      stake: baseStake,
-    },
-    {
-      kind: "redDamageToBlue",
-      min: 10,
-      max: 24,
-      stake: baseStake,
-    },
-  ];
-}
-
-function DraftEditor({
-  draft,
-  bananas,
-  onDraftChange,
-}: {
-  draft: MicrobetDraft;
-  bananas: number;
-  onDraftChange: (draft: MicrobetDraft) => void;
-}) {
-  const maxCap = KIND_MAX[draft.kind];
-  const odds = calcOdds(draft.kind, draft.min, draft.max);
-  const payout = estimatePayout(draft.stake, odds);
-
-  return (
-    <Card className="border-4 border-black rounded-none p-3 bg-white">
-      <p className="text-xs font-black uppercase tracking-widest mb-2">
-        Custom Microbet
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="text-xs font-black uppercase">
-          Market
-          <select
-            className="mt-1 w-full border-2 border-black rounded-none p-2 text-sm font-bold"
-            value={draft.kind}
-            onChange={(event) => {
-              const kind = event.target.value as MicroBetKind;
-              const cap = KIND_MAX[kind];
-              onDraftChange({
-                ...draft,
-                kind,
-                min: Math.min(draft.min, cap),
-                max: Math.min(draft.max, cap),
-              });
-            }}
-          >
-            {(Object.keys(KIND_LABEL) as MicroBetKind[]).map((kind) => (
-              <option key={kind} value={kind}>
-                {KIND_LABEL[kind]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-xs font-black uppercase">
-          Stake
-          <input
-            type="number"
-            min={1}
-            max={Math.max(1, bananas)}
-            value={draft.stake}
-            className="mt-1 w-full border-2 border-black rounded-none p-2 text-sm font-bold"
-            onChange={(event) =>
-              onDraftChange({
-                ...draft,
-                stake: Math.max(
-                  1,
-                  Math.min(bananas, Number(event.target.value) || 1),
-                ),
-              })
-            }
-          />
-        </label>
-
-        <label className="text-xs font-black uppercase">
-          Min
-          <input
-            type="number"
-            min={0}
-            max={maxCap}
-            value={draft.min}
-            className="mt-1 w-full border-2 border-black rounded-none p-2 text-sm font-bold"
-            onChange={(event) => {
-              const min = Math.max(
-                0,
-                Math.min(maxCap, Number(event.target.value) || 0),
-              );
-              onDraftChange({
-                ...draft,
-                min,
-                max: Math.max(min, draft.max),
-              });
-            }}
-          />
-        </label>
-
-        <label className="text-xs font-black uppercase">
-          Max
-          <input
-            type="number"
-            min={draft.min}
-            max={maxCap}
-            value={draft.max}
-            className="mt-1 w-full border-2 border-black rounded-none p-2 text-sm font-bold"
-            onChange={(event) => {
-              const max = Math.max(
-                draft.min,
-                Math.min(maxCap, Number(event.target.value) || draft.min),
-              );
-              onDraftChange({ ...draft, max });
-            }}
-          />
-        </label>
-      </div>
-
-      <p className="text-xs mt-2 font-black uppercase text-zinc-600">
-        Odds {odds.toFixed(2)}x | Est payout {payout}
-      </p>
-    </Card>
-  );
+function calcOdds(kind: MicroBetKind): number {
+  const probabilityByKind: Record<MicroBetKind, number> = {
+    redDamageToBlue: 0.5,
+    blueDamageToRed: 0.5,
+    redWallHits: 0.5,
+    blueWallHits: 0.5,
+    ballCollisions: 0.45,
+  };
+  return Number((0.92 / probabilityByKind[kind]).toFixed(2));
 }
 
 function QueuedList({
@@ -176,29 +113,33 @@ function QueuedList({
   onRemove: (id: string) => void;
 }) {
   return (
-    <Card className="border-4 border-black rounded-none p-3 bg-white">
+    <Card className="border-0 sm:border-2 sm:border-black rounded-none p-3 bg-white ring-0">
       <p className="text-xs font-black uppercase tracking-widest mb-2">
-        Queued Bets
+        Locked Bets (Tap To Remove)
       </p>
-      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
         {placed.map((bet) => (
-          <div key={bet.id} className="border-2 border-black p-2 bg-zinc-50">
-            <p className="text-xs font-black">{KIND_LABEL[bet.kind]}</p>
-            <p className="text-xs text-zinc-700 mt-1">
-              Range {bet.min}-{bet.max} | Stake {bet.stake} |{" "}
-              {bet.odds.toFixed(2)}x
+          <button
+            key={bet.id}
+            type="button"
+            className="w-full text-left border-2 border-black/40 p-2.5 bg-zinc-50 rounded-none transition-colors hover:bg-zinc-100"
+            onClick={() => onRemove(bet.id)}
+            title="Tap to remove"
+          >
+            <p className="text-sm font-black leading-tight">
+              {emphasizeMatchupText(KIND_LABEL[bet.kind])}
             </p>
-            <Button
-              variant="outline"
-              className="mt-2 border-2 border-black rounded-none h-8 px-3 text-xs font-black uppercase"
-              onClick={() => onRemove(bet.id)}
-            >
-              Remove
-            </Button>
-          </div>
+            <p className="text-xs text-zinc-700 mt-1 leading-relaxed">
+              {bet.outcome ? "Outcome: TRUE" : "Outcome: FALSE"} |{" "}
+              <span className="text-yellow-700 font-black">
+                Stake {bet.stake}
+              </span>{" "}
+              | {bet.odds.toFixed(2)}x
+            </p>
+          </button>
         ))}
         {placed.length === 0 && (
-          <p className="text-xs text-zinc-600">No microbets queued yet.</p>
+          <p className="text-xs text-zinc-600">No locked bets yet.</p>
         )}
       </div>
     </Card>
@@ -208,154 +149,136 @@ function QueuedList({
 export function MicrobetsModal({
   open,
   countdown,
-  redHealth,
-  blueHealth,
   bananas,
   insights,
   draft,
   placedBets,
   onDraftChange,
-  onAddBet,
   onAddQuickBet,
   onRemoveBet,
-  onConfirm,
   onSkip,
 }: MicrobetsModalProps) {
+  void insights;
+  const queuedStakeTotal = placedBets.reduce((sum, bet) => sum + bet.stake, 0);
+
   if (!open) {
     return null;
   }
 
-  const quickDrafts = buildSimpleQuickDrafts(bananas);
+  const lockPreset = (preset: MarketPreset) => {
+    const lockedDraft: MicrobetDraft = {
+      kind: preset.kind,
+      outcome: preset.outcome,
+      stake: Math.max(1, Math.min(bananas, draft.stake)),
+    };
+    onDraftChange(lockedDraft);
+    onAddQuickBet(lockedDraft);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-white">
-      <Card className="w-full h-full border-0 rounded-none bg-white p-4 md:p-6 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
-          <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-            Microbet market ({countdown}s)
-          </p>
-          <h2 className="text-2xl md:text-5xl font-black uppercase mt-1">
-            Build Microbets
-          </h2>
+    <div className="fixed inset-0 z-50 bg-zinc-100/95 overflow-y-auto flex items-center justify-center p-2 sm:p-4">
+      <div className="w-full max-w-350">
+        <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-4 sm:border-black sm:shadow-[12px_12px_0_0_rgba(0,0,0,1)]">
+          <div className="border-b-2 border-black/20 px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
+                {countdown > 0
+                  ? `Microbet market (${countdown}s)`
+                  : "Microbet market"}
+              </p>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
+                Tap To Lock Bets
+              </h2>
+              <p className="text-xs sm:text-sm font-bold text-zinc-700 mt-2 leading-relaxed">
+                Pick exactly what you believe will happen. One tap locks it.
+              </p>
+            </div>
 
-          <div className="grid grid-cols-3 gap-2 md:gap-3 mt-4">
-            <div className="border-4 border-black bg-red-100 p-2 md:p-3 text-center">
-              <p className="text-[10px] md:text-xs font-black uppercase">
-                Red HP
-              </p>
-              <p className="text-xl md:text-2xl font-black text-red-700">
-                {redHealth}
-              </p>
-            </div>
-            <div className="border-4 border-black bg-blue-100 p-2 md:p-3 text-center">
-              <p className="text-[10px] md:text-xs font-black uppercase">
-                Blue HP
-              </p>
-              <p className="text-xl md:text-2xl font-black text-blue-700">
-                {blueHealth}
-              </p>
-            </div>
-            <div className="border-4 border-black bg-yellow-300 p-2 md:p-3 text-center">
-              <p className="text-[10px] md:text-xs font-black uppercase">
-                Bananas
-              </p>
-              <p className="text-xl md:text-2xl font-black">{bananas}</p>
+            <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
+              <Image
+                src="/Banana.svg"
+                alt="Banana"
+                width={18}
+                height={18}
+                className="w-4 h-4 sm:w-5 sm:h-5"
+              />
+              <span>{bananas}</span>
             </div>
           </div>
 
-          <Card className="mt-4 border-4 border-black rounded-none p-3 bg-zinc-50">
-            <p className="text-xs font-black uppercase tracking-widest mb-2">
-              Quick Bets
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {quickDrafts.map((quickDraft, index) => {
-                const odds = calcOdds(
-                  quickDraft.kind,
-                  quickDraft.min,
-                  quickDraft.max,
-                );
+          <div className="p-3 sm:p-4">
+            <Card className="p-3 bg-zinc-50 ring-0 border-0 sm:border sm:border-black/20">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-[0.2em]">
+                  Stake per click
+                </p>
+                <p className="text-lg font-black text-yellow-700">
+                  {draft.stake}
+                </p>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={Math.max(1, bananas)}
+                step={1}
+                value={Math.max(1, Math.min(bananas, draft.stake))}
+                className="mt-3 w-full accent-black"
+                onChange={(event) =>
+                  onDraftChange({
+                    ...draft,
+                    stake: Math.max(
+                      1,
+                      Math.min(bananas, Number(event.target.value)),
+                    ),
+                  })
+                }
+              />
+            </Card>
+
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+              {MARKET_PRESETS.map((preset) => {
+                const odds = calcOdds(preset.kind);
                 return (
-                  <Button
-                    key={`${quickDraft.kind}-${index}`}
-                    variant="outline"
-                    className="h-auto min-h-16 border-2 border-black rounded-none font-black text-left justify-start whitespace-normal p-3"
-                    onClick={() => onAddQuickBet(quickDraft)}
-                    disabled={quickDraft.stake > bananas}
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="text-left p-3 rounded-none border-2 border-black bg-white transition-all duration-150 shadow-[0_4px_0_0_rgba(0,0,0,1)] hover:bg-zinc-50 active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
+                    onClick={() => lockPreset(preset)}
                   >
-                    <span className="text-xs uppercase leading-5">
-                      {KIND_LABEL[quickDraft.kind]} | {quickDraft.min}-
-                      {quickDraft.max} | {quickDraft.stake} @ {odds.toFixed(2)}x
-                    </span>
-                  </Button>
+                    <p className="text-sm font-black leading-tight">
+                      {emphasizeMatchupText(preset.proposition)}
+                    </p>
+                    <p className="text-xs font-bold text-zinc-700 mt-1 leading-relaxed">
+                      <span className="text-yellow-700">
+                        Stake {draft.stake}
+                      </span>{" "}
+                      | {odds.toFixed(2)}x odds
+                    </p>
+                  </button>
                 );
               })}
             </div>
-          </Card>
 
-          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <DraftEditor
-                draft={draft}
-                bananas={bananas}
-                onDraftChange={onDraftChange}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  className="border-4 border-black rounded-none font-black uppercase bg-yellow-300 text-black hover:bg-yellow-200"
-                  onClick={onAddBet}
-                  disabled={draft.stake > bananas}
-                >
-                  Add Custom
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-4 border-black rounded-none font-black uppercase"
-                  onClick={onSkip}
-                >
-                  Skip
-                </Button>
-              </div>
+            <div className="mt-5">
               <QueuedList placed={placedBets} onRemove={onRemoveBet} />
             </div>
 
-            <Card className="border-4 border-black rounded-none p-3 bg-zinc-50">
-              <p className="text-xs font-black uppercase tracking-widest mb-2">
-                Market Feed
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <p className="text-xs font-black uppercase text-zinc-700">
+                Locked <span className="text-yellow-700">stake</span> total:{" "}
+                {queuedStakeTotal}
               </p>
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {insights.map((insight) => (
-                  <div
-                    key={insight.kind}
-                    className="border-2 border-black p-2 bg-white"
-                  >
-                    <p className="text-xs font-black">
-                      {KIND_LABEL[insight.kind]}
-                    </p>
-                    <p className="text-xs text-zinc-700 mt-1">
-                      {insight.count} bets | {insight.totalStake} staked | avg{" "}
-                      {insight.averageTarget.toFixed(1)}
-                    </p>
-                  </div>
-                ))}
-                {insights.length === 0 && (
-                  <p className="text-xs text-zinc-600">
-                    No market activity yet this pause.
-                  </p>
-                )}
-              </div>
-            </Card>
+              <Button
+                variant="outline"
+                className={`h-11 font-black uppercase ${pressButtonClass}`}
+                onClick={onSkip}
+              >
+                Continue
+              </Button>
+            </div>
           </div>
-
-          <div className="mt-5 flex justify-end">
-            <Button
-              className="h-12 border-4 border-black rounded-none font-black uppercase text-base bg-pink-200 text-black hover:bg-pink-100"
-              onClick={onConfirm}
-            >
-              Confirm And Resume
-            </Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

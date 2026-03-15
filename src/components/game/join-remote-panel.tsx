@@ -32,27 +32,23 @@ import { Progress } from "@/components/ui/progress";
 
 const MAIN_BET_MIN_STAKE = 20;
 
-const MICROBET_METRIC_CAP: Record<MicroBetKind, number> = {
-  redDamageToBlue: 40,
-  blueDamageToRed: 40,
-  redWallHits: 20,
-  blueWallHits: 20,
-  ballCollisions: 20,
-};
-
 const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
-  redDamageToBlue: "Red deals damage to Blue",
-  blueDamageToRed: "Blue deals damage to Red",
-  redWallHits: "Red wall hits",
-  blueWallHits: "Blue wall hits",
-  ballCollisions: "Ball collisions",
+  redDamageToBlue: "Red outdamages Blue",
+  blueDamageToRed: "Blue outdamages Red",
+  redWallHits: "Red gets more wall hits",
+  blueWallHits: "Blue gets more wall hits",
+  ballCollisions: "Collisions hit 10+",
 };
 
-function calcRangeOdds(kind: MicroBetKind, min: number, max: number): number {
-  const cap = MICROBET_METRIC_CAP[kind];
-  const width = Math.max(1, max - min + 1);
-  const probability = Math.min(0.95, Math.max(0.05, width / (cap + 1)));
-  return Number((0.92 / probability).toFixed(2));
+function calcBooleanOdds(kind: MicroBetKind): number {
+  const probabilityByKind: Record<MicroBetKind, number> = {
+    redDamageToBlue: 0.5,
+    blueDamageToRed: 0.5,
+    redWallHits: 0.5,
+    blueWallHits: 0.5,
+    ballCollisions: 0.45,
+  };
+  return Number((0.92 / probabilityByKind[kind]).toFixed(2));
 }
 
 type JoinRemotePanelProps = {
@@ -74,7 +70,7 @@ export default function JoinRemotePanel({
   const [state, setState] = useState<HostBroadcastState | null>(null);
 
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
-    side: "red",
+    side: "blue",
     stake: MAIN_BET_MIN_STAKE,
   });
   const [prematchDecisionSubmitted, setPrematchDecisionSubmitted] =
@@ -83,16 +79,19 @@ export default function JoinRemotePanel({
     "red" | "blue" | "skip" | null
   >(null);
   const [voteSelection, setVoteSelection] = useState<0 | 1 | 2>(0);
-  const [votePowerStake, setVotePowerStake] = useState(0);
+  const [votePowerStake, setVotePowerStake] = useState(1);
   const [microbetDraft, setMicrobetDraft] = useState<MicrobetDraft>({
     kind: "redDamageToBlue",
-    min: 0,
-    max: 8,
+    outcome: true,
     stake: 5,
   });
   const [queuedMicrobets, setQueuedMicrobets] = useState<
     PendingPlayerMicrobet[]
   >([]);
+  const prematchTouchedRef = useRef(false);
+  const voteTouchedRef = useRef(false);
+  const microbetTouchedRef = useRef(false);
+  const autoHandledPhaseRef = useRef<string | null>(null);
 
   const myParticipant = useMemo(() => {
     if (!state) {
@@ -150,19 +149,18 @@ export default function JoinRemotePanel({
             setQueuedMicrobets([]);
             setMicrobetDraft({
               kind: "redDamageToBlue",
-              min: 0,
-              max: 8,
+              outcome: true,
               stake: 5,
             });
           }
 
           if (payload.state.phase !== "vote") {
-            setVotePowerStake(0);
+            setVotePowerStake(1);
             setVoteSelection(0);
           }
 
           if (payload.state.phase !== "prematch") {
-            setMainBetSelection({ side: "red", stake: MAIN_BET_MIN_STAKE });
+            setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
             setPrematchDecisionSubmitted(false);
             setPrematchDecision(null);
           }
@@ -231,11 +229,7 @@ export default function JoinRemotePanel({
   };
 
   const addMicrobet = () => {
-    const odds = calcRangeOdds(
-      microbetDraft.kind,
-      microbetDraft.min,
-      microbetDraft.max,
-    );
+    const odds = calcBooleanOdds(microbetDraft.kind);
     setQueuedMicrobets((prev) => {
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, bananas - queuedTotal);
@@ -247,8 +241,7 @@ export default function JoinRemotePanel({
       const bet: PendingPlayerMicrobet = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         kind: microbetDraft.kind,
-        min: microbetDraft.min,
-        max: microbetDraft.max,
+        outcome: microbetDraft.outcome,
         stake,
         odds,
       };
@@ -258,7 +251,7 @@ export default function JoinRemotePanel({
   };
 
   const addQuickMicrobet = (quickDraft: MicrobetDraft) => {
-    const odds = calcRangeOdds(quickDraft.kind, quickDraft.min, quickDraft.max);
+    const odds = calcBooleanOdds(quickDraft.kind);
     setQueuedMicrobets((prev) => {
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, bananas - queuedTotal);
@@ -270,8 +263,7 @@ export default function JoinRemotePanel({
       const bet: PendingPlayerMicrobet = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         kind: quickDraft.kind,
-        min: quickDraft.min,
-        max: quickDraft.max,
+        outcome: quickDraft.outcome,
         stake,
         odds,
       };
@@ -287,8 +279,7 @@ export default function JoinRemotePanel({
   const confirmMicrobets = () => {
     const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
       kind: bet.kind,
-      min: bet.min,
-      max: bet.max,
+      outcome: bet.outcome,
       stake: bet.stake,
     }));
 
@@ -301,6 +292,150 @@ export default function JoinRemotePanel({
   const skipMicrobets = () => {
     sendAction({ type: "player-action", action: { kind: "microbet-skip" } });
   };
+
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+
+    const phaseToken = `${state.snapshot.roundNumber}-${state.phase}`;
+    if (state.phaseCountdown > 0) {
+      autoHandledPhaseRef.current = null;
+      return;
+    }
+
+    if (autoHandledPhaseRef.current === phaseToken) {
+      return;
+    }
+
+    if (state.phase === "prematch" && !prematchDecisionSubmitted) {
+      const minStake = Math.max(
+        5,
+        Math.floor((state.settings.startingBananas || 100) / 10),
+      );
+      if (prematchTouchedRef.current && bananas >= minStake) {
+        window.setTimeout(() => {
+          sendAction({
+            type: "player-action",
+            action: {
+              kind: "main-bet",
+              side: mainBetSelection.side,
+              stake: mainBetSelection.stake,
+            },
+          });
+          setPrematchDecision(mainBetSelection.side);
+          setPrematchDecisionSubmitted(true);
+        }, 0);
+      } else if (bananas >= minStake) {
+        const randomSide: BallId = Math.random() < 0.5 ? "red" : "blue";
+        const randomStake = Math.min(bananas, Math.max(minStake, 20));
+        window.setTimeout(() => {
+          setMainBetSelection({ side: randomSide, stake: randomStake });
+          sendAction({
+            type: "player-action",
+            action: { kind: "main-bet", side: randomSide, stake: randomStake },
+          });
+          setPrematchDecision(randomSide);
+          setPrematchDecisionSubmitted(true);
+        }, 0);
+      } else {
+        window.setTimeout(() => {
+          sendAction({
+            type: "player-action",
+            action: { kind: "main-bet-skip" },
+          });
+          setPrematchDecision("skip");
+          setPrematchDecisionSubmitted(true);
+        }, 0);
+      }
+      autoHandledPhaseRef.current = phaseToken;
+      return;
+    }
+
+    if (state.phase === "vote") {
+      const selection = voteTouchedRef.current
+        ? voteSelection
+        : (Math.floor(Math.random() * 3) as 0 | 1 | 2);
+      const power = voteTouchedRef.current ? votePowerStake : 1;
+      sendAction({
+        type: "player-action",
+        action: { kind: "vote", selection, power },
+      });
+      autoHandledPhaseRef.current = phaseToken;
+      return;
+    }
+
+    if (state.phase === "microbet") {
+      if (queuedMicrobets.length > 0) {
+        const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
+          kind: bet.kind,
+          outcome: bet.outcome,
+          stake: bet.stake,
+        }));
+        window.setTimeout(() => {
+          sendAction({
+            type: "player-action",
+            action: { kind: "microbet", bets },
+          });
+        }, 0);
+      } else if (!microbetTouchedRef.current) {
+        const randomDraft: MicrobetDraft = {
+          kind: Math.random() < 0.5 ? "redDamageToBlue" : "blueDamageToRed",
+          outcome: Math.random() < 0.5,
+          stake: Math.max(1, Math.min(10, bananas)),
+        };
+        const odds = calcBooleanOdds(randomDraft.kind);
+        const bets: PendingMicrobetWire[] = [
+          {
+            kind: randomDraft.kind,
+            outcome: randomDraft.outcome,
+            stake: Math.max(1, Math.min(bananas, randomDraft.stake)),
+          },
+        ];
+        if (bets[0].stake > 0) {
+          window.setTimeout(() => {
+            sendAction({
+              type: "player-action",
+              action: { kind: "microbet", bets },
+            });
+            setQueuedMicrobets([
+              {
+                id: `${Date.now()}-auto`,
+                kind: randomDraft.kind,
+                outcome: randomDraft.outcome,
+                stake: bets[0].stake,
+                odds,
+              },
+            ]);
+          }, 0);
+        } else {
+          window.setTimeout(() => {
+            sendAction({
+              type: "player-action",
+              action: { kind: "microbet-skip" },
+            });
+          }, 0);
+        }
+      } else {
+        window.setTimeout(() => {
+          sendAction({
+            type: "player-action",
+            action: { kind: "microbet-skip" },
+          });
+        }, 0);
+      }
+      autoHandledPhaseRef.current = phaseToken;
+    }
+  }, [
+    bananas,
+    mainBetSelection.side,
+    mainBetSelection.stake,
+    prematchDecisionSubmitted,
+    queuedMicrobets,
+    state,
+    votePowerStake,
+    voteSelection,
+  ]);
 
   if (!state) {
     return (
@@ -339,11 +474,11 @@ export default function JoinRemotePanel({
       : []),
     ...(myParticipant?.activeMicrobets ?? []).map((bet, index) => ({
       id: `active-${index}`,
-      label: `${MICROBET_KIND_LABEL[bet.kind]} ${bet.min}-${bet.max} (${bet.stake} @ ${bet.odds.toFixed(2)}x)`,
+      label: `${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "YES" : "NO"} (${bet.stake} @ ${bet.odds.toFixed(2)}x)`,
     })),
     ...(myParticipant?.queuedMicrobets ?? []).map((bet, index) => ({
       id: `queued-${index}`,
-      label: `Queued: ${MICROBET_KIND_LABEL[bet.kind]} ${bet.min}-${bet.max} (${bet.stake})`,
+      label: `Queued: ${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "YES" : "NO"} (${bet.stake})`,
     })),
   ];
 
@@ -469,8 +604,8 @@ export default function JoinRemotePanel({
                       {MICROBET_KIND_LABEL[insight.kind]}
                     </p>
                     <p className="text-xs text-zinc-700 mt-1">
-                      {insight.count} bets | {insight.totalStake} stake | avg
-                      target {insight.averageTarget.toFixed(1)}
+                      {insight.count} bets | {insight.totalStake} stake | yes
+                      picks {insight.averageTarget.toFixed(0)}%
                     </p>
                   </div>
                 ))}
@@ -503,12 +638,14 @@ export default function JoinRemotePanel({
             5,
             Math.floor((state.settings.startingBananas || 100) / 10),
           )}
-          onSelectSide={(side: BallId) =>
-            setMainBetSelection((prev) => ({ ...prev, side }))
-          }
-          onSelectStake={(stake: number) =>
-            setMainBetSelection((prev) => ({ ...prev, stake }))
-          }
+          onSelectSide={(side: BallId) => {
+            prematchTouchedRef.current = true;
+            setMainBetSelection((prev) => ({ ...prev, side }));
+          }}
+          onSelectStake={(stake: number) => {
+            prematchTouchedRef.current = true;
+            setMainBetSelection((prev) => ({ ...prev, stake }));
+          }}
           onConfirm={placeMainBet}
           onSkip={skipMainBet}
         />
@@ -551,8 +688,14 @@ export default function JoinRemotePanel({
           voteWindow={state.voteWindow}
           selection={voteSelection}
           votePower={votePowerStake}
-          onSelectOption={setVoteSelection}
-          onVotePowerChange={setVotePowerStake}
+          onSelectOption={(value: 0 | 1 | 2) => {
+            voteTouchedRef.current = true;
+            setVoteSelection(value);
+          }}
+          onVotePowerChange={(value: number) => {
+            voteTouchedRef.current = true;
+            setVotePowerStake(value);
+          }}
           onConfirm={castVote}
           isRemote
         />
@@ -566,9 +709,15 @@ export default function JoinRemotePanel({
           insights={state.microbetInsights}
           draft={microbetDraft}
           placedBets={queuedMicrobets}
-          onDraftChange={setMicrobetDraft}
+          onDraftChange={(value: MicrobetDraft) => {
+            microbetTouchedRef.current = true;
+            setMicrobetDraft(value);
+          }}
           onAddBet={addMicrobet}
-          onAddQuickBet={addQuickMicrobet}
+          onAddQuickBet={(value: MicrobetDraft) => {
+            microbetTouchedRef.current = true;
+            addQuickMicrobet(value);
+          }}
           onRemoveBet={removeMicrobet}
           onConfirm={confirmMicrobets}
           onSkip={skipMicrobets}

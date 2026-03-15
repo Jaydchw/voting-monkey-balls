@@ -26,8 +26,7 @@ import type { Weapon } from "@/game/weapon";
 type PlacedMicroBet = {
   botId: string;
   kind: MicroBetKind;
-  target: number;
-  tolerance: number;
+  outcome: boolean;
   stake: number;
 };
 
@@ -124,6 +123,36 @@ function summarizeMainBet(bot: BotState): string {
   return `${bot.mainBet.side.toUpperCase()} ${bot.mainBet.stake}b${
     bot.mainBet.swapped ? " (swapped)" : ""
   }`;
+}
+
+function didMicrobetWin(
+  kind: MicroBetKind,
+  outcome: boolean,
+  windowStats: StatTotals,
+): boolean {
+  if (kind === "redDamageToBlue") {
+    return outcome
+      ? windowStats.blueDamageTaken > windowStats.redDamageTaken
+      : windowStats.blueDamageTaken <= windowStats.redDamageTaken;
+  }
+  if (kind === "blueDamageToRed") {
+    return outcome
+      ? windowStats.redDamageTaken > windowStats.blueDamageTaken
+      : windowStats.redDamageTaken <= windowStats.blueDamageTaken;
+  }
+  if (kind === "redWallHits") {
+    return outcome
+      ? windowStats.wallHitsRed > windowStats.wallHitsBlue
+      : windowStats.wallHitsRed <= windowStats.wallHitsBlue;
+  }
+  if (kind === "blueWallHits") {
+    return outcome
+      ? windowStats.wallHitsBlue > windowStats.wallHitsRed
+      : windowStats.wallHitsBlue <= windowStats.wallHitsRed;
+  }
+  return outcome
+    ? windowStats.ballCollisions >= 10
+    : windowStats.ballCollisions < 10;
 }
 
 export class BotsGameEngine {
@@ -358,18 +387,18 @@ export class BotsGameEngine {
   getPendingMicrobetInsights(): MicroBetInsight[] {
     const byKind = new Map<
       MicroBetKind,
-      { count: number; totalStake: number; totalTarget: number }
+      { count: number; totalStake: number; truePicks: number }
     >();
 
     for (const bet of this.pendingMicroBets) {
       const current = byKind.get(bet.kind) ?? {
         count: 0,
         totalStake: 0,
-        totalTarget: 0,
+        truePicks: 0,
       };
       current.count += 1;
       current.totalStake += bet.stake;
-      current.totalTarget += bet.target;
+      current.truePicks += bet.outcome ? 1 : 0;
       byKind.set(bet.kind, current);
     }
 
@@ -377,7 +406,8 @@ export class BotsGameEngine {
       kind,
       count: value.count,
       totalStake: value.totalStake,
-      averageTarget: value.count === 0 ? 0 : value.totalTarget / value.count,
+      averageTarget:
+        value.count === 0 ? 0 : (value.truePicks / value.count) * 100,
     }));
   }
 
@@ -696,19 +726,13 @@ export class BotsGameEngine {
         "ballCollisions",
       ];
       const kind = kindPool[randomInt(0, kindPool.length - 1, this.rng)];
-
-      const target =
-        kind === "redDamageToBlue" || kind === "blueDamageToRed"
-          ? randomInt(2, 20, this.rng)
-          : randomInt(0, 12, this.rng);
-      const tolerance = kind === "ballCollisions" ? 2 : 3;
+      const outcome = this.rng() < 0.5;
 
       bot.bananas -= stake;
       bets.push({
         botId: bot.id,
         kind,
-        target,
-        tolerance,
+        outcome,
         stake,
       });
     }
@@ -729,8 +753,7 @@ export class BotsGameEngine {
         continue;
       }
 
-      const actual = this.getMicroBetActual(bet.kind, windowStats);
-      const won = Math.abs(actual - bet.target) <= bet.tolerance;
+      const won = didMicrobetWin(bet.kind, bet.outcome, windowStats);
       if (won) {
         bot.bananas += bet.stake * 2;
         winners += 1;
@@ -740,25 +763,6 @@ export class BotsGameEngine {
     this.latestMicrobetSummary = `${winners}/${this.pendingMicroBets.length} microbets won in the last interval.`;
     this.pushLog(this.latestMicrobetSummary);
     this.pendingMicroBets = [];
-  }
-
-  private getMicroBetActual(
-    kind: MicroBetKind,
-    windowStats: StatTotals,
-  ): number {
-    if (kind === "redDamageToBlue") {
-      return windowStats.blueDamageTaken;
-    }
-    if (kind === "blueDamageToRed") {
-      return windowStats.redDamageTaken;
-    }
-    if (kind === "redWallHits") {
-      return windowStats.wallHitsRed;
-    }
-    if (kind === "blueWallHits") {
-      return windowStats.wallHitsBlue;
-    }
-    return windowStats.ballCollisions;
   }
 
   private resolveTimeWinner(redHealth: number, blueHealth: number): BallId {

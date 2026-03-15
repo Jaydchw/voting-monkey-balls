@@ -1,8 +1,4 @@
-import type {
-  BallId,
-  MicroBetInsight,
-  MicroBetKind,
-} from "@/bots/types";
+import type { BallId, MicroBetInsight, MicroBetKind } from "@/bots/types";
 
 export type MainBetSelection = {
   side: BallId;
@@ -11,16 +7,14 @@ export type MainBetSelection = {
 
 export type MicrobetDraft = {
   kind: MicroBetKind;
-  min: number;
-  max: number;
+  outcome: boolean;
   stake: number;
 };
 
 export type PendingPlayerMicrobet = {
   id: string;
   kind: MicroBetKind;
-  min: number;
-  max: number;
+  outcome: boolean;
   stake: number;
   odds: number;
 };
@@ -41,11 +35,41 @@ export type PreMatchModalProps = {
 
 export type VoteWindowOptionLike =
   | {
+      category?: "weapon" | "modifier" | "arena";
       label: string;
+      qualityScore?: number;
+      redLabel?: string;
+      blueLabel?: string;
+      arenaLabel?: string;
+      redDescription?: string;
+      blueDescription?: string;
+      arenaDescription?: string;
     }
   | {
+      category?: "weapon" | "modifier" | "arena";
+      label?: string;
+      qualityScore?: number;
       option: {
         label: string;
+        qualityScore?: number;
+        red?: {
+          label?: string;
+          quality?: number;
+          icon?: unknown;
+          create?: () => { description?: string };
+        };
+        blue?: {
+          label?: string;
+          quality?: number;
+          icon?: unknown;
+          create?: () => { description?: string };
+        };
+        arena?: {
+          label?: string;
+          quality?: number;
+          icon?: unknown;
+          create?: () => { description?: string };
+        };
       };
     };
 

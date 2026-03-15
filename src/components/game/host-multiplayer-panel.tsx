@@ -65,14 +65,6 @@ type PendingPlayerMicrobet = PendingMicrobetWire & {
   odds: number;
 };
 
-const MICROBET_METRIC_CAP: Record<MicroBetKind, number> = {
-  redDamageToBlue: 40,
-  blueDamageToRed: 40,
-  redWallHits: 20,
-  blueWallHits: 20,
-  ballCollisions: 20,
-};
-
 function createZeroTotals(): StatTotals {
   return {
     redDamageTaken: 0,
@@ -83,26 +75,70 @@ function createZeroTotals(): StatTotals {
   };
 }
 
-function calcRangeOdds(kind: MicroBetKind, min: number, max: number): number {
-  const cap = MICROBET_METRIC_CAP[kind];
-  const width = Math.max(1, max - min + 1);
-  const probability = Math.min(0.95, Math.max(0.05, width / (cap + 1)));
-  return Number((0.92 / probability).toFixed(2));
+function calcBooleanOdds(kind: MicroBetKind): number {
+  const probabilityByKind: Record<MicroBetKind, number> = {
+    redDamageToBlue: 0.5,
+    blueDamageToRed: 0.5,
+    redWallHits: 0.5,
+    blueWallHits: 0.5,
+    ballCollisions: 0.45,
+  };
+  return Number((0.92 / probabilityByKind[kind]).toFixed(2));
 }
 
-function getMicrobetActual(kind: MicroBetKind, delta: StatTotals): number {
-  if (kind === "redDamageToBlue") return delta.blueDamageTaken;
-  if (kind === "blueDamageToRed") return delta.redDamageTaken;
-  if (kind === "redWallHits") return delta.wallHitsRed;
-  if (kind === "blueWallHits") return delta.wallHitsBlue;
-  return delta.ballCollisions;
+function didMicrobetWin(
+  kind: MicroBetKind,
+  outcome: boolean,
+  delta: StatTotals,
+): boolean {
+  if (kind === "redDamageToBlue") {
+    return outcome
+      ? delta.blueDamageTaken > delta.redDamageTaken
+      : delta.blueDamageTaken <= delta.redDamageTaken;
+  }
+  if (kind === "blueDamageToRed") {
+    return outcome
+      ? delta.redDamageTaken > delta.blueDamageTaken
+      : delta.redDamageTaken <= delta.blueDamageTaken;
+  }
+  if (kind === "redWallHits") {
+    return outcome
+      ? delta.wallHitsRed > delta.wallHitsBlue
+      : delta.wallHitsRed <= delta.wallHitsBlue;
+  }
+  if (kind === "blueWallHits") {
+    return outcome
+      ? delta.wallHitsBlue > delta.wallHitsRed
+      : delta.wallHitsBlue <= delta.wallHitsRed;
+  }
+  return outcome ? delta.ballCollisions >= 10 : delta.ballCollisions < 10;
 }
 
 function serializeVoteWindow(voteWindow: VoteWindow): SerializableVoteWindow {
-  const serializeOption = (option: VoteWindow["optionA"]) => ({
-    category: option.category,
-    label: option.option.label,
-  });
+  const serializeOption = (option: VoteWindow["optionA"]) => {
+    if (option.category === "arena") {
+      const arenaInstance = option.option.arena.create();
+      return {
+        category: option.category,
+        label: option.option.label,
+        qualityScore: option.option.qualityScore,
+        arenaLabel: option.option.arena.label,
+        arenaDescription: arenaInstance.description,
+      };
+    }
+
+    const redInstance = option.option.red.create();
+    const blueInstance = option.option.blue.create();
+    return {
+      category: option.category,
+      label: option.option.label,
+      qualityScore: option.option.qualityScore,
+      redLabel: option.option.red.label,
+      blueLabel: option.option.blue.label,
+      redDescription: redInstance.description,
+      blueDescription: blueInstance.description,
+    };
+  };
 
   return {
     category: voteWindow.category,
@@ -152,9 +188,8 @@ export default function HostMultiplayerPanel({
   const [redWeapons, setRedWeapons] = useState<ActiveModifier[]>([]);
   const [blueWeapons, setBlueWeapons] = useState<ActiveModifier[]>([]);
   const [voteWindow, setVoteWindow] = useState<VoteWindow | null>(null);
-  const [revealedVoteOption, setRevealedVoteOption] = useState<
-    HostBroadcastState["revealedVoteOption"]
-  >(null);
+  const [revealedVoteOption, setRevealedVoteOption] =
+    useState<HostBroadcastState["revealedVoteOption"]>(null);
   const [microbetInsights, setMicrobetInsights] = useState<MicroBetInsight[]>(
     [],
   );
@@ -269,8 +304,7 @@ export default function HostMultiplayerPanel({
 
         let payoutTotal = 0;
         for (const bet of bets) {
-          const actual = getMicrobetActual(bet.kind, delta);
-          const won = actual >= bet.min && actual <= bet.max;
+          const won = didMicrobetWin(bet.kind, bet.outcome, delta);
           if (won) {
             payoutTotal += Math.floor(bet.stake * bet.odds);
           }
@@ -383,8 +417,7 @@ export default function HostMultiplayerPanel({
         queuedMicrobets: (queuedMicrobetsRef.current[participant.id] ?? []).map(
           (bet) => ({
             kind: bet.kind,
-            min: bet.min,
-            max: bet.max,
+            outcome: bet.outcome,
             stake: bet.stake,
             odds: bet.odds,
           }),
@@ -392,8 +425,7 @@ export default function HostMultiplayerPanel({
         activeMicrobets: (activeMicrobetsRef.current[participant.id] ?? []).map(
           (bet) => ({
             kind: bet.kind,
-            min: bet.min,
-            max: bet.max,
+            outcome: bet.outcome,
             stake: bet.stake,
             odds: bet.odds,
           }),
@@ -470,7 +502,9 @@ export default function HostMultiplayerPanel({
             syncParticipantBananas();
           }
 
-          if (!Object.prototype.hasOwnProperty.call(mainBetsRef.current, playerId)) {
+          if (
+            !Object.prototype.hasOwnProperty.call(mainBetsRef.current, playerId)
+          ) {
             mainBetsRef.current[playerId] = null;
           }
 
@@ -501,15 +535,12 @@ export default function HostMultiplayerPanel({
 
           const sanitizedBets: PendingPlayerMicrobet[] = action.bets
             .map((bet, index) => {
-              const min = Math.max(0, Math.floor(bet.min));
-              const max = Math.max(min, Math.floor(bet.max));
               const stake = Math.max(1, Math.floor(bet.stake));
-              const odds = calcRangeOdds(bet.kind, min, max);
+              const odds = calcBooleanOdds(bet.kind);
               return {
                 id: `${playerId}-${Date.now()}-${index}`,
                 kind: bet.kind,
-                min,
-                max,
+                outcome: Boolean(bet.outcome),
                 stake,
                 odds,
               };
@@ -616,7 +647,10 @@ export default function HostMultiplayerPanel({
     if (phaseRef.current === "prematch") {
       if (
         haveAllConnectedPlayersDecided((participantId) =>
-          Object.prototype.hasOwnProperty.call(mainBetsRef.current, participantId),
+          Object.prototype.hasOwnProperty.call(
+            mainBetsRef.current,
+            participantId,
+          ),
         )
       ) {
         transitionPhase("running", 0);
@@ -627,7 +661,8 @@ export default function HostMultiplayerPanel({
     if (phaseRef.current === "vote") {
       if (
         haveAllConnectedPlayersDecided(
-          (participantId) => voteActionsRef.current[participantId] !== undefined,
+          (participantId) =>
+            voteActionsRef.current[participantId] !== undefined,
         )
       ) {
         resolveVoteAndOpenMicrobet();
@@ -1052,9 +1087,9 @@ export default function HostMultiplayerPanel({
         ? "Vote now!"
         : phase === "reveal"
           ? "Applying vote result..."
-        : phase === "microbet"
-          ? "Place your microbets!"
-          : null;
+          : phase === "microbet"
+            ? "Place your microbets!"
+            : null;
 
   if (!matchStarted) {
     return (
