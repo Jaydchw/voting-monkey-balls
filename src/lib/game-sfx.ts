@@ -1,4 +1,5 @@
 import type * as Phaser from "phaser";
+import { getAudioSettings } from "@/lib/audio-settings";
 
 export type GameSfxId =
   | "big_zap"
@@ -53,5 +54,17 @@ export function playGameSfx(
   if (!scene.sound || !scene.cache.audio.exists(id)) {
     return;
   }
-  scene.sound.play(id, options);
+  const settings = getAudioSettings();
+  const isMusic = id.startsWith("music");
+  const channelVolume = isMusic ? settings.musicVolume : settings.sfxVolume;
+  const baseVolume = options?.volume ?? 1;
+  const volume = Math.max(
+    0,
+    Math.min(1, baseVolume * settings.masterVolume * channelVolume),
+  );
+
+  scene.sound.play(id, {
+    ...options,
+    volume,
+  });
 }

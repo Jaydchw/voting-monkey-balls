@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bungee, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { GlobalAudioSettings } from "@/components/global-audio-settings";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -39,7 +40,10 @@ export default function RootLayout({
         "font-sans",
       )}
     >
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <GlobalAudioSettings />
+      </body>
     </html>
   );
 }

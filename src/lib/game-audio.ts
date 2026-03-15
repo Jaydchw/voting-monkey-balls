@@ -1,3 +1,5 @@
+import { getAudioSettings } from "@/lib/audio-settings";
+
 export type AudioTrackId =
   | "happyMelody"
   | "spookyMelody"
@@ -18,7 +20,11 @@ type TrackConfig = {
 const TRACKS: Record<AudioTrackId, TrackConfig> = {
   happyMelody: { src: "/audio/happy_melody.mp3", volume: 0.4, loop: true },
   spookyMelody: { src: "/audio/spooky_melody.mp3", volume: 0.35, loop: true },
-  conflictBongos: { src: "/audio/conflict_bongos.mp3", volume: 0.35, loop: true },
+  conflictBongos: {
+    src: "/audio/conflict_bongos.mp3",
+    volume: 0.35,
+    loop: true,
+  },
   warmPad: { src: "/audio/warm_pad.mp3", volume: 0.3, loop: true },
   dubBlip: { src: "/audio/dub_blip.mp3", volume: 0.55 },
   tomPlinks: { src: "/audio/tom_plinks.mp3", volume: 0.65 },
@@ -100,6 +106,11 @@ export class GameAudioController {
 
   private getVolume(id: AudioTrackId) {
     if (this.muted) return 0;
-    return TRACKS[id].volume;
+    const track = TRACKS[id];
+    const settings = getAudioSettings();
+    const channelVolume = track.loop
+      ? settings.musicVolume
+      : settings.sfxVolume;
+    return track.volume * settings.masterVolume * channelVolume;
   }
 }
