@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,7 +25,7 @@ const SONGS = {
       "stepper_snare.mp3",
       "tom_plinks.mp3",
       "triplet_kick.mp3",
-      "warm_pad.mp3"
+      "warm_pad.mp3",
     ],
   },
   conga: {
@@ -51,7 +51,7 @@ const SONGS = {
       "conga A-Reverb.mp3",
       "conga AlterEgo.mp3",
       "conga B-Delay.mp3",
-      "conga.mp3"
+      "conga.mp3",
     ],
   },
   groova: {
@@ -81,7 +81,7 @@ const SONGS = {
       "groova synthstabs.mp3",
       "groova toms.mp3",
       "groova vox.mp3",
-      "groova wub1.mp3"
+      "groova wub1.mp3",
     ],
   },
 } as const;
@@ -115,26 +115,40 @@ export default function AudioTestPage() {
   const [active, setActive] = useState<ToggleState>(() =>
     createInitialState(SONGS[DEFAULT_SONG].files),
   );
-  const [loopDuration, setLoopDuration] = useState<number>(DEFAULT_LOOP_DURATION);
+  const [loopDuration, setLoopDuration] = useState<number>(
+    DEFAULT_LOOP_DURATION,
+  );
   const [mode, setMode] = useState<"notail" | "withTail">("notail");
   const [attack, setAttack] = useState<number>(DEFAULT_LOOP_ATTACK);
   const audioContextRef = useRef<AudioContext | null>(null);
   const buffersRef = useRef<Partial<Record<string, AudioBuffer>>>({});
   const buffersWithTailRef = useRef<Partial<Record<string, AudioBuffer>>>({});
   const loadingRef = useRef<Partial<Record<string, Promise<AudioBuffer>>>>({});
-  const loadingWithTailRef = useRef<Partial<Record<string, Promise<AudioBuffer>>>>({});
-  const loopSourcesRef = useRef<Partial<Record<SoundFile, AudioBufferSourceNode>>>({});
+  const loadingWithTailRef = useRef<
+    Partial<Record<string, Promise<AudioBuffer>>>
+  >({});
+  const loopSourcesRef = useRef<
+    Partial<Record<SoundFile, AudioBufferSourceNode>>
+  >({});
   const loopGainsRef = useRef<Partial<Record<SoundFile, GainNode>>>({});
   const tailInstancesRef = useRef<
-    Partial<Record<SoundFile, Array<{ source: AudioBufferSourceNode; gain: GainNode }>>>
+    Partial<
+      Record<
+        SoundFile,
+        Array<{ source: AudioBufferSourceNode; gain: GainNode }>
+      >
+    >
   >({});
   const nextCycleRef = useRef<Partial<Record<SoundFile, number>>>({});
   const schedulerRef = useRef<number | null>(null);
-  const transportRef = useRef<{ startTime: number; loopDuration: number } | null>(
-    null,
-  );
+  const transportRef = useRef<{
+    startTime: number;
+    loopDuration: number;
+  } | null>(null);
   const soundFiles = useMemo(() => SONGS[song].files, [song]);
-  const activeRef = useRef<ToggleState>(createInitialState(SONGS[DEFAULT_SONG].files));
+  const activeRef = useRef<ToggleState>(
+    createInitialState(SONGS[DEFAULT_SONG].files),
+  );
   const soundFilesRef = useRef<readonly SoundFile[]>(SONGS[DEFAULT_SONG].files);
   const attackRef = useRef<number>(DEFAULT_LOOP_ATTACK);
   const songRef = useRef<SongId>(DEFAULT_SONG);
@@ -160,62 +174,64 @@ export default function AudioTestPage() {
     songRef.current = song;
   }, [song]);
 
-  const getAudioContext = () => {
+  const getAudioContext = useCallback(() => {
     let ctx = audioContextRef.current;
     if (!ctx) {
       ctx = new AudioContext();
       audioContextRef.current = ctx;
     }
     return ctx;
-  };
+  }, []);
 
-  const loadBuffer = async (
-    songId: SongId,
-    file: SoundFile,
-    useWithTail: boolean = false,
-  ) => {
-    const buffers = useWithTail ? buffersWithTailRef : buffersRef;
-    const loading = useWithTail ? loadingWithTailRef : loadingRef;
-    const key = toFileKey(songId, file);
+  const loadBuffer = useCallback(
+    async (songId: SongId, file: SoundFile, useWithTail: boolean = false) => {
+      const buffers = useWithTail ? buffersWithTailRef : buffersRef;
+      const loading = useWithTail ? loadingWithTailRef : loadingRef;
+      const key = toFileKey(songId, file);
 
-    if (buffers.current[key]) return buffers.current[key] as AudioBuffer;
-    if (!loading.current[key]) {
-      loading.current[key] = (async () => {
-        const ctx = getAudioContext();
-        const withTailPath = buildSongPath(songId, file);
-        const noTailPath = `/audio/no_tail/notail_${encodeURIComponent(file)}`;
-        const candidatePaths = useWithTail
-          ? [withTailPath]
-          : songId === "mirage"
-            ? [noTailPath, withTailPath]
-            : [withTailPath];
+      if (buffers.current[key]) return buffers.current[key] as AudioBuffer;
+      if (!loading.current[key]) {
+        loading.current[key] = (async () => {
+          const ctx = getAudioContext();
+          const withTailPath = buildSongPath(songId, file);
+          const noTailPath = `/audio/no_tail/notail_${encodeURIComponent(file)}`;
+          const candidatePaths = useWithTail
+            ? [withTailPath]
+            : songId === "mirage"
+              ? [noTailPath, withTailPath]
+              : [withTailPath];
 
-        let lastError: Error | null = null;
-        for (const path of candidatePaths) {
-          try {
-            const response = await fetch(path);
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
+          let lastError: Error | null = null;
+          for (const path of candidatePaths) {
+            try {
+              const response = await fetch(path);
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+              }
+              const arrayBuffer = await response.arrayBuffer();
+              const buffer = await ctx.decodeAudioData(arrayBuffer);
+              buffers.current[key] = buffer;
+              return buffer;
+            } catch (error) {
+              lastError =
+                error instanceof Error
+                  ? error
+                  : new Error("Failed to load audio file");
             }
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = await ctx.decodeAudioData(arrayBuffer);
-            buffers.current[key] = buffer;
-            return buffer;
-          } catch (error) {
-            lastError = error instanceof Error ? error : new Error("Failed to load audio file");
           }
-        }
 
-        throw (
-          lastError ??
-          new Error(
-            `Failed to load audio file for ${songId}/${file} (${useWithTail ? "with tail" : "no tail"})`,
-          )
-        );
-      })();
-    }
-    return loading.current[key] as Promise<AudioBuffer>;
-  };
+          throw (
+            lastError ??
+            new Error(
+              `Failed to load audio file for ${songId}/${file} (${useWithTail ? "with tail" : "no tail"})`,
+            )
+          );
+        })();
+      }
+      return loading.current[key] as Promise<AudioBuffer>;
+    },
+    [getAudioContext],
+  );
 
   const ensureTransport = () => {
     const ctx = getAudioContext();
@@ -230,7 +246,10 @@ export default function AudioTestPage() {
     return transportRef.current;
   };
 
-  const getCurrentCycle = (transport: { startTime: number; loopDuration: number }) => {
+  const getCurrentCycle = (transport: {
+    startTime: number;
+    loopDuration: number;
+  }) => {
     const ctx = getAudioContext();
     if (ctx.currentTime <= transport.startTime) return 0;
     return Math.floor(
@@ -384,7 +403,9 @@ export default function AudioTestPage() {
     clearScheduler();
     if (mode !== "withTail") return;
 
-    const hasActiveTracks = soundFilesRef.current.some((file) => activeRef.current[file]);
+    const hasActiveTracks = soundFilesRef.current.some(
+      (file) => activeRef.current[file],
+    );
     if (!hasActiveTracks) return;
 
     schedulerRef.current = window.setInterval(() => {
@@ -406,9 +427,11 @@ export default function AudioTestPage() {
     const transport = ensureTransport();
     if (mode === "notail") {
       const cycleStart =
-        transport.startTime + getCurrentCycle(transport) * transport.loopDuration;
+        transport.startTime +
+        getCurrentCycle(transport) * transport.loopDuration;
       const startAt = Math.max(ctx.currentTime + 0.01, cycleStart);
-      const offset = cycleStart < ctx.currentTime ? ctx.currentTime - cycleStart : 0;
+      const offset =
+        cycleStart < ctx.currentTime ? ctx.currentTime - cycleStart : 0;
       startLoopingSource(file, buffer, loopDuration, startAt, offset);
       return;
     }
@@ -423,10 +446,14 @@ export default function AudioTestPage() {
     if (ctx.state !== "running") await ctx.resume();
 
     const files = soundFilesRef.current;
-    await Promise.all(files.map((file) => loadBuffer(songRef.current, file, false)));
+    await Promise.all(
+      files.map((file) => loadBuffer(songRef.current, file, false)),
+    );
 
     const buffers = await Promise.all(
-      files.map((file) => loadBuffer(songRef.current, file, mode === "withTail")),
+      files.map((file) =>
+        loadBuffer(songRef.current, file, mode === "withTail"),
+      ),
     );
     const startAt = ctx.currentTime + 0.08;
     transportRef.current = { startTime: startAt, loopDuration };
@@ -519,7 +546,7 @@ export default function AudioTestPage() {
       setLoopDuration(buffer.duration);
     };
     void loadReferenceDuration();
-  }, [song]);
+  }, [loadBuffer, song]);
 
   useEffect(() => {
     return () => {
@@ -564,7 +591,10 @@ export default function AudioTestPage() {
         <Card className="p-6 border-8 border-black rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] bg-white">
           <div className="mb-6 p-4 border-4 border-black bg-gray-100">
             <div className="mb-4 border-b-4 border-black pb-4">
-              <label className="block text-sm font-bold uppercase tracking-wide mb-3" htmlFor="song-pack-select">
+              <label
+                className="block text-sm font-bold uppercase tracking-wide mb-3"
+                htmlFor="song-pack-select"
+              >
                 Song Pack:
               </label>
               <div className="flex flex-wrap items-center gap-3">
@@ -586,7 +616,9 @@ export default function AudioTestPage() {
               </div>
             </div>
 
-            <p className="text-sm font-bold uppercase tracking-wide mb-3">Loop Mode:</p>
+            <p className="text-sm font-bold uppercase tracking-wide mb-3">
+              Loop Mode:
+            </p>
             <div className="flex flex-wrap gap-3">
               <Button
                 className={`border-4 border-black rounded-none uppercase font-black tracking-widest ${
@@ -611,7 +643,10 @@ export default function AudioTestPage() {
             </div>
 
             <div className="mt-4 border-t-4 border-black pt-4">
-              <label className="block text-sm font-bold uppercase tracking-wide mb-3" htmlFor="loop-attack">
+              <label
+                className="block text-sm font-bold uppercase tracking-wide mb-3"
+                htmlFor="loop-attack"
+              >
                 Attack: {attack.toFixed(2)}s
               </label>
               <div className="flex flex-wrap items-center gap-3">
@@ -664,18 +699,23 @@ export default function AudioTestPage() {
               Stop All
             </Button>
             <span className="self-center text-sm font-bold uppercase tracking-wide">
-              Status: {allEnabled ? "All On" : "Mixed"} | Song: {SONGS[song].label} | Mode: {mode === "notail" ? "No Tail (Perfect 8B)" : "With Tail (Looped)"} | Attack: {attack.toFixed(2)}s
+              Status: {allEnabled ? "All On" : "Mixed"} | Song:{" "}
+              {SONGS[song].label} | Mode:{" "}
+              {mode === "notail"
+                ? "No Tail (Perfect 8B)"
+                : "With Tail (Looped)"}{" "}
+              | Attack: {attack.toFixed(2)}s
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {(() => {
               // Find common prefix for all files in the current song pack
-              function getCommonPrefix(files: string[]): string {
+              function getCommonPrefix(files: readonly string[]): string {
                 if (files.length === 0) return "";
                 // Find the most common prefix ending with space or underscore
                 const prefixCounts: Record<string, number> = {};
-                files.forEach(f => {
+                files.forEach((f) => {
                   const match = f.match(/^([a-zA-Z0-9_]+[ _])/);
                   if (match) {
                     const prefix = match[1];
@@ -685,7 +725,10 @@ export default function AudioTestPage() {
                 let bestPrefix = "";
                 let bestCount = 0;
                 for (const prefix in prefixCounts) {
-                  if (prefixCounts[prefix] > bestCount && prefixCounts[prefix] > files.length / 2) {
+                  if (
+                    prefixCounts[prefix] > bestCount &&
+                    prefixCounts[prefix] > files.length / 2
+                  ) {
                     bestPrefix = prefix;
                     bestCount = prefixCounts[prefix];
                   }
@@ -696,11 +739,13 @@ export default function AudioTestPage() {
               return soundFiles.map((file) => {
                 const isOn = active[file];
                 // Remove common prefix and .mp3, replace _ with space
-                let displayName = file;
+                let displayName: string = file;
                 if (commonPrefix && file.startsWith(commonPrefix)) {
                   displayName = file.slice(commonPrefix.length);
                 }
-                displayName = displayName.replace(".mp3", "").replaceAll("_", " ");
+                displayName = displayName
+                  .replace(".mp3", "")
+                  .replaceAll("_", " ");
                 return (
                   <Button
                     key={file}

@@ -19,10 +19,12 @@ import { BotStandings } from "./panels/bot-standings";
 import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
 import { BotBetsTable } from "./panels/bot-bets-table";
 import { Card } from "@/components/ui/card";
-import { PrematchBetModal } from "./panels/prematch-bet-modal";
-import { VoteEventModal } from "./panels/vote-event-modal";
-import { VoteRevealModal } from "./panels/vote-reveal-modal";
-import { MicrobetsModal } from "./panels/microbets-modal";
+import {
+  MicrobetsModal,
+  PrematchBetModal,
+  VoteEventModal,
+  VoteRevealModal,
+} from "./panels";
 import type {
   MainBetSelection,
   MicrobetDraft,

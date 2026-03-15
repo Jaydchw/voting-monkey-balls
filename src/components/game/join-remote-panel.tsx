@@ -8,7 +8,6 @@ import {
   MicrobetsModal,
   PrematchBetModal,
   VoteEventModal,
-  VoteRevealModal,
 } from "@/components/game/panels";
 import type { BallId, MicroBetKind } from "@/bots/types";
 import type {
@@ -23,8 +22,8 @@ import type {
   ServerEnvelope,
 } from "@/multiplayer/protocol";
 import {
-  getPartyKitHost,
   getSocketProtocol,
+  PARTYKIT_HOST,
   PARTYKIT_PARTY,
 } from "@/lib/multiplayer";
 import { Card } from "@/components/ui/card";
@@ -72,7 +71,6 @@ export default function JoinRemotePanel({
   const playerToken = useId();
 
   const [socketConnected, setSocketConnected] = useState(false);
-  const [socketError, setSocketError] = useState<string | null>(null);
   const [state, setState] = useState<HostBroadcastState | null>(null);
 
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
@@ -111,9 +109,8 @@ export default function JoinRemotePanel({
   const bananas = myParticipant?.bananas ?? 0;
 
   useEffect(() => {
-    const host = getPartyKitHost();
     const socket = new PartySocket({
-      host,
+      host: PARTYKIT_HOST,
       party: PARTYKIT_PARTY,
       room: roomCode,
       protocol: getSocketProtocol(),
@@ -123,7 +120,6 @@ export default function JoinRemotePanel({
 
     socket.addEventListener("open", () => {
       setSocketConnected(true);
-      setSocketError(null);
       const hello: ClientEnvelope = {
         type: "hello",
         role: "joiner",
@@ -138,13 +134,6 @@ export default function JoinRemotePanel({
 
     socket.addEventListener("close", () => {
       setSocketConnected(false);
-    });
-
-    socket.addEventListener("error", () => {
-      setSocketConnected(false);
-      setSocketError(
-        `Unable to connect to PartyKit server at ${host}. Check that PartyKit is running and reachable.`,
-      );
     });
 
     socket.addEventListener("message", (event) => {
@@ -169,7 +158,7 @@ export default function JoinRemotePanel({
 
           if (payload.state.phase !== "vote") {
             setVotePowerStake(0);
-            setVoteSelection(0 as 0 | 1 | 2);
+            setVoteSelection(0);
           }
 
           if (payload.state.phase !== "prematch") {
@@ -327,11 +316,6 @@ export default function JoinRemotePanel({
           <p className="mt-2 text-xs font-black uppercase text-zinc-500">
             Socket: {socketConnected ? "Connected" : "Connecting..."}
           </p>
-          {socketError && !socketConnected && (
-            <p className="mt-2 text-xs font-black uppercase text-red-700">
-              {socketError}
-            </p>
-          )}
           <Button
             variant="secondary"
             className="mt-6 border-4 border-black rounded-none font-black uppercase"
@@ -558,12 +542,6 @@ export default function JoinRemotePanel({
           </div>
         )}
 
-        <VoteRevealModal
-          open={state.phase === "reveal"}
-          countdown={state.phaseCountdown}
-          revealedOption={state.revealedVoteOption}
-        />
-
         <VoteEventModal
           open={state.phase === "vote"}
           countdown={state.phaseCountdown}
@@ -576,7 +554,6 @@ export default function JoinRemotePanel({
           onSelectOption={setVoteSelection}
           onVotePowerChange={setVotePowerStake}
           onConfirm={castVote}
-          confirmLabel={votePowerStake === 0 ? "Hold Vote" : "Cast Vote"}
           isRemote
         />
 
