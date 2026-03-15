@@ -51,19 +51,28 @@ export default function CharacterTestPage() {
         </p>
 
         <Card className="p-6 border-8 border-black rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] bg-white">
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-6 mb-6">
+          <div className="grid grid-cols-5 gap-x-12 gap-y-8 mb-6 place-items-center">
             {MONKEY_EMOJIS.map((file) => (
               <button
                 key={file}
-                className={`border-4 border-black rounded-none p-2 bg-white hover:bg-yellow-100 focus:bg-yellow-200 ${selectedEmoji === file ? "ring-4 ring-yellow-400" : ""}`}
+                className={`border-2 border-black rounded-none p-1 bg-white hover:bg-yellow-100 focus:bg-yellow-200 ${selectedEmoji === file ? "ring-4 ring-yellow-400" : ""}`}
                 onClick={() => setSelectedEmoji(file)}
                 aria-label={`Select ${file}`}
               >
-                <img
-                  src={`/monkey reactions/emoji/${file}`}
-                  alt={file}
-                  className="w-24 h-24 object-contain"
-                />
+                  <Button
+                    key={file}
+                    variant={selectedEmoji === file ? "secondary" : "outline"}
+                    size="lg"
+                    className={`border-4 border-black rounded-none p-0 flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${selectedEmoji === file ? "ring-4 ring-yellow-400" : ""} h-32 w-32`}
+                    onClick={() => setSelectedEmoji(file)}
+                    aria-label={`Select ${file}`}
+                  >
+                    <img
+                      src={`/monkey reactions/emoji/${file}`}
+                      alt={file}
+                      className="h-32 w-32 object-contain"
+                    />
+                  </Button>
               </button>
             ))}
           </div>
@@ -75,7 +84,7 @@ export default function CharacterTestPage() {
                 <img
                   src={`/monkey reactions/emoji/${selectedEmoji}`}
                   alt={selectedEmoji}
-                  className="w-24 h-24 mx-auto object-contain border-4 border-yellow-400"
+                  className="w-20 h-20 mx-auto object-contain border-2 border-yellow-400 p-1"
                 />
                 <p className="mt-2 text-sm">(Assigned to user profile placeholder)</p>
               </div>
