@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FullscreenModal } from "./fullscreen-modal";
+import { ModalSurface } from "./modal-surface";
 import type { MicroBetKind } from "@/bots/types";
 import type {
   MicrobetDraft,
@@ -182,15 +183,15 @@ export function MicrobetsModal({
       maxWidthClassName="max-w-350"
       zIndexClassName="z-50"
     >
-      <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-0 sm:shadow-none">
-        <div className="border-b-2 border-black/20 px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
+      <ModalSurface>
+        <div className="px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
               {countdown > 0
                 ? `Microbet market (${countdown}s)`
                 : "Microbet market"}
             </p>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black uppercase mt-1">
               Tap To Lock Bets
             </h2>
             <p className="text-xs sm:text-sm font-bold text-zinc-700 mt-2 leading-relaxed">
@@ -279,7 +280,7 @@ export function MicrobetsModal({
             </Button>
           </div>
         </div>
-      </Card>
+      </ModalSurface>
     </FullscreenModal>
   );
 }

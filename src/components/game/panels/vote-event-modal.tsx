@@ -1,19 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
+import { Mountains, Sparkle, Sword } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
 import { FullscreenModal } from "./fullscreen-modal";
 import { FlipOptionCard } from "./flip-option-card";
+import { ModalSurface } from "./modal-surface";
 import { ShuffleMonkey } from "./shuffle-monkey";
 import type { VoteEventModalProps } from "./betting-types";
 
 type IconLike = (props: { size?: number; className?: string }) => ReactNode;
 
+const CATEGORY_ICON_MAP = {
+  weapon: Sword,
+  modifier: Sparkle,
+  arena: Mountains,
+} as const;
+
 type VoteCardOption = {
   key: string;
-  title: string;
   category: "weapon" | "modifier" | "arena";
   label: ReactNode;
   qualityScore: number;
@@ -72,22 +78,28 @@ function isIconLike(value: unknown): value is IconLike {
 
 function getOptionIcons(option: unknown): IconLike[] {
   const safeOption = option as {
+    icon?: unknown;
     option?: {
+      icon?: unknown;
       red?: { icon?: unknown };
       blue?: { icon?: unknown };
       arena?: { icon?: unknown };
     };
   };
   const icons: IconLike[] = [];
+  const rootIcon = safeOption.icon;
+  const optionIcon = safeOption.option?.icon;
   const redIcon = safeOption.option?.red?.icon;
   const blueIcon = safeOption.option?.blue?.icon;
   const arenaIcon = safeOption.option?.arena?.icon;
 
+  if (isIconLike(rootIcon)) icons.push(rootIcon);
+  if (isIconLike(optionIcon)) icons.push(optionIcon);
   if (isIconLike(redIcon)) icons.push(redIcon);
   if (isIconLike(blueIcon)) icons.push(blueIcon);
   if (isIconLike(arenaIcon)) icons.push(arenaIcon);
 
-  return icons;
+  return icons.slice(0, 4);
 }
 
 function getQualityScore(option: {
@@ -148,92 +160,56 @@ function getCategoryTheme(category: VoteCardOption["category"]): {
   watermark: string;
   splitBlue: string;
   splitRed: string;
+  accent: string;
+  progressTrack: string;
+  progressFill: string;
+  iconRing: string;
 } {
   if (category === "weapon") {
     return {
-      shell: "bg-gradient-to-b from-red-100 via-orange-50 to-red-50",
-      inner: "bg-red-50/85",
-      text: "text-red-800",
-      chip: "bg-red-200 text-red-900",
-      divider: "bg-gradient-to-b from-red-500 to-orange-500",
+      shell: "bg-gradient-to-b from-red-100 via-orange-50 to-rose-100",
+      inner: "bg-white/82",
+      text: "text-red-900",
+      chip: "bg-red-100 text-red-900",
+      divider: "from-red-500/80 to-orange-500/80",
       watermark: "text-red-300/35",
-      splitBlue: "from-red-50 to-orange-100/40",
-      splitRed: "from-orange-100/40 to-red-50",
+      splitBlue: "from-blue-50 to-blue-100/70",
+      splitRed: "from-red-50 to-red-100/70",
+      accent: "text-red-700",
+      progressTrack: "bg-red-100",
+      progressFill: "from-red-500 to-orange-500",
+      iconRing: "bg-red-100 text-red-700",
     };
   }
   if (category === "modifier") {
     return {
-      shell: "bg-gradient-to-b from-violet-100 via-fuchsia-50 to-violet-50",
-      inner: "bg-violet-50/85",
-      text: "text-violet-800",
-      chip: "bg-violet-200 text-violet-900",
-      divider: "bg-gradient-to-b from-violet-500 to-fuchsia-500",
+      shell: "bg-gradient-to-b from-violet-100 via-fuchsia-50 to-purple-100",
+      inner: "bg-white/82",
+      text: "text-violet-900",
+      chip: "bg-violet-100 text-violet-900",
+      divider: "from-violet-500/80 to-fuchsia-500/80",
       watermark: "text-violet-300/35",
-      splitBlue: "from-violet-50 to-fuchsia-100/35",
-      splitRed: "from-fuchsia-100/35 to-violet-50",
+      splitBlue: "from-blue-50 to-blue-100/70",
+      splitRed: "from-red-50 to-red-100/70",
+      accent: "text-violet-700",
+      progressTrack: "bg-violet-100",
+      progressFill: "from-violet-500 to-fuchsia-500",
+      iconRing: "bg-violet-100 text-violet-700",
     };
   }
   return {
-    shell: "bg-gradient-to-b from-cyan-100 via-sky-50 to-cyan-50",
-    inner: "bg-cyan-50/85",
-    text: "text-cyan-800",
-    chip: "bg-cyan-200 text-cyan-900",
-    divider: "bg-gradient-to-b from-cyan-500 to-sky-500",
+    shell: "bg-gradient-to-b from-cyan-100 via-sky-50 to-blue-100",
+    inner: "bg-white/82",
+    text: "text-cyan-900",
+    chip: "bg-cyan-100 text-cyan-900",
+    divider: "from-cyan-500/80 to-sky-500/80",
     watermark: "text-cyan-300/35",
-    splitBlue: "from-cyan-50 to-sky-100/35",
-    splitRed: "from-sky-100/35 to-cyan-50",
-  };
-}
-
-function getQualityBadge(qualityScore: number): {
-  label: string;
-  tone: string;
-  cardTone: string;
-  borderTone: string;
-  glowTone: string;
-} {
-  if (qualityScore >= 8) {
-    return {
-      label: "Legendary",
-      tone: "bg-amber-200 text-amber-900",
-      cardTone: "from-amber-50/80 via-yellow-50/70 to-orange-50/70",
-      borderTone: "border-amber-700",
-      glowTone: "shadow-[0_6px_0_0_rgba(161,98,7,1)]",
-    };
-  }
-  if (qualityScore >= 6) {
-    return {
-      label: "Epic",
-      tone: "bg-purple-200 text-purple-900",
-      cardTone: "from-violet-50/80 via-fuchsia-50/70 to-violet-100/60",
-      borderTone: "border-violet-700",
-      glowTone: "shadow-[0_6px_0_0_rgba(109,40,217,1)]",
-    };
-  }
-  if (qualityScore >= 4) {
-    return {
-      label: "Rare",
-      tone: "bg-blue-200 text-blue-900",
-      cardTone: "from-sky-50/80 via-blue-50/70 to-cyan-100/60",
-      borderTone: "border-blue-700",
-      glowTone: "shadow-[0_6px_0_0_rgba(29,78,216,1)]",
-    };
-  }
-  if (qualityScore >= 2) {
-    return {
-      label: "Uncommon",
-      tone: "bg-emerald-200 text-emerald-900",
-      cardTone: "from-emerald-50/80 via-lime-50/70 to-emerald-100/60",
-      borderTone: "border-emerald-700",
-      glowTone: "shadow-[0_6px_0_0_rgba(4,120,87,1)]",
-    };
-  }
-  return {
-    label: "Common",
-    tone: "bg-zinc-200 text-zinc-900",
-    cardTone: "from-zinc-100/80 via-zinc-50/70 to-stone-100/60",
-    borderTone: "border-zinc-700",
-    glowTone: "shadow-[0_6px_0_0_rgba(63,63,70,1)]",
+    splitBlue: "from-blue-50 to-blue-100/70",
+    splitRed: "from-red-50 to-red-100/70",
+    accent: "text-cyan-700",
+    progressTrack: "bg-cyan-100",
+    progressFill: "from-cyan-500 to-sky-500",
+    iconRing: "bg-cyan-100 text-cyan-700",
   };
 }
 
@@ -264,8 +240,11 @@ function VoteCard({
   index: number;
 }) {
   const theme = getCategoryTheme(option.category);
-  const quality = getQualityBadge(option.qualityScore);
-  const WatermarkIcon = option.icons[0];
+  const CategoryIcon = CATEGORY_ICON_MAP[option.category];
+  const WatermarkIcon = option.icons[0] ?? CategoryIcon;
+  const arenaText = option.arenaLabel ?? option.label;
+  const blueText = option.category === "arena" ? arenaText : option.blueLabel;
+  const redText = option.category === "arena" ? arenaText : option.redLabel;
 
   return (
     <FlipOptionCard
@@ -274,11 +253,11 @@ function VoteCard({
       disabled={!revealed}
       onPick={onPick}
       back={
-        <Card className="absolute inset-0 h-56 rounded-none border-2 border-black bg-yellow-200 ring-0 backface-hidden shadow-[0_6px_0_0_rgba(0,0,0,1)]">
+        <Card className="absolute inset-0 h-64 sm:h-72 rounded-xl sm:rounded-2xl border-0 bg-linear-to-b from-amber-200 via-yellow-100 to-amber-200 ring-1 ring-black/5 backface-hidden shadow-[0_12px_24px_-14px_rgba(0,0,0,0.55)]">
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <p className="text-4xl font-black leading-none">🂠</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-2">
+              <p className="text-4xl sm:text-5xl font-black leading-none">🂠</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-3 text-zinc-700">
                 Draw Event
               </p>
             </div>
@@ -287,107 +266,60 @@ function VoteCard({
       }
       front={
         <Card
-          className={`relative h-56 rounded-none border-2 p-2.5 ring-0 transform-[rotateY(180deg)] backface-hidden transition-all duration-150 bg-linear-to-b ${quality.cardTone} ${quality.borderTone} ${quality.glowTone} ${theme.shell} ${
+          className={`relative h-64 sm:h-72 rounded-xl sm:rounded-2xl border-0 p-2 ring-1 ring-black/6 transform-[rotateY(180deg)] backface-hidden transition-all duration-150 ${theme.shell} ${
             option.selected
-              ? "translate-y-1 shadow-[0_2px_0_0_rgba(0,0,0,1)]"
-              : "active:translate-y-1 active:shadow-[0_2px_0_0_rgba(0,0,0,1)]"
+              ? "-translate-y-0.5"
+              : "hover:-translate-y-0.5 active:translate-y-0"
           }`}
         >
           <div
-            className={`relative h-full border-2 border-black/70 ${theme.inner} p-2 overflow-hidden`}
+            className={`relative h-full rounded-lg sm:rounded-xl ${theme.inner} p-2 overflow-hidden`}
           >
             {WatermarkIcon && (
-              <div className={`absolute -right-1 -bottom-2 ${theme.watermark}`}>
-                <WatermarkIcon size={64} className="drop-shadow-none" />
+              <div
+                className={`absolute -right-1 -bottom-2 ${theme.watermark} pointer-events-none`}
+              >
+                <WatermarkIcon size={68} className="drop-shadow-none" />
               </div>
             )}
 
-            <div className="relative flex items-center justify-between gap-2">
-              <p className="text-[10px] font-black uppercase tracking-wider text-zinc-900">
-                {option.title}
-              </p>
-              <span
-                className={`px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${quality.tone}`}
-              >
-                {quality.label}
-              </span>
-            </div>
-
-            <div className="relative mt-1.5 h-2 bg-zinc-200 border border-black/40 overflow-hidden">
-              <div
-                className="h-full bg-black"
-                style={{ width: `${votePercent}%` }}
-              />
-            </div>
-
-            <div className="relative mt-2 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-zinc-800">
-                {option.icons.map((Icon, index) => (
-                  <Icon
-                    key={`${option.key}-icon-${index}`}
-                    size={14}
-                    className="text-black/85"
-                  />
-                ))}
-              </div>
-              <span
-                className={`px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${theme.chip}`}
-              >
-                {votePercent}%
-              </span>
-            </div>
-
-            <p
-              className={`relative mt-1 text-xs sm:text-sm font-black ${theme.text} leading-snug`}
-            >
-              {option.label}
-            </p>
-
-            {option.category !== "arena" && (
-              <div className="relative mt-2 h-19 border border-black/35 bg-white/70 backdrop-blur-[1px]">
-                <div className="absolute left-1/2 top-2 bottom-2 -translate-x-1/2 w-px bg-zinc-900/30" />
-                <div
-                  className={`absolute left-1/2 top-5 -translate-x-1/2 w-4 h-7 rounded-full ${theme.divider} border border-black/20`}
-                />
-
-                <div className="h-full grid grid-cols-2">
-                  <div
-                    className={`px-2 py-2 bg-linear-to-b ${theme.splitBlue} flex flex-col justify-center items-start`}
-                  >
-                    <p className="text-[9px] font-black uppercase tracking-wider text-blue-700">
-                      Blue Gets
-                    </p>
-                    <p className="mt-0.5 text-[11px] sm:text-xs font-black text-blue-800 leading-tight">
-                      {option.blueLabel ?? "No effect"}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`px-2 py-2 bg-linear-to-b ${theme.splitRed} flex flex-col justify-center items-start`}
-                  >
-                    <p className="text-[9px] font-black uppercase tracking-wider text-red-700">
-                      Red Gets
-                    </p>
-                    <p className="mt-0.5 text-[11px] sm:text-xs font-black text-red-800 leading-tight">
-                      {option.redLabel ?? "No effect"}
-                    </p>
-                  </div>
+            <div className="relative flex h-full flex-col">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-zinc-700">
+                    <CategoryIcon size={12} className={theme.accent} />
+                    {option.category}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-zinc-600">
+                    {votePercent}%
+                  </span>
                 </div>
               </div>
-            )}
 
-            {option.category === "arena" && (
-              <div className="relative mt-2 p-2 border border-black/35 bg-white/75">
-                <p className="text-[9px] font-black uppercase tracking-wider text-cyan-700">
-                  Arena Modifier
-                </p>
-                {option.arenaLabel && (
-                  <p className="text-[12px] sm:text-[13px] font-black text-cyan-800 leading-tight mt-1">
-                    {option.arenaLabel}
+              <div className="mt-2.5 grow rounded-lg sm:rounded-xl bg-white/80 p-2">
+                <div
+                  className={`rounded-lg bg-linear-to-b ${theme.splitBlue} px-2.5 py-2 min-h-15.5`}
+                >
+                  <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">
+                    Blue Gets
                   </p>
-                )}
+                  <p className="mt-1 text-xs font-black text-blue-900 leading-tight">
+                    {blueText ?? "No effect"}
+                  </p>
+                </div>
+
+                <div
+                  className={`mt-2 rounded-lg bg-linear-to-b ${theme.splitRed} px-2.5 py-2 min-h-15.5`}
+                >
+                  <p className="text-[10px] font-black uppercase tracking-wider text-red-700">
+                    Red Gets
+                  </p>
+                  <p className="mt-1 text-xs font-black text-red-900 leading-tight">
+                    {redText ?? "No effect"}
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </Card>
       }
@@ -410,23 +342,11 @@ function SharedVoteModal({
   votePower: number;
   options: readonly [VoteCardOption, VoteCardOption, VoteCardOption];
   onVotePowerChange: (amount: number) => void;
-  onConfirm: () => void;
+  onConfirm: (option: 0 | 1 | 2) => void;
 }) {
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_THINKING_IMAGE);
   const [shuffling, setShuffling] = useState(true);
   const [revealedCount, setRevealedCount] = useState(0);
-
-  const leadingOptionIndex = useMemo(() => {
-    let bestIndex = 0;
-    let bestVotes = options[0].projectedVotes;
-    for (let index = 1; index < options.length; index += 1) {
-      if (options[index].projectedVotes > bestVotes) {
-        bestIndex = index;
-        bestVotes = options[index].projectedVotes;
-      }
-    }
-    return bestIndex;
-  }, [options]);
 
   const totalProjectedVotes = Math.max(
     1,
@@ -450,7 +370,7 @@ function SharedVoteModal({
       setShuffling(false);
     }, 900);
     const reactionTimer = window.setTimeout(() => {
-      setMonkeyImageSrc(chooseMonkeyReaction(options[leadingOptionIndex]));
+      setMonkeyImageSrc(MONKEY_IDEA_IMAGE);
     }, 1250);
     const reveal1 = window.setTimeout(() => setRevealedCount(1), 1500);
     const reveal2 = window.setTimeout(() => setRevealedCount(2), 1820);
@@ -464,17 +384,15 @@ function SharedVoteModal({
       window.clearTimeout(reveal2);
       window.clearTimeout(reveal3);
     };
-  }, [leadingOptionIndex, open, options]);
+  }, [open]);
 
   if (!open) {
     return null;
   }
 
-  const pickVote = (option: VoteCardOption) => {
+  const pickVote = (option: VoteCardOption, optionIndex: 0 | 1 | 2) => {
     option.onSelect();
-    window.setTimeout(() => {
-      onConfirm();
-    }, 0);
+    onConfirm(optionIndex);
   };
 
   return (
@@ -483,35 +401,56 @@ function SharedVoteModal({
       maxWidthClassName="max-w-4xl"
       zIndexClassName="z-50"
     >
-      <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-0 sm:shadow-none">
-        <div className="px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-black/20 flex items-start justify-between gap-3">
+      <ModalSurface>
+        <div className="px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
               {countdown > 0 ? `Event vote (${countdown}s)` : "Event vote"}
             </p>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black uppercase mt-1">
               Draw Event Cards
             </h2>
           </div>
-          <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
-            <Image
-              src="/Banana.svg"
-              alt="Banana"
-              width={18}
-              height={18}
-              className="w-4 h-auto sm:w-5"
-            />
-            <span>{bananas}</span>
+          <div className="min-w-36.25">
+            <div className="flex items-center justify-end gap-1 text-xs sm:text-base font-black">
+              <Image
+                src="/Banana.svg"
+                alt="Banana"
+                width={18}
+                height={18}
+                className="w-4 h-auto sm:w-5"
+              />
+              <span>{bananas}</span>
+            </div>
+            <div className="mt-1 rounded-lg bg-zinc-50 px-2 py-1">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-zinc-600">
+                <span>Stake</span>
+                <span>{votePower}</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={Math.max(1, bananas)}
+                step={1}
+                value={Math.max(1, Math.min(bananas, votePower))}
+                className="mt-1.5 w-full accent-black"
+                onChange={(event) =>
+                  onVotePowerChange(
+                    Math.max(1, Math.min(bananas, Number(event.target.value))),
+                  )
+                }
+              />
+            </div>
           </div>
         </div>
 
-        <div className="p-3 sm:p-4">
+        <div className="p-2.5 sm:p-4">
           <ShuffleMonkey
             monkeyImageSrc={monkeyImageSrc}
             shuffling={shuffling}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {options.map((option, index) => (
               <VoteCard
                 key={option.key}
@@ -521,43 +460,12 @@ function SharedVoteModal({
                   (option.projectedVotes / totalProjectedVotes) * 100,
                 )}
                 revealed={revealedCount > index}
-                onPick={() => pickVote(option)}
+                onPick={() => pickVote(option, index as 0 | 1 | 2)}
               />
             ))}
           </div>
-
-          <div className="mt-3 p-3 bg-zinc-50 border border-black/20">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-black uppercase tracking-wider text-zinc-700">
-                Vote Power Stake
-              </p>
-              <p className="text-base sm:text-lg font-black text-amber-700">
-                {votePower}
-              </p>
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 px-3 border-2 border-black rounded-none bg-white text-sm font-black shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
-                onClick={() => onVotePowerChange(Math.max(1, votePower - 5))}
-              >
-                -5
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 px-3 border-2 border-black rounded-none bg-white text-sm font-black shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)]"
-                onClick={() =>
-                  onVotePowerChange(Math.min(bananas, votePower + 5))
-                }
-              >
-                +5
-              </Button>
-            </div>
-          </div>
         </div>
-      </Card>
+      </ModalSurface>
     </FullscreenModal>
   );
 }
@@ -587,7 +495,6 @@ export function VoteEventModal({
   const voteCards = [
     {
       key: "option-a",
-      title: "Card 1",
       category: getOptionCategory(voteWindow.optionA),
       label: getOptionMainLabel(voteWindow.optionA),
       qualityScore: getQualityScore(voteWindow.optionA),
@@ -599,7 +506,6 @@ export function VoteEventModal({
     },
     {
       key: "option-b",
-      title: "Card 2",
       category: getOptionCategory(voteWindow.optionB),
       label: getOptionMainLabel(voteWindow.optionB),
       qualityScore: getQualityScore(voteWindow.optionB),
@@ -611,7 +517,6 @@ export function VoteEventModal({
     },
     {
       key: "option-c",
-      title: "Card 3",
       category: getOptionCategory(voteWindow.optionC),
       label: getOptionMainLabel(voteWindow.optionC),
       qualityScore: getQualityScore(voteWindow.optionC),
@@ -639,10 +544,14 @@ export function VoteEventModal({
 export function VoteRevealModal({
   open,
   countdown,
+  pickedOptionIndex,
+  pickedCategory,
   revealedOption,
 }: {
   open: boolean;
   countdown: number;
+  pickedOptionIndex: 0 | 1 | 2 | null;
+  pickedCategory: "weapon" | "modifier" | "arena" | null;
   revealedOption: {
     category: "weapon" | "modifier" | "arena";
     label: string;
@@ -653,6 +562,15 @@ export function VoteRevealModal({
   );
   const [pickedIndex, setPickedIndex] = useState(1);
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_THINKING_IMAGE);
+
+  const reactionFromPickedCategory = (
+    category: "weapon" | "modifier" | "arena" | null,
+  ) => {
+    if (category === "weapon") return MONKEY_SMUG_IMAGE;
+    if (category === "modifier") return MONKEY_IDEA_IMAGE;
+    if (category === "arena") return MONKEY_HAPPY_IMAGE;
+    return MONKEY_THINKING_IMAGE;
+  };
 
   useEffect(() => {
     if (!open || !revealedOption) {
@@ -669,7 +587,7 @@ export function VoteRevealModal({
     const resetTimer = window.setTimeout(() => {
       setPhase("thinking");
       setMonkeyImageSrc(MONKEY_THINKING_IMAGE);
-      setPickedIndex(Math.floor(Math.random() * 3));
+      setPickedIndex(pickedOptionIndex ?? 1);
     }, 0);
 
     let poolIndex = 0;
@@ -680,7 +598,7 @@ export function VoteRevealModal({
 
     const chooseTimer = window.setTimeout(() => {
       setPhase("choosing");
-      setMonkeyImageSrc(MONKEY_IDEA_IMAGE);
+      setMonkeyImageSrc(reactionFromPickedCategory(pickedCategory));
     }, 1050);
 
     const revealTimer = window.setTimeout(() => {
@@ -688,7 +606,6 @@ export function VoteRevealModal({
       setMonkeyImageSrc(
         chooseMonkeyReaction({
           key: "reveal",
-          title: "Reveal",
           category: revealedOption.category,
           label: revealedOption.label,
           qualityScore: 8,
@@ -706,7 +623,7 @@ export function VoteRevealModal({
       window.clearTimeout(chooseTimer);
       window.clearTimeout(revealTimer);
     };
-  }, [open, revealedOption]);
+  }, [open, pickedCategory, pickedOptionIndex, revealedOption]);
 
   if (!open || !revealedOption) {
     return null;
@@ -725,22 +642,22 @@ export function VoteRevealModal({
       maxWidthClassName="max-w-3xl"
       zIndexClassName="z-60"
     >
-      <Card className="w-full rounded-none p-4 sm:p-5 bg-white text-center ring-0 border-0 sm:border-0 shadow-none">
+      <ModalSurface className="p-3 sm:p-5 text-center">
         <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-600">
           Vote settled {countdown > 0 ? `(${countdown}s)` : ""}
         </p>
 
-        <div className="relative h-28 sm:h-32 mt-1">
+        <div className="relative h-24 sm:h-32 mt-1">
           <Image
             src={monkeyImageSrc}
             alt="Monkey reveal"
             width={160}
             height={160}
-            className={`absolute left-1/2 top-0 -translate-x-1/2 w-28 h-28 sm:w-32 sm:h-32 object-contain transition-transform duration-300 ${phase === "revealed" ? "scale-105" : "scale-100"}`}
+            className={`absolute left-1/2 top-0 -translate-x-1/2 w-24 h-24 sm:w-32 sm:h-32 object-contain transition-transform duration-300 ${phase === "revealed" ? "scale-105" : "scale-100"}`}
           />
         </div>
 
-        <div className="mt-1 flex items-end justify-center gap-2 sm:gap-3 h-28 sm:h-32">
+        <div className="mt-1 flex items-end justify-center gap-1.5 sm:gap-3 h-24 sm:h-32">
           {[0, 1, 2].map((cardIndex) => {
             const isPicked = cardIndex === pickedIndex;
             const isRevealed = phase === "revealed" && isPicked;
@@ -748,9 +665,9 @@ export function VoteRevealModal({
             return (
               <div
                 key={`reveal-card-${cardIndex}`}
-                className={`w-20 sm:w-24 h-28 sm:h-32 border-4 border-black rounded-none bg-yellow-200 flex items-center justify-center transition-all duration-500 ${
+                className={`w-16 sm:w-24 h-24 sm:h-32 rounded-lg sm:rounded-xl ring-1 ring-black/10 bg-yellow-200 flex items-center justify-center transition-all duration-500 ${
                   isPicked && phase !== "thinking"
-                    ? "-translate-y-2"
+                    ? "-translate-y-2 scale-103"
                     : "translate-y-0"
                 } ${isRevealed ? "bg-emerald-100 scale-105" : ""}`}
                 style={{
@@ -777,11 +694,11 @@ export function VoteRevealModal({
           <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.15em] text-zinc-600">
             {revealCategoryLabel}
           </p>
-          <h3 className="text-xl sm:text-3xl font-black uppercase mt-1 text-zinc-900">
+          <h3 className="text-lg sm:text-2xl font-black uppercase mt-1 text-zinc-900">
             {revealedOption.label}
           </h3>
         </div>
-      </Card>
+      </ModalSurface>
     </FullscreenModal>
   );
 }

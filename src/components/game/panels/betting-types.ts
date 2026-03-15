@@ -91,11 +91,11 @@ export type VoteEventModalProps = {
   blueHealth: number;
   bananas: number;
   voteWindow: VoteWindowLike | null;
-  selection: 0 | 1 | 2;
+  selection: 0 | 1 | 2 | null;
   votePower: number;
   onSelectOption: (option: 0 | 1 | 2) => void;
   onVotePowerChange: (amount: number) => void;
-  onConfirm: () => void;
+  onConfirm: (option: 0 | 1 | 2) => void;
   confirmLabel?: string;
   isRemote?: boolean;
 };

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { FullscreenModal } from "./fullscreen-modal";
+import { ModalSurface } from "./modal-surface";
 import type { PreMatchModalProps } from "./betting-types";
 
 export function PrematchBetModal({
@@ -42,9 +42,7 @@ export function PrematchBetModal({
 
     onSelectSide(side);
     setLocked(true);
-    window.setTimeout(() => {
-      onConfirm();
-    }, 0);
+    onConfirm();
   };
 
   const presets = [20, 30, 50, 100];
@@ -57,13 +55,13 @@ export function PrematchBetModal({
       maxWidthClassName="max-w-5xl"
       zIndexClassName="z-50"
     >
-      <Card className="mx-auto w-full rounded-none bg-white ring-0 border-0 shadow-none sm:border-0 sm:shadow-none">
-        <div className="px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-black/20 flex items-start justify-between gap-3">
+      <ModalSurface>
+        <div className="px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
               {countdown > 0 ? `Pre-round (${countdown}s)` : "Pre-round"}
             </p>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase mt-1">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black uppercase mt-1">
               Pick Winner
             </h2>
           </div>
@@ -83,7 +81,7 @@ export function PrematchBetModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <button
               type="button"
-              className={`p-3 sm:p-4 text-left border-4 rounded-none transition-all duration-150 shadow-[0_5px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_2px_0_0_rgba(0,0,0,1)] ${selected.side === "red" ? "border-red-700 bg-red-100" : "border-black bg-white hover:bg-red-50"}`}
+              className="p-3 sm:p-4 text-left border-4 rounded-none transition-all duration-150 shadow-[0_5px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_2px_0_0_rgba(0,0,0,1)] border-black bg-white hover:bg-red-50"
               onClick={() => lockSelection("red")}
             >
               <p className="text-[10px] font-black uppercase tracking-wider">
@@ -95,7 +93,7 @@ export function PrematchBetModal({
             </button>
             <button
               type="button"
-              className={`p-3 sm:p-4 text-left border-4 rounded-none transition-all duration-150 shadow-[0_5px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_2px_0_0_rgba(0,0,0,1)] ${selected.side === "blue" ? "border-blue-700 bg-blue-100" : "border-black bg-white hover:bg-blue-50"}`}
+              className="p-3 sm:p-4 text-left border-4 rounded-none transition-all duration-150 shadow-[0_5px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_2px_0_0_rgba(0,0,0,1)] border-black bg-white hover:bg-blue-50"
               onClick={() => lockSelection("blue")}
             >
               <p className="text-[10px] font-black uppercase tracking-wider">
@@ -170,7 +168,7 @@ export function PrematchBetModal({
             Expected return: {expectedWinnings}
           </p>
         </div>
-      </Card>
+      </ModalSurface>
 
       {locked && (
         <FullscreenModal
@@ -179,11 +177,11 @@ export function PrematchBetModal({
           zIndexClassName="z-60"
           overlayClassName="bg-black/40"
         >
-          <Card className="w-full rounded-none p-4 bg-white ring-0 border-0 shadow-none sm:border-0 sm:shadow-none">
+          <ModalSurface className="p-4">
             <p className="text-[11px] font-black uppercase tracking-widest text-zinc-600">
               Locked In
             </p>
-            <h3 className="text-xl font-black uppercase mt-1">
+            <h3 className="text-lg sm:text-xl font-black uppercase mt-1">
               {selected.side.toUpperCase()} | {cappedStake}
             </h3>
             <p className="text-sm font-bold text-zinc-700 mt-2">
@@ -199,7 +197,7 @@ export function PrematchBetModal({
                 Cancel And Change
               </Button>
             </div>
-          </Card>
+          </ModalSurface>
         </FullscreenModal>
       )}
     </FullscreenModal>

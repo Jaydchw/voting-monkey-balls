@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FullscreenModal } from "./fullscreen-modal";
+import { ModalSurface } from "./modal-surface";
 import {
   DEFAULT_MONKEY_COLOR,
   DEFAULT_MONKEY_SVG,
@@ -69,11 +70,11 @@ export function CharacterSelectModal({
       zIndexClassName="z-60"
       overlayClassName="bg-white/96"
     >
-      <Card className="w-full min-h-full sm:min-h-0 rounded-none border-0 shadow-none p-4 sm:p-6 sm:border-0 sm:shadow-none bg-white">
+      <ModalSurface className="p-3 sm:p-6">
         <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600">
           Pre-Match Character Select
         </p>
-        <h2 className="text-2xl sm:text-4xl font-black uppercase mt-2">
+        <h2 className="text-xl sm:text-4xl font-black uppercase mt-2">
           {playerName}, pick your monkey
         </h2>
 
@@ -155,7 +156,7 @@ export function CharacterSelectModal({
             </Button>
           </div>
         </div>
-      </Card>
+      </ModalSurface>
     </FullscreenModal>
   );
 }

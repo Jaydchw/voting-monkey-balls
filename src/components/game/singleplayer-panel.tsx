@@ -141,6 +141,9 @@ export default function SingleplayerPanel({
   const roundAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const voteRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const phaseRef = useRef<MatchPhase>("prematch");
   const phaseCountdownRef = useRef(0);
 
@@ -161,8 +164,14 @@ export default function SingleplayerPanel({
 
   // Vote popup state
   const [voteWindow, setVoteWindow] = useState<VoteWindow | null>(null);
-  const [voteSelection, setVoteSelection] = useState<0 | 1 | 2>(0);
+  const [voteSelection, setVoteSelection] = useState<0 | 1 | 2 | null>(null);
   const [votePowerStake, setVotePowerStake] = useState(1);
+  const [pickedVoteOptionIndex, setPickedVoteOptionIndex] = useState<
+    0 | 1 | 2 | null
+  >(null);
+  const [pickedVoteCategory, setPickedVoteCategory] = useState<
+    "weapon" | "modifier" | "arena" | null
+  >(null);
   const [revealedVoteOption, setRevealedVoteOption] =
     useState<RevealedVoteOption | null>(null);
 
@@ -298,6 +307,11 @@ export default function SingleplayerPanel({
   );
 
   const resetBoardForNextRound = useCallback(() => {
+    if (voteRevealTimeoutRef.current) {
+      clearTimeout(voteRevealTimeoutRef.current);
+      voteRevealTimeoutRef.current = null;
+    }
+
     setGameKey((v) => v + 1);
     setRedHealth(STARTING_HEALTH);
     setBlueHealth(STARTING_HEALTH);
@@ -323,8 +337,10 @@ export default function SingleplayerPanel({
 
     // Reset vote popup
     setVoteWindow(null);
-    setVoteSelection(0);
+    setVoteSelection(null);
     setVotePowerStake(1);
+    setPickedVoteOptionIndex(null);
+    setPickedVoteCategory(null);
     setRevealedVoteOption(null);
 
     // Reset microbet
@@ -340,6 +356,11 @@ export default function SingleplayerPanel({
   }, [transitionPhase]);
 
   const restartSingleplayerMatch = useCallback(() => {
+    if (voteRevealTimeoutRef.current) {
+      clearTimeout(voteRevealTimeoutRef.current);
+      voteRevealTimeoutRef.current = null;
+    }
+
     const nextEngine = new BotsGameEngine({ botCount: initialBotCount });
     setEngine(nextEngine);
     setSnapshot(nextEngine.getSnapshot());
@@ -369,8 +390,10 @@ export default function SingleplayerPanel({
     setMainBetResult(null);
 
     setVoteWindow(null);
-    setVoteSelection(0);
+    setVoteSelection(null);
     setVotePowerStake(1);
+    setPickedVoteOptionIndex(null);
+    setPickedVoteCategory(null);
     setRevealedVoteOption(null);
 
     setMicrobetInsights([]);
@@ -440,7 +463,11 @@ export default function SingleplayerPanel({
   }, [transitionPhase]);
 
   const resolveVoteAndOpenMicrobet = useCallback(
-    (playerVotes: number) => {
+    (selection: 0 | 1 | 2, playerVotes: number) => {
+      if (selection === null) {
+        return;
+      }
+
       const spend = Math.max(0, Math.floor(playerVotes));
       if (spend > 0) {
         if (playerBananasRef.current < spend) {
@@ -450,7 +477,18 @@ export default function SingleplayerPanel({
         setPlayerBananas(playerBananasRef.current);
       }
 
-      const resolved = engine.resolvePendingVote(voteSelection, spend);
+      setPickedVoteOptionIndex(selection);
+      if (voteWindow) {
+        const pickedOption =
+          selection === 0
+            ? voteWindow.optionA
+            : selection === 1
+              ? voteWindow.optionB
+              : voteWindow.optionC;
+        setPickedVoteCategory(pickedOption.category);
+      }
+
+      const resolved = engine.resolvePendingVote(selection, spend);
       if (resolved.application) {
         applyVoteApplication(resolved.application);
         setRevealedVoteOption({
@@ -462,22 +500,34 @@ export default function SingleplayerPanel({
 
       setVoteWindow(null);
       setVotePowerStake(1);
-      setMicrobetInsights(engine.getPendingMicrobetInsights());
-      setQueuedMicrobets([]);
-      setMicrobetDraft({
-        kind: "redDamageToBlue",
-        outcome: true,
-        stake: 5,
-      });
-      transitionPhase("microbet", 0);
+      transitionPhase("reveal", 0);
+
+      if (voteRevealTimeoutRef.current) {
+        clearTimeout(voteRevealTimeoutRef.current);
+      }
+      voteRevealTimeoutRef.current = setTimeout(() => {
+        setMicrobetInsights(engine.getPendingMicrobetInsights());
+        setQueuedMicrobets([]);
+        setMicrobetDraft({
+          kind: "redDamageToBlue",
+          outcome: true,
+          stake: 5,
+        });
+        transitionPhase("microbet", 0);
+        voteRevealTimeoutRef.current = null;
+      }, 2100);
     },
-    [applyVoteApplication, engine, transitionPhase, voteSelection],
+    [applyVoteApplication, engine, transitionPhase, voteWindow],
   );
 
-  const handleVoteCast = useCallback(() => {
-    if (phaseRef.current !== "vote") return;
-    resolveVoteAndOpenMicrobet(votePowerStake);
-  }, [resolveVoteAndOpenMicrobet, votePowerStake]);
+  const handleVoteCast = useCallback(
+    (selection: 0 | 1 | 2) => {
+      if (phaseRef.current !== "vote") return;
+      setVoteSelection(selection);
+      resolveVoteAndOpenMicrobet(selection, votePowerStake);
+    },
+    [resolveVoteAndOpenMicrobet, votePowerStake],
+  );
 
   const handleMicrobetAdd = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
@@ -585,8 +635,10 @@ export default function SingleplayerPanel({
         };
 
         setVoteWindow(stepResult.voteWindow);
-        setVoteSelection(0);
+        setVoteSelection(null);
         setVotePowerStake(1);
+        setPickedVoteOptionIndex(null);
+        setPickedVoteCategory(null);
         setRevealedVoteOption(null);
         transitionPhase("vote", 0);
       }
@@ -631,6 +683,10 @@ export default function SingleplayerPanel({
       if (roundAdvanceTimeoutRef.current) {
         clearTimeout(roundAdvanceTimeoutRef.current);
         roundAdvanceTimeoutRef.current = null;
+      }
+      if (voteRevealTimeoutRef.current) {
+        clearTimeout(voteRevealTimeoutRef.current);
+        voteRevealTimeoutRef.current = null;
       }
     };
   }, [
@@ -835,8 +891,10 @@ export default function SingleplayerPanel({
       />
 
       <VoteRevealModal
-        open={false}
+        open={phase === "reveal"}
         countdown={phaseCountdown}
+        pickedOptionIndex={pickedVoteOptionIndex}
+        pickedCategory={pickedVoteCategory}
         revealedOption={revealedVoteOption}
       />
 

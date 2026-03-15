@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Card } from "@/components/ui/card";
 
 type FullscreenModalProps = {
   open: boolean;
@@ -18,7 +17,7 @@ export function FullscreenModal({
   children,
   maxWidthClassName = "max-w-4xl",
   zIndexClassName = "z-50",
-  overlayClassName = "bg-zinc-100/95",
+  overlayClassName = "bg-white",
   panelClassName,
   onBackdropClick,
 }: FullscreenModalProps) {
@@ -32,16 +31,10 @@ export function FullscreenModal({
       onClick={onBackdropClick}
     >
       <div
-        className={`w-full min-h-full sm:min-h-0 ${maxWidthClassName}`}
+        className={`w-full min-h-full sm:min-h-0 ${maxWidthClassName} ${panelClassName ?? ""}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <Card
-          className={`w-full min-h-full sm:min-h-0 rounded-none border-0 shadow-none bg-white sm:border-4 sm:border-black ${
-            panelClassName ?? ""
-          }`}
-        >
-          {children}
-        </Card>
+        {children}
       </div>
     </div>
   );

@@ -80,7 +80,7 @@ export default function JoinRemotePanel({
   const [prematchDecision, setPrematchDecision] = useState<
     "red" | "blue" | "skip" | null
   >(null);
-  const [voteSelection, setVoteSelection] = useState<0 | 1 | 2>(0);
+  const [voteSelection, setVoteSelection] = useState<0 | 1 | 2 | null>(null);
   const [votePowerStake, setVotePowerStake] = useState(1);
   const [microbetDraft, setMicrobetDraft] = useState<MicrobetDraft>({
     kind: "redDamageToBlue",
@@ -170,7 +170,7 @@ export default function JoinRemotePanel({
 
           if (payload.state.phase !== "vote") {
             setVotePowerStake(1);
-            setVoteSelection(0);
+            setVoteSelection(null);
           }
 
           if (payload.state.phase !== "prematch") {
@@ -247,12 +247,17 @@ export default function JoinRemotePanel({
     setPrematchDecisionSubmitted(true);
   };
 
-  const castVote = () => {
+  const castVote = (selection: 0 | 1 | 2) => {
+    if (selection === null) {
+      return;
+    }
+
+    setVoteSelection(selection);
     sendAction({
       type: "player-action",
       action: {
         kind: "vote",
-        selection: voteSelection,
+        selection,
         power: votePowerStake,
       },
     });
@@ -388,7 +393,7 @@ export default function JoinRemotePanel({
 
     if (state.phase === "vote") {
       const selection = voteTouchedRef.current
-        ? voteSelection
+        ? (voteSelection ?? (Math.floor(Math.random() * 3) as 0 | 1 | 2))
         : (Math.floor(Math.random() * 3) as 0 | 1 | 2);
       const power = voteTouchedRef.current ? votePowerStake : 1;
       sendAction({
