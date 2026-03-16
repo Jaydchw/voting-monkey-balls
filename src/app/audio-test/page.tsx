@@ -132,6 +132,7 @@ export default function AudioTestPage() {
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState("");
+  const [showVolume, setShowVolume] = useState(true);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const buffersRef = useRef<Partial<Record<string, AudioBuffer>>>({});
@@ -571,6 +572,12 @@ export default function AudioTestPage() {
               <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest" variant="destructive" onClick={() => handleSetAll(false)}>
                 Stop All
               </Button>
+              <Button 
+                className="border-4 border-black rounded-none uppercase font-black tracking-widest bg-white text-black hover:bg-zinc-200" 
+                onClick={() => setShowVolume(!showVolume)}
+              >
+                {showVolume ? "Hide Vol" : "Show Vol"}
+              </Button>
               
               <div className="flex gap-2 ml-auto items-center mr-2">
                 <label className="hidden sm:block text-xs font-bold uppercase tracking-wide mr-2">Fade: {attack.toFixed(2)}s</label>
@@ -613,23 +620,28 @@ export default function AudioTestPage() {
               return (
                 <div key={file} className={`flex flex-col border-4 border-black rounded-none ${isOn ? "bg-primary text-primary-foreground" : "bg-white text-black"}`}>
                   <button onClick={() => toggleFile(file)}
-                    className="flex justify-between items-center w-full px-3 py-2 uppercase font-black tracking-wide hover:bg-black/10 transition-colors focus:outline-none">
+                    className="flex justify-between items-center w-full px-3 py-2 uppercase font-black tracking-wide hover:bg-black/10 transition-colors focus:outline-none h-full">
                     <span className="truncate pr-2">{displayName}</span>
-                    <span>{isOn ? "ON" : "OFF"}</span>
-                  </button>
-                  <div className={`flex items-center gap-2 px-3 py-2 border-t ${isOn ? "border-white/30" : "border-black/10"}`}>
-                    <span className="text-xs font-bold opacity-80">VOL</span>
-                    <input 
-                      type="range" 
-                      min="0" max="1" step="0.01" 
-                      value={vol} 
-                      onChange={(e) => changeVolume(file, Number(e.target.value))}
-                      className="w-full h-2 bg-black/20 appearance-none cursor-pointer" 
-                    />
-                    <span className="text-xs font-mono font-bold opacity-80 w-8 text-right">
-                      {Math.round(vol * 100)}%
+                    <span className="flex items-center gap-2 text-right">
+                      {!showVolume && <span className="text-xs font-mono opacity-80">VOL:{Math.round(vol * 100)}%</span>}
+                      <span>{isOn ? "ON" : "OFF"}</span>
                     </span>
-                  </div>
+                  </button>
+                  {showVolume && (
+                    <div className={`flex items-center gap-2 px-3 py-2 border-t ${isOn ? "border-white/30" : "border-black/10"}`}>
+                      <span className="text-xs font-bold opacity-80">VOL</span>
+                      <input 
+                        type="range" 
+                        min="0" max="1" step="0.01" 
+                        value={vol} 
+                        onChange={(e) => changeVolume(file, Number(e.target.value))}
+                        className="w-full h-2 bg-black/20 appearance-none cursor-pointer" 
+                      />
+                      <span className="text-xs font-mono font-bold opacity-80 w-8 text-right">
+                        {Math.round(vol * 100)}%
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}
