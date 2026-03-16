@@ -56,6 +56,7 @@ import type {
   SerializableVoteWindow,
   ServerEnvelope,
 } from "@/multiplayer/protocol";
+import { GameAudioController } from "@/lib/game-audio";
 
 const STARTING_HEALTH = 100;
 const DEFAULT_DECISION_TIMER_SECONDS = 12;
@@ -250,6 +251,34 @@ export default function HostMultiplayerPanel({
     {},
   );
   const maybeAdvanceDecisionPhaseRef = useRef<() => void>(() => {});
+
+  const audioCtrlRef = useRef<GameAudioController | null>(null);
+
+  useEffect(() => {
+    audioCtrlRef.current = new GameAudioController();
+    return () => {
+      audioCtrlRef.current?.dispose();
+    };
+  }, []);
+
+  const lastRoundLoaded = useRef(0);
+  useEffect(() => {
+    if (snapshot.roundNumber !== lastRoundLoaded.current) {
+      lastRoundLoaded.current = snapshot.roundNumber;
+      void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+    }
+  }, [snapshot.roundNumber]);
+
+  const prevPhaseRef = useRef<MatchPhase>("lobby");
+  useEffect(() => {
+    if (phase === "running" && prevPhaseRef.current !== "running") {
+      audioCtrlRef.current?.setPaused(false);
+      audioCtrlRef.current?.startTracks(2);
+    } else if (phase !== "running" && prevPhaseRef.current === "running") {
+      audioCtrlRef.current?.setPaused(true);
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
 
   const transitionPhase = useCallback((next: MatchPhase, seconds: number) => {
     phaseRef.current = next;
@@ -950,6 +979,14 @@ export default function HostMultiplayerPanel({
   }, [matchStarted, phase]);
 
   useEffect(() => {
+    return () => {
+      if (roundAdvanceTimeoutRef.current) {
+        clearTimeout(roundAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!matchStarted) {
       return;
     }
@@ -1081,10 +1118,6 @@ export default function HostMultiplayerPanel({
 
     return () => {
       clearInterval(interval);
-      if (roundAdvanceTimeoutRef.current) {
-        clearTimeout(roundAdvanceTimeoutRef.current);
-        roundAdvanceTimeoutRef.current = null;
-      }
     };
   }, [
     engine,

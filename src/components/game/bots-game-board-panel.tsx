@@ -10,6 +10,7 @@ import { ArenaBoard } from "./panels/arena-board";
 import { BotStandings } from "./panels/bot-standings";
 import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
 import { BotBetsTable } from "./panels/bot-bets-table";
+import { GameAudioController } from "@/lib/game-audio";
 
 const STARTING_HEALTH = 100;
 
@@ -51,6 +52,26 @@ export default function BotsGameBoardPanel() {
   const roundAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
+  const audioCtrlRef = useRef<GameAudioController | null>(null);
+
+  useEffect(() => {
+    audioCtrlRef.current = new GameAudioController();
+    return () => {
+      audioCtrlRef.current?.dispose();
+    };
+  }, []);
+
+  const lastRoundLoaded = useRef(0);
+  useEffect(() => {
+    if (snapshot.roundNumber !== lastRoundLoaded.current) {
+      lastRoundLoaded.current = snapshot.roundNumber;
+      audioCtrlRef.current?.loadRound(snapshot.roundNumber).then(() => {
+        audioCtrlRef.current?.setPaused(false);
+        audioCtrlRef.current?.startTracks(2);
+      });
+    }
+  }, [snapshot.roundNumber]);
 
   const resetBoardForNextRound = useCallback(() => {
     setGameKey((v) => v + 1);
@@ -120,6 +141,7 @@ export default function BotsGameBoardPanel() {
       });
 
       if (stepResult.applications.length > 0) {
+        audioCtrlRef.current?.startTracks(2);
         for (const application of stepResult.applications) {
           if (!gameApiRef.current) break;
 
@@ -196,12 +218,16 @@ export default function BotsGameBoardPanel() {
 
     return () => {
       clearInterval(interval);
-      if (roundAdvanceTimeoutRef.current) {
-        clearTimeout(roundAdvanceTimeoutRef.current);
-        roundAdvanceTimeoutRef.current = null;
-      }
     };
   }, [engine, resetBoardForNextRound]);
+
+  useEffect(() => {
+    return () => {
+      if (roundAdvanceTimeoutRef.current) {
+        clearTimeout(roundAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="w-screen min-h-screen bg-white text-black p-6 md:p-10">

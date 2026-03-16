@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Mountains, Sparkle, Sword } from "@phosphor-icons/react";
@@ -333,6 +331,7 @@ function SharedVoteModal({
   bananas,
   votePower,
   options,
+  selection,
   onVotePowerChange,
   onConfirm,
 }: {
@@ -341,6 +340,7 @@ function SharedVoteModal({
   bananas: number;
   votePower: number;
   options: readonly [VoteCardOption, VoteCardOption, VoteCardOption];
+  selection: 0 | 1 | 2 | null;
   onVotePowerChange: (amount: number) => void;
   onConfirm: (option: 0 | 1 | 2) => void;
 }) {
@@ -369,9 +369,6 @@ function SharedVoteModal({
     const shuffleTimer = window.setTimeout(() => {
       setShuffling(false);
     }, 900);
-    const reactionTimer = window.setTimeout(() => {
-      setMonkeyImageSrc(MONKEY_IDEA_IMAGE);
-    }, 1250);
     const reveal1 = window.setTimeout(() => setRevealedCount(1), 1500);
     const reveal2 = window.setTimeout(() => setRevealedCount(2), 1820);
     const reveal3 = window.setTimeout(() => setRevealedCount(3), 2140);
@@ -379,12 +376,23 @@ function SharedVoteModal({
     return () => {
       window.clearTimeout(resetTimer);
       window.clearTimeout(shuffleTimer);
-      window.clearTimeout(reactionTimer);
       window.clearTimeout(reveal1);
       window.clearTimeout(reveal2);
       window.clearTimeout(reveal3);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (selection !== null && selection !== undefined) {
+      const pickedOption = options[selection];
+      if (pickedOption) {
+        const reactionTimer = window.setTimeout(() => {
+          setMonkeyImageSrc(chooseMonkeyReaction(pickedOption));
+        }, 0);
+        return () => window.clearTimeout(reactionTimer);
+      }
+    }
+  }, [selection, options]);
 
   if (!open) {
     return null;
@@ -535,6 +543,7 @@ export function VoteEventModal({
       bananas={bananas}
       votePower={Math.max(1, votePower)}
       options={voteCards}
+      selection={selection}
       onVotePowerChange={onVotePowerChange}
       onConfirm={onConfirm}
     />
@@ -545,13 +554,11 @@ export function VoteRevealModal({
   open,
   countdown,
   pickedOptionIndex,
-  pickedCategory,
   revealedOption,
 }: {
   open: boolean;
   countdown: number;
   pickedOptionIndex: 0 | 1 | 2 | null;
-  pickedCategory: "weapon" | "modifier" | "arena" | null;
   revealedOption: {
     category: "weapon" | "modifier" | "arena";
     label: string;
@@ -563,43 +570,16 @@ export function VoteRevealModal({
   const [pickedIndex, setPickedIndex] = useState(1);
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_THINKING_IMAGE);
 
-  const reactionFromPickedCategory = (
-    category: "weapon" | "modifier" | "arena" | null,
-  ) => {
-    if (category === "weapon") return MONKEY_SMUG_IMAGE;
-    if (category === "modifier") return MONKEY_IDEA_IMAGE;
-    if (category === "arena") return MONKEY_HAPPY_IMAGE;
-    return MONKEY_THINKING_IMAGE;
-  };
-
   useEffect(() => {
     if (!open || !revealedOption) {
       return;
     }
-
-    const pool = [
-      MONKEY_THINKING_IMAGE,
-      MONKEY_IDEA_IMAGE,
-      MONKEY_SMUG_IMAGE,
-      MONKEY_SHOCK_IMAGE,
-    ];
 
     const resetTimer = window.setTimeout(() => {
       setPhase("thinking");
       setMonkeyImageSrc(MONKEY_THINKING_IMAGE);
       setPickedIndex(pickedOptionIndex ?? 1);
     }, 0);
-
-    let poolIndex = 0;
-    const monkeyCycle = window.setInterval(() => {
-      poolIndex = (poolIndex + 1) % pool.length;
-      setMonkeyImageSrc(pool[poolIndex]);
-    }, 260);
-
-    const chooseTimer = window.setTimeout(() => {
-      setPhase("choosing");
-      setMonkeyImageSrc(reactionFromPickedCategory(pickedCategory));
-    }, 1050);
 
     const revealTimer = window.setTimeout(() => {
       setPhase("revealed");
@@ -615,15 +595,13 @@ export function VoteRevealModal({
           onSelect: () => undefined,
         }),
       );
-    }, 1900);
+    }, 1500);
 
     return () => {
       window.clearTimeout(resetTimer);
-      window.clearInterval(monkeyCycle);
-      window.clearTimeout(chooseTimer);
       window.clearTimeout(revealTimer);
     };
-  }, [open, pickedCategory, pickedOptionIndex, revealedOption]);
+  }, [open, pickedOptionIndex, revealedOption]);
 
   if (!open || !revealedOption) {
     return null;
