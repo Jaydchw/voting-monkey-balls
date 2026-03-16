@@ -66,6 +66,7 @@ const SONGS = {
       "groova shaker.mp3",
       "groova snare-1.mp3",
       "groova snare.mp3",
+      "groova snare.mp3",
       "groova synth.mp3",
       "groova synthstabs.mp3",
       "groova toms.mp3",
@@ -75,29 +76,31 @@ const SONGS = {
   },
 } as const;
 
-const LOOP_VOLUME = 0.35;
 const DEFAULT_LOOP_ATTACK = 0.07;
 const DEFAULT_LOOP_DURATION = 8;
 const DEFAULT_SONG = "mirage" as const;
+const DEFAULT_VOLUME = 0.35;
 
 type SongId = keyof typeof SONGS;
 type SoundFile = string;
-type ToggleState = Record<SoundFile, boolean>;
+type TrackState = { enabled: boolean; volume: number };
+type SequenceState = Record<SoundFile, TrackState>;
+type AllSequencesState = Record<'A' | 'B' | 'C' | 'D', SequenceState>;
 
-function createInitialState(files: readonly SoundFile[]): ToggleState {
+function createInitialState(files: readonly SoundFile[]): SequenceState {
   return files.reduce((acc, file) => {
-    acc[file] = false;
+    acc[file] = { enabled: false, volume: DEFAULT_VOLUME };
     return acc;
-  }, {} as ToggleState);
+  }, {} as SequenceState);
 }
 
-function getInitialSequences(songId: SongId) {
+function getInitialSequences(songId: SongId): AllSequencesState {
   const files = SONGS[songId].files;
   return {
     A: createInitialState(files),
-    B: files.reduce((acc, file) => { acc[file] = true; return acc; }, {} as ToggleState),
-    C: files.reduce((acc, file, idx) => { acc[file] = idx % 2 === 0; return acc; }, {} as ToggleState),
-    D: files.reduce((acc, file, idx) => { acc[file] = idx < Math.floor(files.length / 2); return acc; }, {} as ToggleState),
+    B: files.reduce((acc, file) => { acc[file] = { enabled: true, volume: DEFAULT_VOLUME }; return acc; }, {} as SequenceState),
+    C: files.reduce((acc, file, idx) => { acc[file] = { enabled: idx % 2 === 0, volume: DEFAULT_VOLUME }; return acc; }, {} as SequenceState),
+    D: files.reduce((acc, file, idx) => { acc[file] = { enabled: idx < Math.floor(files.length / 2), volume: DEFAULT_VOLUME }; return acc; }, {} as SequenceState),
   };
 }
 
@@ -111,12 +114,18 @@ function buildSongPath(songId: SongId, file: SoundFile) {
 
 export default function AudioTestPage() {
   const [song, setSong] = useState<SongId>(DEFAULT_SONG);
-  const [sequences, setSequences] = useState(() => getInitialSequences(DEFAULT_SONG));
+  const [sequences, setSequences] = useState<AllSequencesState>(() => getInitialSequences(DEFAULT_SONG));
   const [activeSequence, setActiveSequence] = useState<'A' | 'B' | 'C' | 'D' | null>('A');
-  const [active, setActive] = useState<ToggleState>(() => sequences.A);
+  const [active, setActive] = useState<SequenceState>(() => sequences.A);
   
   const [loopDuration, setLoopDuration] = useState<number>(DEFAULT_LOOP_DURATION);
   const [attack, setAttack] = useState<number>(DEFAULT_LOOP_ATTACK);
+
+  const [copiedSeq, setCopiedSeq] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState("");
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const buffersRef = useRef<Partial<Record<string, AudioBuffer>>>({});
@@ -131,7 +140,7 @@ export default function AudioTestPage() {
   const transportRef = useRef<{ startTime: number; loopDuration: number } | null>(null);
 
   const soundFiles = useMemo(() => SONGS[song].files, [song]);
-  const activeRef = useRef<ToggleState>(active);
+  const activeRef = useRef<SequenceState>(active);
   const soundFilesRef = useRef<readonly SoundFile[]>(soundFiles);
   const attackRef = useRef<number>(attack);
   const songRef = useRef<SongId>(song);
@@ -215,12 +224,16 @@ export default function AudioTestPage() {
     source.loop = true;
     source.loopStart = 0;
     source.loopEnd = loopDurationSeconds;
+    
+    const targetVolume = activeRef.current[file]?.volume ?? DEFAULT_VOLUME;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, startAt);
-    gain.gain.linearRampToValueAtTime(LOOP_VOLUME, startAt + attackRef.current);
+    gain.gain.linearRampToValueAtTime(targetVolume, startAt + attackRef.current);
+    
     source.connect(gain);
     gain.connect(ctx.destination);
     source.start(startAt, offset);
+    
     loopSourcesRef.current[file] = source;
     loopGainsRef.current[file] = gain;
   };
@@ -229,12 +242,16 @@ export default function AudioTestPage() {
     const ctx = getAudioContext();
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    
+    const targetVolume = activeRef.current[file]?.volume ?? DEFAULT_VOLUME;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, startAt);
-    gain.gain.linearRampToValueAtTime(LOOP_VOLUME, startAt + attackRef.current);
+    gain.gain.linearRampToValueAtTime(targetVolume, startAt + attackRef.current);
+    
     source.connect(gain);
     gain.connect(ctx.destination);
     source.start(startAt, offset);
+    
     const inst = { source, gain };
     tailInstancesRef.current[file] = [...(tailInstancesRef.current[file] || []), inst];
     source.onended = () => {
@@ -246,7 +263,7 @@ export default function AudioTestPage() {
 
   const scheduleWithTailTrack = async (file: SoundFile) => {
     const ctx = getAudioContext();
-    if (!transportRef.current || !activeRef.current[file]) return;
+    if (!transportRef.current || !activeRef.current[file]?.enabled) return;
     const buffer = await loadBuffer(songRef.current, file);
     const now = ctx.currentTime;
     const cycle = nextCycleRef.current[file] ?? Math.floor((now - transportRef.current.startTime) / transportRef.current.loopDuration);
@@ -263,12 +280,11 @@ export default function AudioTestPage() {
     if (songRef.current === "mirage") return; // Mirage uses the perfect no-tail loop natively
     
     schedulerRef.current = window.setInterval(() => {
-      soundFilesRef.current.forEach(file => { if (activeRef.current[file]) void scheduleWithTailTrack(file); });
+      soundFilesRef.current.forEach(file => { if (activeRef.current[file]?.enabled) void scheduleWithTailTrack(file); });
     }, 100);
   };
 
-  // Soft Sequence Transition - Synchronizes new tracks into the existing playing mix
-  const applySequence = async (newActive: ToggleState, seqKey?: 'A' | 'B' | 'C' | 'D' | null) => {
+  const applySequence = async (newActive: SequenceState, seqKey?: 'A' | 'B' | 'C' | 'D' | null) => {
     const ctx = getAudioContext();
     if (ctx.state !== "running") await ctx.resume();
 
@@ -279,24 +295,22 @@ export default function AudioTestPage() {
     if (seqKey !== undefined) setActiveSequence(seqKey);
 
     const isNoTail = songRef.current === "mirage";
-    const needsToPlay = soundFilesRef.current.some(f => newActive[f]);
+    const needsToPlay = soundFilesRef.current.some(f => newActive[f]?.enabled);
 
-    // Initialize transport if it's the first track being enabled
     if (needsToPlay && !transportRef.current) {
       transportRef.current = { startTime: ctx.currentTime + 0.08, loopDuration };
     }
 
     for (const file of soundFilesRef.current) {
-      const wasOn = oldActive[file];
-      const isNowOn = newActive[file];
+      const wasOn = oldActive[file]?.enabled;
+      const isNowOn = newActive[file]?.enabled;
 
       if (wasOn && !isNowOn) {
-        stopFile(file); // Turn off the track
+        stopFile(file);
       } else if (!wasOn && isNowOn) {
-        // Sync the track immediately to the ongoing mix
         void (async () => {
           const buffer = await loadBuffer(songRef.current, file);
-          if (!activeRef.current[file]) return; // Cancel if toggled off quickly
+          if (!activeRef.current[file]?.enabled) return; 
           
           const transport = transportRef.current!;
           const now = ctx.currentTime;
@@ -312,43 +326,51 @@ export default function AudioTestPage() {
             void scheduleWithTailTrack(file);
           }
         })();
+      } else if (wasOn && isNowOn && oldActive[file]?.volume !== newActive[file]?.volume) {
+        const now = ctx.currentTime;
+        if (loopGainsRef.current[file]) {
+          loopGainsRef.current[file]!.gain.setTargetAtTime(newActive[file].volume, now, 0.05);
+        }
+        if (tailInstancesRef.current[file]) {
+          tailInstancesRef.current[file]!.forEach(inst => {
+            inst.gain.gain.setTargetAtTime(newActive[file].volume, now, 0.05);
+          });
+        }
       }
     }
 
-    // Handle global scheduling state
     if (!needsToPlay) {
       clearScheduler();
-      transportRef.current = null; // Clean slate when all tracks stop
+      transportRef.current = null;
     } else if (!isNoTail) {
       if (!schedulerRef.current) syncScheduler();
     }
   };
 
-  // Hard Reset - Destroys transport and restarts audio context (used for changing songs)
-  const hardResetAndApply = async (newActive: ToggleState, seqKey?: 'A' | 'B' | 'C' | 'D' | null) => {
+  const hardResetAndApply = async (newActive: SequenceState, seqKey?: 'A' | 'B' | 'C' | 'D' | null) => {
     const ctx = getAudioContext();
     if (ctx.state !== "running") await ctx.resume();
 
-    stopAllSound(); // Purge old songs perfectly
+    stopAllSound(); 
     clearScheduler();
     
     activeRef.current = newActive;
     setActive(newActive);
     if (seqKey !== undefined) setActiveSequence(seqKey);
 
-    const enabled = soundFilesRef.current.filter(f => newActive[f]);
-    if (enabled.length === 0) {
+    const enabledFiles = soundFilesRef.current.filter(f => newActive[f]?.enabled);
+    if (enabledFiles.length === 0) {
       transportRef.current = null;
       return;
     }
 
-    const buffers = await Promise.all(enabled.map(f => loadBuffer(songRef.current, f)));
+    const buffers = await Promise.all(enabledFiles.map(f => loadBuffer(songRef.current, f)));
     const startAt = ctx.currentTime + 0.08;
     transportRef.current = { startTime: startAt, loopDuration };
 
     const isNoTail = songRef.current === "mirage";
 
-    enabled.forEach((file, i) => {
+    enabledFiles.forEach((file, i) => {
       if (isNoTail) {
         startLoopingSource(file, buffers[i], loopDuration, startAt, 0);
       } else {
@@ -362,8 +384,8 @@ export default function AudioTestPage() {
   };
 
   const toggleFile = async (file: SoundFile) => {
-    const nextEnabled = !active[file];
-    const nextState = { ...active, [file]: nextEnabled };
+    const nextEnabled = !active[file].enabled;
+    const nextState = { ...active, [file]: { ...active[file], enabled: nextEnabled } };
     
     if (activeSequence) {
       setSequences(prev => ({ ...prev, [activeSequence]: nextState }));
@@ -372,12 +394,87 @@ export default function AudioTestPage() {
     await applySequence(nextState, activeSequence);
   };
 
+  const changeVolume = (file: SoundFile, newVolume: number) => {
+    const nextState = { ...active, [file]: { ...active[file], volume: newVolume } };
+    
+    setActive(nextState);
+    activeRef.current = nextState;
+
+    if (activeSequence) {
+      setSequences(prev => ({ ...prev, [activeSequence]: nextState }));
+    }
+
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    
+    if (loopGainsRef.current[file]) {
+      loopGainsRef.current[file]!.gain.setTargetAtTime(newVolume, now, 0.05);
+    }
+    
+    if (tailInstancesRef.current[file]) {
+      tailInstancesRef.current[file]!.forEach(inst => {
+        inst.gain.gain.setTargetAtTime(newVolume, now, 0.05);
+      });
+    }
+  };
+
   const handleSetAll = (enabled: boolean) => {
-    const nextState = soundFilesRef.current.reduce((acc, f) => { acc[f] = enabled; return acc; }, {} as ToggleState);
+    const nextState = soundFilesRef.current.reduce((acc, f) => { 
+      acc[f] = { enabled, volume: activeRef.current[f]?.volume ?? DEFAULT_VOLUME }; 
+      return acc; 
+    }, {} as SequenceState);
+
     if (activeSequence) {
       setSequences(prev => ({ ...prev, [activeSequence]: nextState }));
     }
     applySequence(nextState, activeSequence);
+  };
+
+  // Clipboard & Import Utilities
+  const handleCopyCurrentSequence = () => {
+    const textToCopy = `/* --- COPY-PASTE SEQUENCE (${activeSequence || 'CUSTOM'}) START --- */\n${JSON.stringify(activeRef.current, null, 2)}\n/* --- COPY-PASTE SEQUENCE END --- */`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedSeq(true);
+    setTimeout(() => setCopiedSeq(false), 2000);
+  };
+
+  const handleCopyAllSequences = () => {
+    const textToCopy = `/* --- COPY-PASTE ALL SEQUENCES START --- */\n${JSON.stringify(sequences, null, 2)}\n/* --- COPY-PASTE ALL SEQUENCES END --- */`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
+  const handleImportConfig = async () => {
+    try {
+      setImportError("");
+      // Strip out the /* ... */ comments generated by our copy methods
+      const cleanText = importText.replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      if (!cleanText) throw new Error("No valid JSON found in your paste.");
+
+      const parsed = JSON.parse(cleanText);
+
+      // Simple heuristic: Does it contain "A" and "B" blocks? If so, it's an "All Sequences" export.
+      if (parsed.A && parsed.B) {
+        setSequences(parsed);
+        if (activeSequence && parsed[activeSequence]) {
+          await hardResetAndApply(parsed[activeSequence], activeSequence);
+        } else {
+          await hardResetAndApply(parsed.A, 'A');
+        }
+      } else {
+        // Otherwise, it's a single sequence. Apply it to the currently active letter slot.
+        const targetSeqKey = activeSequence || 'A';
+        setSequences(prev => ({ ...prev, [targetSeqKey]: parsed }));
+        await hardResetAndApply(parsed, targetSeqKey);
+      }
+
+      setShowImport(false);
+      setImportText("");
+    } catch (err) {
+      console.error("Config Parse Error:", err);
+      setImportError("Failed to load config. Ensure you copied the full block properly.");
+    }
   };
 
   useEffect(() => {
@@ -412,7 +509,6 @@ export default function AudioTestPage() {
                     if (song === id) return;
                     setSong(id); 
                     
-                    // Immediately update references to guarantee hard reset uses new song files
                     songRef.current = id;
                     soundFilesRef.current = SONGS[id].files;
                     
@@ -427,43 +523,95 @@ export default function AudioTestPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 mb-6 bg-zinc-50 p-4 border-4 border-black">
-            <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest bg-primary text-primary-foreground" onClick={() => handleSetAll(true)}>
-              Start All
-            </Button>
-            <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest" variant="destructive" onClick={() => handleSetAll(false)}>
-              Stop All
-            </Button>
-            
-            {/* Sequence Selector Buttons */}
-            <div className="flex gap-2 ml-auto">
-              <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-cyan-200 text-xs px-3 ${activeSequence === 'A' ? 'bg-cyan-500' : 'bg-cyan-300'}`} onClick={() => applySequence(sequences.A, 'A')}>
-                Seq A
+          <div className="flex flex-col gap-3 mb-6 bg-zinc-50 p-4 border-4 border-black">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest bg-primary text-primary-foreground" onClick={() => handleSetAll(true)}>
+                Start All
               </Button>
-              <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-pink-200 text-xs px-3 ${activeSequence === 'B' ? 'bg-pink-500' : 'bg-pink-300'}`} onClick={() => applySequence(sequences.B, 'B')}>
-                Seq B
+              <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest" variant="destructive" onClick={() => handleSetAll(false)}>
+                Stop All
               </Button>
-              <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-yellow-200 text-xs px-3 ${activeSequence === 'C' ? 'bg-yellow-500' : 'bg-yellow-300'}`} onClick={() => applySequence(sequences.C, 'C')}>
-                Seq C
+              
+              <div className="flex gap-2 ml-auto">
+                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-cyan-200 text-xs px-3 ${activeSequence === 'A' ? 'bg-cyan-500' : 'bg-cyan-300'}`} onClick={() => applySequence(sequences.A, 'A')}>
+                  Seq A
+                </Button>
+                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-pink-200 text-xs px-3 ${activeSequence === 'B' ? 'bg-pink-500' : 'bg-pink-300'}`} onClick={() => applySequence(sequences.B, 'B')}>
+                  Seq B
+                </Button>
+                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-yellow-200 text-xs px-3 ${activeSequence === 'C' ? 'bg-yellow-500' : 'bg-yellow-300'}`} onClick={() => applySequence(sequences.C, 'C')}>
+                  Seq C
+                </Button>
+                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-orange-200 text-xs px-3 ${activeSequence === 'D' ? 'bg-orange-500' : 'bg-orange-300'}`} onClick={() => applySequence(sequences.D, 'D')}>
+                  Seq D
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 mt-1 border-t-2 border-black/10">
+              <Button variant="outline" className="border-2 border-black rounded-none uppercase font-black text-xs h-8" onClick={() => setShowImport(!showImport)}>
+                {showImport ? "Close Import" : "Load Config"}
               </Button>
-              <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-orange-200 text-xs px-3 ${activeSequence === 'D' ? 'bg-orange-500' : 'bg-orange-300'}`} onClick={() => applySequence(sequences.D, 'D')}>
-                Seq D
+              <Button variant="outline" className="border-2 border-black rounded-none uppercase font-black text-xs h-8" onClick={handleCopyCurrentSequence}>
+                {copiedSeq ? "Copied!" : "Copy Active Seq"}
+              </Button>
+              <Button variant="outline" className="border-2 border-black rounded-none uppercase font-black text-xs h-8" onClick={handleCopyAllSequences}>
+                {copiedAll ? "Copied!" : "Copy All Seqs"}
               </Button>
             </div>
+
+            {/* Import Overlay */}
+            {showImport && (
+              <div className="mt-2 p-4 border-4 border-black bg-white shadow-inner">
+                <div className="text-sm font-black uppercase mb-2 tracking-wide">Paste Config Code:</div>
+                <textarea 
+                  className="w-full h-32 p-3 font-mono text-xs border-2 border-black focus:outline-none focus:ring-0 bg-zinc-50"
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder="Paste the sequence block here..."
+                />
+                {importError && <div className="text-red-600 font-bold text-xs mt-2 uppercase">{importError}</div>}
+                <div className="flex justify-end gap-2 mt-3">
+                  <Button className="border-2 border-black rounded-none uppercase font-black text-xs h-8 bg-green-400 text-black hover:bg-green-300" onClick={handleImportConfig}>
+                    Apply Config
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {soundFiles.map(file => (
-              <Button key={file} onClick={() => toggleFile(file)}
-                className={`justify-between border-4 border-black rounded-none uppercase font-black tracking-wide ${active[file] ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-white text-black hover:bg-zinc-100"}`}>
-                <span>{file.replace(".mp3", "").replaceAll("_", " ")}</span>
-                <span>{active[file] ? "ON" : "OFF"}</span>
-              </Button>
-            ))}
+            {soundFiles.map(file => {
+              const isOn = active[file]?.enabled ?? false;
+              const vol = active[file]?.volume ?? DEFAULT_VOLUME;
+
+              return (
+                <div key={file} className={`flex flex-col border-4 border-black rounded-none ${isOn ? "bg-primary text-primary-foreground" : "bg-white text-black"}`}>
+                  <button onClick={() => toggleFile(file)}
+                    className="flex justify-between items-center w-full p-3 uppercase font-black tracking-wide hover:bg-black/10 transition-colors focus:outline-none">
+                    <span className="truncate pr-2">{file.replace(".mp3", "").replaceAll("_", " ")}</span>
+                    <span>{isOn ? "ON" : "OFF"}</span>
+                  </button>
+                  <div className="flex items-center gap-2 px-3 pb-3">
+                    <span className="text-xs font-bold opacity-80">VOL</span>
+                    <input 
+                      type="range" 
+                      min="0" max="1" step="0.01" 
+                      value={vol} 
+                      onChange={(e) => changeVolume(file, Number(e.target.value))}
+                      className="w-full h-2 bg-black/20 appearance-none cursor-pointer" 
+                    />
+                    <span className="text-xs font-mono font-bold opacity-80 w-8 text-right">
+                      {Math.round(vol * 100)}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="mt-8 border-t-4 border-black pt-4">
-            <label className="block text-sm font-bold uppercase tracking-wide mb-3">Attack: {attack.toFixed(2)}s</label>
+            <label className="block text-sm font-bold uppercase tracking-wide mb-3">Master Attack Buffer: {attack.toFixed(2)}s</label>
             <input type="range" min="0" max="0.25" step="0.005" value={attack} onChange={(e) => setAttack(Number(e.target.value))} className="w-full max-w-sm accent-black" />
           </div>
         </Card>
