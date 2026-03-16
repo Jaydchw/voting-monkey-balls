@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
+import { BlockButton } from "@/components/ui/block-button";
+import { BlockSlider } from "@/components/ui/block-slider";
+import { BlockCard } from "@/components/ui/block-card";
 import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
-import { ModalSurface } from "@/components/game/modals/modal-surface";
 import type { PreMatchModalProps } from "@/components/game/modals/types";
 
 export function PrematchBetModal({
@@ -27,10 +28,8 @@ export function PrematchBetModal({
   const cappedStake = Math.min(bananas, Math.max(minStake, selected.stake));
   const expectedWinnings = cappedStake * 2;
   const total = Math.max(1, redHealth + blueHealth);
-  const distribution = {
-    redPct: Math.round((redHealth / total) * 100),
-    bluePct: 100 - Math.round((redHealth / total) * 100),
-  };
+  const redPct = Math.round((redHealth / total) * 100);
+  const bluePct = 100 - redPct;
 
   const lockSelection = (side: "red" | "blue") => {
     if (cappedStake < minStake || cappedStake > bananas) return;
@@ -40,156 +39,166 @@ export function PrematchBetModal({
   };
 
   const presets = [20, 30, 50, 100];
-  const pressButtonClass =
-    "border-2 border-black rounded-none bg-white shadow-[0_4px_0_0_rgba(0,0,0,1)] active:translate-y-[3px] active:shadow-[0_1px_0_0_rgba(0,0,0,1)]";
 
   return (
     <FullscreenModal
       open={open}
-      maxWidthClassName="max-w-5xl"
+      maxWidthClassName="max-w-2xl"
       zIndexClassName="z-50"
     >
-      <ModalSurface>
-        <div className="px-3 py-3 sm:px-4 sm:py-4 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-600">
-              {countdown > 0 ? `Pre-round (${countdown}s)` : "Pre-round"}
-            </p>
-            <h2 className="text-base sm:text-xl md:text-2xl font-black uppercase mt-1">
-              Pick Winner
-            </h2>
-          </div>
-          <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
-            <Image
-              src="/Banana.svg"
-              alt="Banana"
-              width={18}
-              height={18}
-              className="w-4 h-auto sm:w-5"
-            />
-            <span>{bananas}</span>
-          </div>
-        </div>
-
-        <div className="p-3 sm:p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              className="p-3 sm:p-4 text-left border-4 rounded-none transition-all duration-150 shadow-[0_5px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_2px_0_0_rgba(0,0,0,1)] border-black bg-white hover:bg-red-50"
-              onClick={() => lockSelection("red")}
-            >
-              <p className="text-[10px] font-black uppercase tracking-wider">
-                {distribution.redPct}% pressure
+      <div className="w-full bg-white">
+        <div className="p-5 sm:p-7 flex flex-col gap-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
+                {countdown > 0 ? `Pre-round · ${countdown}s` : "Pre-round"}
               </p>
-              <p className="text-2xl sm:text-3xl font-black text-red-700 mt-1">
+              <h2 className="text-2xl sm:text-3xl font-black uppercase mt-1">
+                Pick Your Side
+              </h2>
+            </div>
+            <div className="flex items-center gap-2 border-4 border-black px-3 py-2 bg-yellow-300 shrink-0">
+              <Image src="/Banana.svg" alt="Banana" width={18} height={18} />
+              <span className="text-lg font-black tabular-nums">{bananas}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => lockSelection("red")}
+              className="p-4 sm:p-5 border-4 border-black bg-white hover:bg-red-50 text-left shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                {redPct}% pressure
+              </p>
+              <p className="text-3xl sm:text-4xl font-black text-red-600 mt-1">
                 RED
               </p>
-            </button>
-            <button
-              type="button"
-              className="p-3 sm:p-4 text-left border-4 rounded-none transition-all duration-150 shadow-[0_5px_0_0_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[0_2px_0_0_rgba(0,0,0,1)] border-black bg-white hover:bg-blue-50"
-              onClick={() => lockSelection("blue")}
-            >
-              <p className="text-[10px] font-black uppercase tracking-wider">
-                {distribution.bluePct}% pressure
+              <p className="text-xs font-bold text-zinc-400 mt-1 uppercase">
+                {redHealth} HP
               </p>
-              <p className="text-2xl sm:text-3xl font-black text-blue-700 mt-1">
+            </button>
+
+            <button
+              onClick={() => lockSelection("blue")}
+              className="p-4 sm:p-5 border-4 border-black bg-white hover:bg-blue-50 text-left shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.75 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                {bluePct}% pressure
+              </p>
+              <p className="text-3xl sm:text-4xl font-black text-blue-600 mt-1">
                 BLUE
+              </p>
+              <p className="text-xs font-bold text-zinc-400 mt-1 uppercase">
+                {blueHealth} HP
               </p>
             </button>
           </div>
 
-          <div className="mt-3 p-3 sm:p-4 bg-zinc-50">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] font-black uppercase tracking-wider text-zinc-700">
-                Stake
-              </p>
-              <p className="text-base sm:text-lg font-black">{cappedStake}</p>
-            </div>
-            <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {presets.map((preset, index) => (
+          <BlockCard
+            shadow="none"
+            tinted
+            className="p-4 border-2 flex flex-col items-center gap-4"
+          >
+            <p className="self-start text-xs font-black uppercase tracking-widest text-zinc-500">
+              Stake
+            </p>
+
+            <div className="grid grid-cols-4 gap-2 w-full">
+              {presets.map((preset) => (
                 <button
                   key={preset}
-                  type="button"
-                  className={`relative isolate h-10 overflow-hidden border-2 border-black bg-linear-to-b from-yellow-100 to-yellow-200 text-sm font-black text-zinc-900 shadow-[0_4px_0_0_rgba(0,0,0,1)] transition-all duration-150 active:translate-y-0.75 active:shadow-[0_1px_0_0_rgba(0,0,0,1)] ${index === 3 ? "hidden sm:block" : ""}`}
                   onClick={() =>
                     onSelectStake(Math.min(bananas, Math.max(minStake, preset)))
                   }
+                  className={[
+                    "py-2 border-4 border-black text-sm font-black transition-all",
+                    "shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]",
+                    cappedStake === preset
+                      ? "bg-yellow-300"
+                      : "bg-yellow-100 hover:bg-yellow-200",
+                  ].join(" ")}
                 >
-                  <span className="absolute -right-2 -top-1 opacity-15 pointer-events-none">
-                    <Image src="/Banana.svg" alt="" width={26} height={26} />
-                  </span>
                   {preset}
                 </button>
               ))}
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className={`h-9 px-3 text-sm font-black ${pressButtonClass}`}
+
+            <div className="flex items-center gap-3 w-full">
+              <button
                 onClick={() =>
                   onSelectStake(Math.max(minStake, selected.stake - 5))
                 }
+                className="w-11 h-11 border-4 border-black font-black text-lg flex items-center justify-center bg-white hover:bg-zinc-100 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all shrink-0"
               >
-                -5
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`h-9 px-3 text-sm font-black ${pressButtonClass}`}
+                −
+              </button>
+              <BlockSlider
+                min={minStake}
+                max={Math.max(minStake, bananas)}
+                step={1}
+                value={cappedStake}
+                valueLabel={String(cappedStake)}
+                onChange={(e) =>
+                  onSelectStake(
+                    Math.max(
+                      minStake,
+                      Math.min(bananas, Number(e.target.value)),
+                    ),
+                  )
+                }
+                className="flex-1"
+              />
+              <button
                 onClick={() =>
                   onSelectStake(Math.min(bananas, selected.stake + 5))
                 }
                 disabled={bananas <= selected.stake}
+                className="w-11 h-11 border-4 border-black font-black text-lg flex items-center justify-center bg-white hover:bg-zinc-100 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all shrink-0 disabled:opacity-40"
               >
-                +5
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={`h-9 ml-auto px-3 text-sm font-black ${pressButtonClass}`}
-                onClick={onSkip}
-              >
-                Skip
-              </Button>
+                +
+              </button>
             </div>
-          </div>
 
-          <p className="mt-2 text-xs font-black uppercase text-zinc-700">
-            Expected return: {expectedWinnings}
-          </p>
+            <p className="self-end text-xs font-black uppercase text-zinc-400">
+              Win returns <span className="text-black">{expectedWinnings}</span>
+            </p>
+          </BlockCard>
+
+          <div className="flex justify-end">
+            <BlockButton variant="muted" size="sm" onClick={onSkip}>
+              Skip Round
+            </BlockButton>
+          </div>
         </div>
-      </ModalSurface>
+      </div>
 
       {locked && (
         <FullscreenModal
           open={locked}
-          maxWidthClassName="max-w-md"
+          maxWidthClassName="max-w-sm"
           zIndexClassName="z-60"
-          overlayClassName="bg-black/40"
+          overlayClassName="bg-black/50"
         >
-          <ModalSurface className="p-4">
-            <p className="text-[11px] font-black uppercase tracking-widest text-zinc-600">
+          <div className="w-full bg-white p-6 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-2">
               Locked In
             </p>
-            <h3 className="text-lg sm:text-xl font-black uppercase mt-1">
-              {selected.side.toUpperCase()} | {cappedStake}
+            <h3 className="text-2xl font-black uppercase">
+              {selected.side.toUpperCase()} · {cappedStake}
             </h3>
-            <p className="text-sm font-bold text-zinc-700 mt-2">
-              This selection is active. Wait for the timer, or cancel to change.
+            <p className="text-sm font-bold text-zinc-400 mt-2 mb-4">
+              Waiting for the timer to expire...
             </p>
-            <div className="mt-3 flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                className={`h-9 px-3 text-sm font-black ${pressButtonClass}`}
-                onClick={() => setLocked(false)}
-              >
-                Cancel And Change
-              </Button>
-            </div>
-          </ModalSurface>
+            <BlockButton
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocked(false)}
+              fullWidth
+            >
+              Cancel &amp; Change
+            </BlockButton>
+          </div>
         </FullscreenModal>
       )}
     </FullscreenModal>

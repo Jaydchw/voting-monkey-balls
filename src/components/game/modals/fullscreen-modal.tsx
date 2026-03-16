@@ -25,11 +25,17 @@ export function FullscreenModal({
 
   return (
     <div
-      className={`fixed inset-0 ${zIndexClassName} ${overlayClassName} overflow-y-auto flex items-center justify-center p-0 sm:p-4`}
+      className={[
+        "fixed inset-0 overflow-y-auto flex items-center justify-center p-4",
+        zIndexClassName,
+        overlayClassName,
+      ].join(" ")}
       onClick={onBackdropClick}
     >
       <div
-        className={`w-full min-h-full sm:min-h-0 ${maxWidthClassName} ${panelClassName ?? ""}`}
+        className={["w-full", maxWidthClassName, panelClassName ?? ""].join(
+          " ",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

@@ -78,7 +78,7 @@ export default function MainMenu() {
               Balls
             </h1>
             <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">
-              Auto-battler · Spectator Voting · Bets
+              Voting · Monkey · Balls
             </p>
           </div>
 
