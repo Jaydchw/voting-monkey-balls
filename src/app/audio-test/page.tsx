@@ -171,10 +171,9 @@ export default function AudioTestPage() {
       loadingRef.current[key] = (async () => {
         const ctx = getAudioContext();
         const withTailPath = buildSongPath(songId, file);
-        const noTailPath = `/audio/no_tail/notail_${encodeURIComponent(file)}`;
-        
-        // Mirage defaults to no_tail files if available, otherwise falls back to standard
-        const candidatePaths = songId === "mirage" ? [noTailPath, withTailPath] : [withTailPath];
+          const miragePath = `/audio/mirage/${encodeURIComponent(file)}`;
+          // Mirage uses mirage files directly, otherwise falls back to standard
+          const candidatePaths = songId === "mirage" ? [miragePath, withTailPath] : [withTailPath];
 
         let lastError: Error | null = null;
         for (const path of candidatePaths) {
