@@ -66,7 +66,6 @@ const SONGS = {
       "groova shaker.mp3",
       "groova snare-1.mp3",
       "groova snare.mp3",
-      "groova snare.mp3",
       "groova synth.mp3",
       "groova synthstabs.mp3",
       "groova toms.mp3",
@@ -86,6 +85,13 @@ type SoundFile = string;
 type TrackState = { enabled: boolean; volume: number };
 type SequenceState = Record<SoundFile, TrackState>;
 type AllSequencesState = Record<'A' | 'B' | 'C' | 'D', SequenceState>;
+
+const SEQUENCE_BUTTONS = [
+  { id: 'A', activeColor: 'bg-cyan-400', inactiveColor: 'bg-cyan-200' },
+  { id: 'B', activeColor: 'bg-pink-400', inactiveColor: 'bg-pink-200' },
+  { id: 'C', activeColor: 'bg-yellow-400', inactiveColor: 'bg-yellow-200' },
+  { id: 'D', activeColor: 'bg-orange-400', inactiveColor: 'bg-orange-200' },
+] as const;
 
 function createInitialState(files: readonly SoundFile[]): SequenceState {
   return files.reduce((acc, file) => {
@@ -489,20 +495,22 @@ export default function AudioTestPage() {
   }, [song, loadBuffer]);
 
   return (
-    <div className="w-screen min-h-screen flex flex-col items-center bg-white text-black p-8 relative">
+    <div className="w-screen min-h-screen flex flex-col items-center bg-white text-black p-4 sm:p-8 relative">
       <Link href="/">
-        <Button className="absolute top-8 left-8 border-4 border-black rounded-none font-bold uppercase tracking-widest" variant="secondary">
+        <Button className="absolute top-4 left-4 sm:top-8 sm:left-8 border-4 border-black rounded-none font-bold uppercase tracking-widest" variant="secondary">
           Back to Menu
         </Button>
       </Link>
 
-      <div className="w-full max-w-6xl">
-        <h1 className="text-5xl font-black uppercase text-center mb-4 tracking-widest border-b-8 border-black pb-4 pt-16">
+      <div className="w-full max-w-6xl mt-12 sm:mt-0">
+        <h1 className="text-4xl sm:text-5xl font-black uppercase text-center mb-4 tracking-widest border-b-8 border-black pb-4 pt-4 sm:pt-16">
           Audio Test Deck
         </h1>
 
-        <Card className="p-6 border-8 border-black rounded-none shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] bg-white">
-          <div className="flex flex-wrap gap-4 mb-8">
+        <Card className="p-4 sm:p-5 border-8 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] sm:shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] bg-white">
+          
+          {/* Top Row: Song Selection + Config Operations */}
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
             <div className="flex flex-wrap gap-2">
               {(Object.keys(SONGS) as SongId[]).map(id => (
                 <Button key={id} onClick={() => { 
@@ -521,34 +529,8 @@ export default function AudioTestPage() {
                 </Button>
               ))}
             </div>
-          </div>
 
-          <div className="flex flex-col gap-3 mb-6 bg-zinc-50 p-4 border-4 border-black">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest bg-primary text-primary-foreground" onClick={() => handleSetAll(true)}>
-                Start All
-              </Button>
-              <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest" variant="destructive" onClick={() => handleSetAll(false)}>
-                Stop All
-              </Button>
-              
-              <div className="flex gap-2 ml-auto">
-                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-cyan-200 text-xs px-3 ${activeSequence === 'A' ? 'bg-cyan-500' : 'bg-cyan-300'}`} onClick={() => applySequence(sequences.A, 'A')}>
-                  Seq A
-                </Button>
-                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-pink-200 text-xs px-3 ${activeSequence === 'B' ? 'bg-pink-500' : 'bg-pink-300'}`} onClick={() => applySequence(sequences.B, 'B')}>
-                  Seq B
-                </Button>
-                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-yellow-200 text-xs px-3 ${activeSequence === 'C' ? 'bg-yellow-500' : 'bg-yellow-300'}`} onClick={() => applySequence(sequences.C, 'C')}>
-                  Seq C
-                </Button>
-                <Button className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black hover:bg-orange-200 text-xs px-3 ${activeSequence === 'D' ? 'bg-orange-500' : 'bg-orange-300'}`} onClick={() => applySequence(sequences.D, 'D')}>
-                  Seq D
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 mt-1 border-t-2 border-black/10">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" className="border-2 border-black rounded-none uppercase font-black text-xs h-8" onClick={() => setShowImport(!showImport)}>
                 {showImport ? "Close Import" : "Load Config"}
               </Button>
@@ -559,40 +541,83 @@ export default function AudioTestPage() {
                 {copiedAll ? "Copied!" : "Copy All Seqs"}
               </Button>
             </div>
-
-            {/* Import Overlay */}
-            {showImport && (
-              <div className="mt-2 p-4 border-4 border-black bg-white shadow-inner">
-                <div className="text-sm font-black uppercase mb-2 tracking-wide">Paste Config Code:</div>
-                <textarea 
-                  className="w-full h-32 p-3 font-mono text-xs border-2 border-black focus:outline-none focus:ring-0 bg-zinc-50"
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Paste the sequence block here..."
-                />
-                {importError && <div className="text-red-600 font-bold text-xs mt-2 uppercase">{importError}</div>}
-                <div className="flex justify-end gap-2 mt-3">
-                  <Button className="border-2 border-black rounded-none uppercase font-black text-xs h-8 bg-green-400 text-black hover:bg-green-300" onClick={handleImportConfig}>
-                    Apply Config
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Import Overlay */}
+          {showImport && (
+            <div className="mb-4 p-3 border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <div className="text-sm font-black uppercase mb-2 tracking-wide">Paste Config Code:</div>
+              <textarea 
+                className="w-full h-32 p-3 font-mono text-xs border-2 border-black focus:outline-none focus:ring-0 bg-zinc-50"
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="Paste the sequence block here..."
+              />
+              {importError && <div className="text-red-600 font-bold text-xs mt-2 uppercase">{importError}</div>}
+              <div className="flex justify-end gap-2 mt-3">
+                <Button className="border-2 border-black rounded-none uppercase font-black text-xs h-8 bg-green-400 text-black hover:bg-green-300" onClick={handleImportConfig}>
+                  Apply Config
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Sequences & Controls Panel */}
+          <div className="flex flex-col gap-2 mb-4 bg-zinc-50 p-3 border-4 border-black">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest bg-primary text-primary-foreground" onClick={() => handleSetAll(true)}>
+                Start All
+              </Button>
+              <Button className="border-4 border-black rounded-none uppercase font-black tracking-widest" variant="destructive" onClick={() => handleSetAll(false)}>
+                Stop All
+              </Button>
+              
+              <div className="flex gap-2 ml-auto items-center mr-2">
+                <label className="hidden sm:block text-xs font-bold uppercase tracking-wide mr-2">Fade: {attack.toFixed(2)}s</label>
+                <input type="range" min="0" max="0.25" step="0.005" value={attack} onChange={(e) => setAttack(Number(e.target.value))} className="w-24 sm:w-auto accent-black" />
+              </div>
+
+              <div className="flex gap-2 items-center">
+                {SEQUENCE_BUTTONS.map(({ id, activeColor, inactiveColor }) => {
+                  const isActive = activeSequence === id;
+                  return (
+                    <Button 
+                      key={id}
+                      className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black transition-all ${
+                        isActive 
+                          ? `${activeColor} shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-1 scale-105 z-10` 
+                          : `${inactiveColor} opacity-60 hover:opacity-100 hover:-translate-y-0.5 px-3`
+                      }`} 
+                      onClick={() => applySequence(sequences[id as keyof AllSequencesState], id as keyof AllSequencesState)}
+                    >
+                      Seq {id}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Track Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2">
             {soundFiles.map(file => {
               const isOn = active[file]?.enabled ?? false;
               const vol = active[file]?.volume ?? DEFAULT_VOLUME;
+              // Clean up the name for display
+              const displayName = file
+                .replace(/^groova\s+/i, "")
+                .replace(/^notail_/i, "")
+                .replace(".mp3", "")
+                .replaceAll("_", " ");
 
               return (
                 <div key={file} className={`flex flex-col border-4 border-black rounded-none ${isOn ? "bg-primary text-primary-foreground" : "bg-white text-black"}`}>
                   <button onClick={() => toggleFile(file)}
-                    className="flex justify-between items-center w-full p-3 uppercase font-black tracking-wide hover:bg-black/10 transition-colors focus:outline-none">
-                    <span className="truncate pr-2">{file.replace(".mp3", "").replaceAll("_", " ")}</span>
+                    className="flex justify-between items-center w-full px-3 py-2 uppercase font-black tracking-wide hover:bg-black/10 transition-colors focus:outline-none">
+                    <span className="truncate pr-2">{displayName}</span>
                     <span>{isOn ? "ON" : "OFF"}</span>
                   </button>
-                  <div className="flex items-center gap-2 px-3 pb-3">
+                  <div className={`flex items-center gap-2 px-3 py-2 border-t ${isOn ? "border-white/30" : "border-black/10"}`}>
                     <span className="text-xs font-bold opacity-80">VOL</span>
                     <input 
                       type="range" 
@@ -610,10 +635,6 @@ export default function AudioTestPage() {
             })}
           </div>
 
-          <div className="mt-8 border-t-4 border-black pt-4">
-            <label className="block text-sm font-bold uppercase tracking-wide mb-3">Master Attack Buffer: {attack.toFixed(2)}s</label>
-            <input type="range" min="0" max="0.25" step="0.005" value={attack} onChange={(e) => setAttack(Number(e.target.value))} className="w-full max-w-sm accent-black" />
-          </div>
         </Card>
       </div>
     </div>
