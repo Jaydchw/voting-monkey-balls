@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 
 const BotsGameBoardPanel = dynamic(
-  () => import("@/components/game/bots-game-board-panel"),
+  () => import("@/components/game/panels/bots-game-board-panel"),
   { ssr: false },
 );
 

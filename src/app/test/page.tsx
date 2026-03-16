@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 
 const GameBoardPanel = dynamic(
-  () => import("@/components/game/game-board-panel"),
+  () => import("@/components/game/panels/game-board-panel"),
   { ssr: false },
 );
 
