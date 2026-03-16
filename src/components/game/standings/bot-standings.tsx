@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Crown, Pulse } from "@phosphor-icons/react";
-import { BananaInline } from "./banana-inline";
+import { BananaInline } from "@/components/ui/banana-inline";
 import type { BotState } from "@/bots/types";
 
 type BotStandingsProps = {

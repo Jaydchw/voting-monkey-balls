@@ -28,10 +28,8 @@ export function MatchDashboardShell({
   return (
     <div className="relative w-screen min-h-screen overflow-x-clip bg-white text-black p-6 md:p-10">
       {overlay}
-
       <div className="relative z-10 max-w-475 mx-auto">
         {header}
-
         <div
           className={
             useThreeColumnFrame
@@ -70,7 +68,6 @@ export function MatchDashboardShell({
           </motion.div>
         </div>
       </div>
-
       {floatingAction}
     </div>
   );

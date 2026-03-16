@@ -3,14 +3,14 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FullscreenModal } from "./fullscreen-modal";
-import { ModalSurface } from "./modal-surface";
+import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
+import { ModalSurface } from "@/components/game/modals/modal-surface";
 import type { MicroBetKind } from "@/bots/types";
 import type {
   MicrobetDraft,
   MicrobetsModalProps,
   PendingPlayerMicrobet,
-} from "./betting-types";
+} from "@/components/game/modals/types";
 
 const KIND_LABEL: Record<MicroBetKind, string> = {
   redDamageToBlue: "Red outdamages Blue",
@@ -71,27 +71,24 @@ const MARKET_PRESETS: readonly MarketPreset[] = [
 
 function emphasizeMatchupText(text: string): React.ReactNode {
   return text.split(/(Red|Blue|stake|Stake)/g).map((part, index) => {
-    if (part === "Red") {
+    if (part === "Red")
       return (
         <span key={`part-${index}`} className="text-red-600">
           {part}
         </span>
       );
-    }
-    if (part === "Blue") {
+    if (part === "Blue")
       return (
         <span key={`part-${index}`} className="text-blue-600">
           {part}
         </span>
       );
-    }
-    if (part.toLowerCase() === "stake") {
+    if (part.toLowerCase() === "stake")
       return (
         <span key={`part-${index}`} className="text-yellow-700">
           {part}
         </span>
       );
-    }
     return <span key={`part-${index}`}>{part}</span>;
   });
 }
@@ -163,9 +160,7 @@ export function MicrobetsModal({
   void insights;
   const queuedStakeTotal = placedBets.reduce((sum, bet) => sum + bet.stake, 0);
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   const lockPreset = (preset: MarketPreset) => {
     const lockedDraft: MicrobetDraft = {
@@ -198,7 +193,6 @@ export function MicrobetsModal({
               Pick exactly what you believe will happen. One tap locks it.
             </p>
           </div>
-
           <div className="flex items-center gap-1.5 text-sm sm:text-base font-black">
             <Image
               src="/Banana.svg"
@@ -228,13 +222,10 @@ export function MicrobetsModal({
               step={1}
               value={Math.max(1, Math.min(bananas, draft.stake))}
               className="mt-3 w-full accent-black"
-              onChange={(event) =>
+              onChange={(e) =>
                 onDraftChange({
                   ...draft,
-                  stake: Math.max(
-                    1,
-                    Math.min(bananas, Number(event.target.value)),
-                  ),
+                  stake: Math.max(1, Math.min(bananas, Number(e.target.value))),
                 })
               }
             />

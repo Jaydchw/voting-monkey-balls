@@ -33,22 +33,12 @@ export function ModifierIcon({
   return (
     <motion.span
       title={name}
-      className={`inline-flex items-center justify-center h-8 ${
-        variant === "weapon" ? "px-1.5" : "w-8"
-      }`}
+      className={`inline-flex items-center justify-center h-8 ${variant === "weapon" ? "px-1.5" : "w-8"}`}
       initial={{ opacity: 0, y: 3 }}
-      animate={{
-        opacity: 1,
-        y: [0, -2, 0],
-      }}
+      animate={{ opacity: 1, y: [0, -2, 0] }}
       transition={{
         opacity: { duration: 0.2 },
-        y: {
-          duration: 1.8,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay,
-        },
+        y: { duration: 1.8, repeat: Infinity, ease: "easeInOut", delay },
       }}
     >
       <IconComp

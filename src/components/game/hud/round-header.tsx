@@ -33,7 +33,6 @@ export function RoundHeader({
           Back
         </Button>
       </Link>
-
       <div className="flex items-center gap-3 flex-wrap justify-end">
         <Badge className="border-4 border-black rounded-none px-4 py-2 text-lg uppercase font-black bg-yellow-300 text-black">
           Round {roundNumber}/{roundsTotal}

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { DiceFive } from "@phosphor-icons/react";
-import { BananaInline } from "./banana-inline";
+import { BananaInline } from "@/components/ui/banana-inline";
 import type { BotState } from "@/bots/types";
 
 type BotBetsTableProps = {
@@ -33,9 +33,7 @@ export function BotBetsTable({ bots }: BotBetsTableProps) {
             </BananaInline>
             {bot.mainBet ? (
               <span
-                className={`px-2 py-0.5 text-xs font-bold uppercase shrink-0 ${
-                  bot.mainBet.side === "red" ? "text-red-700" : "text-blue-700"
-                }`}
+                className={`px-2 py-0.5 text-xs font-bold uppercase shrink-0 ${bot.mainBet.side === "red" ? "text-red-700" : "text-blue-700"}`}
               >
                 {bot.mainBet.side} {bot.mainBet.stake}
                 {bot.mainBet.swapped && " ↕"}

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FullscreenModal } from "./fullscreen-modal";
-import { ModalSurface } from "./modal-surface";
+import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
+import { ModalSurface } from "@/components/game/modals/modal-surface";
 import {
   DEFAULT_MONKEY_COLOR,
   DEFAULT_MONKEY_SVG,
@@ -30,9 +30,7 @@ export function CharacterSelectModal({
   const [svgStrings, setSvgStrings] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
 
     let cancelled = false;
     Promise.all(
@@ -43,15 +41,11 @@ export function CharacterSelectModal({
       }),
     )
       .then((entries) => {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         setSvgStrings(Object.fromEntries(entries));
       })
       .catch(() => {
-        if (!cancelled) {
-          setSvgStrings({});
-        }
+        if (!cancelled) setSvgStrings({});
       });
 
     return () => {
@@ -59,9 +53,7 @@ export function CharacterSelectModal({
     };
   }, [open]);
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   return (
     <FullscreenModal
@@ -89,9 +81,7 @@ export function CharacterSelectModal({
                   key={color}
                   type="button"
                   onClick={() => setSelectedColor(color)}
-                  className={`w-10 h-10 rounded-full border-4 border-black ${
-                    selectedColor === color ? "ring-4 ring-yellow-400" : ""
-                  }`}
+                  className={`w-10 h-10 rounded-full border-4 border-black ${selectedColor === color ? "ring-4 ring-yellow-400" : ""}`}
                   style={{ backgroundColor: color }}
                   aria-label={`Select color ${color}`}
                 />
@@ -120,9 +110,7 @@ export function CharacterSelectModal({
                     key={svg}
                     type="button"
                     onClick={() => setSelectedCharacter(svg)}
-                    className={`bg-transparent p-1 h-24 w-24 flex items-center justify-center ${
-                      selectedCharacter === svg ? "ring-4 ring-yellow-400" : ""
-                    }`}
+                    className={`bg-transparent p-1 h-24 w-24 flex items-center justify-center ${selectedCharacter === svg ? "ring-4 ring-yellow-400" : ""}`}
                     aria-label={`Select character ${svg}`}
                   >
                     {thumb ? (
@@ -146,10 +134,7 @@ export function CharacterSelectModal({
               type="button"
               className="w-full sm:w-auto border-2 border-transparent rounded-none font-black uppercase text-base sm:text-lg px-6 py-5 sm:border-4 sm:border-black"
               onClick={() =>
-                onConfirm({
-                  svgType: selectedCharacter,
-                  color: selectedColor,
-                })
+                onConfirm({ svgType: selectedCharacter, color: selectedColor })
               }
             >
               Lock Character

@@ -1,27 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 
 const SingleplayerPanel = dynamic(
-  () => import("@/components/game/singleplayer-panel"),
+  () => import("@/components/game/panels/singleplayer-panel"),
   { ssr: false },
 );
 
 const MIN_BOTS = 0;
 const MAX_BOTS = 20;
 
-export default function SingleplayerPlayPage() {
-  const [initialBotCount, setInitialBotCount] = useState(0);
+function clampBots(value: number): number {
+  return Number.isFinite(value)
+    ? Math.max(MIN_BOTS, Math.min(MAX_BOTS, Math.floor(value)))
+    : 0;
+}
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const parsedBots = Number(params.get("bots"));
-    const clamped = Number.isFinite(parsedBots)
-      ? Math.max(MIN_BOTS, Math.min(MAX_BOTS, Math.floor(parsedBots)))
-      : 0;
-    setInitialBotCount(clamped);
-  }, []);
+export default function SingleplayerPlayPage() {
+  const params =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
+  const initialBotCount = clampBots(Number(params.get("bots")));
 
   return <SingleplayerPanel initialBotCount={initialBotCount} />;
 }

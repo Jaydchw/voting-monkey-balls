@@ -2,11 +2,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Mountains, Sparkle, Sword } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
-import { FullscreenModal } from "./fullscreen-modal";
-import { FlipOptionCard } from "./flip-option-card";
-import { ModalSurface } from "./modal-surface";
-import { ShuffleMonkey } from "./shuffle-monkey";
-import type { VoteEventModalProps } from "./betting-types";
+import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
+import { FlipOptionCard } from "@/components/game/modals/flip-option-card";
+import { ModalSurface } from "@/components/game/modals/modal-surface";
+import { ShuffleMonkey } from "@/components/game/modals/shuffle-monkey";
+import type { VoteEventModalProps } from "@/components/game/modals/types";
 
 type IconLike = (props: { size?: number; className?: string }) => ReactNode;
 
@@ -38,20 +38,18 @@ const MONKEY_IDEA_IMAGE = "/monkey%20reactions/thinking_nobg/idea.png";
 
 function colorizeKeywords(text: string): ReactNode {
   return text.split(/(Blue|Red)/g).map((part, index) => {
-    if (part === "Blue") {
+    if (part === "Blue")
       return (
         <span key={`kw-${index}`} className="text-blue-600">
           {part}
         </span>
       );
-    }
-    if (part === "Red") {
+    if (part === "Red")
       return (
         <span key={`kw-${index}`} className="text-red-600">
           {part}
         </span>
       );
-    }
     return <span key={`kw-${index}`}>{part}</span>;
   });
 }
@@ -110,21 +108,14 @@ function getQualityScore(option: {
   };
 }): number {
   const nested = option.option;
-  if (typeof nested?.qualityScore === "number") {
-    return nested.qualityScore;
-  }
-  if (typeof option.qualityScore === "number") {
-    return option.qualityScore;
-  }
+  if (typeof nested?.qualityScore === "number") return nested.qualityScore;
+  if (typeof option.qualityScore === "number") return option.qualityScore;
   if (
     typeof nested?.red?.quality === "number" &&
     typeof nested?.blue?.quality === "number"
-  ) {
+  )
     return nested.red.quality + nested.blue.quality;
-  }
-  if (typeof nested?.arena?.quality === "number") {
-    return nested.arena.quality;
-  }
+  if (typeof nested?.arena?.quality === "number") return nested.arena.quality;
   return 1;
 }
 
@@ -138,31 +129,14 @@ function getOptionDescriptions(option: {
     arena?: { label?: string };
   };
 }): Pick<VoteCardOption, "redLabel" | "blueLabel" | "arenaLabel"> {
-  const redLabel = option.option?.red?.label ?? option.redLabel;
-  const blueLabel = option.option?.blue?.label ?? option.blueLabel;
-  const arenaLabel = option.option?.arena?.label ?? option.arenaLabel;
-
   return {
-    redLabel,
-    blueLabel,
-    arenaLabel,
+    redLabel: option.option?.red?.label ?? option.redLabel,
+    blueLabel: option.option?.blue?.label ?? option.blueLabel,
+    arenaLabel: option.option?.arena?.label ?? option.arenaLabel,
   };
 }
 
-function getCategoryTheme(category: VoteCardOption["category"]): {
-  shell: string;
-  inner: string;
-  text: string;
-  chip: string;
-  divider: string;
-  watermark: string;
-  splitBlue: string;
-  splitRed: string;
-  accent: string;
-  progressTrack: string;
-  progressFill: string;
-  iconRing: string;
-} {
+function getCategoryTheme(category: VoteCardOption["category"]) {
   if (category === "weapon") {
     return {
       shell: "bg-gradient-to-b from-red-100 via-orange-50 to-rose-100",
@@ -212,15 +186,9 @@ function getCategoryTheme(category: VoteCardOption["category"]): {
 }
 
 function chooseMonkeyReaction(option: VoteCardOption): string {
-  if (option.category === "weapon") {
-    return MONKEY_SMUG_IMAGE;
-  }
-  if (option.category === "modifier") {
-    return MONKEY_IDEA_IMAGE;
-  }
-  if (option.qualityScore >= 8) {
-    return MONKEY_SHOCK_IMAGE;
-  }
+  if (option.category === "weapon") return MONKEY_SMUG_IMAGE;
+  if (option.category === "modifier") return MONKEY_IDEA_IMAGE;
+  if (option.qualityScore >= 8) return MONKEY_SHOCK_IMAGE;
   return MONKEY_HAPPY_IMAGE;
 }
 
@@ -280,7 +248,6 @@ function VoteCard({
                 <WatermarkIcon size={68} className="drop-shadow-none" />
               </div>
             )}
-
             <div className="relative flex h-full flex-col">
               <div>
                 <div className="flex items-center justify-between gap-2">
@@ -293,7 +260,6 @@ function VoteCard({
                   </span>
                 </div>
               </div>
-
               <div className="mt-2.5 grow rounded-lg sm:rounded-xl bg-white/80 p-2">
                 <div
                   className={`rounded-lg bg-linear-to-b ${theme.splitBlue} px-2.5 py-2 min-h-15.5`}
@@ -305,7 +271,6 @@ function VoteCard({
                     {blueText ?? "No effect"}
                   </p>
                 </div>
-
                 <div
                   className={`mt-2 rounded-lg bg-linear-to-b ${theme.splitRed} px-2.5 py-2 min-h-15.5`}
                 >
@@ -356,9 +321,7 @@ function SharedVoteModal({
   );
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
 
     const resetTimer = window.setTimeout(() => {
       setShuffling(true);
@@ -366,9 +329,7 @@ function SharedVoteModal({
       setMonkeyImageSrc(MONKEY_THINKING_IMAGE);
     }, 0);
 
-    const shuffleTimer = window.setTimeout(() => {
-      setShuffling(false);
-    }, 900);
+    const shuffleTimer = window.setTimeout(() => setShuffling(false), 900);
     const reveal1 = window.setTimeout(() => setRevealedCount(1), 1500);
     const reveal2 = window.setTimeout(() => setRevealedCount(2), 1820);
     const reveal3 = window.setTimeout(() => setRevealedCount(3), 2140);
@@ -386,17 +347,16 @@ function SharedVoteModal({
     if (selection !== null && selection !== undefined) {
       const pickedOption = options[selection];
       if (pickedOption) {
-        const reactionTimer = window.setTimeout(() => {
-          setMonkeyImageSrc(chooseMonkeyReaction(pickedOption));
-        }, 0);
+        const reactionTimer = window.setTimeout(
+          () => setMonkeyImageSrc(chooseMonkeyReaction(pickedOption)),
+          0,
+        );
         return () => window.clearTimeout(reactionTimer);
       }
     }
   }, [selection, options]);
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   const pickVote = (option: VoteCardOption, optionIndex: 0 | 1 | 2) => {
     option.onSelect();
@@ -442,9 +402,9 @@ function SharedVoteModal({
                 step={1}
                 value={Math.max(1, Math.min(bananas, votePower))}
                 className="mt-1.5 w-full accent-black"
-                onChange={(event) =>
+                onChange={(e) =>
                   onVotePowerChange(
-                    Math.max(1, Math.min(bananas, Number(event.target.value))),
+                    Math.max(1, Math.min(bananas, Number(e.target.value))),
                   )
                 }
               />
@@ -457,7 +417,6 @@ function SharedVoteModal({
             monkeyImageSrc={monkeyImageSrc}
             shuffling={shuffling}
           />
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {options.map((option, index) => (
               <VoteCard
@@ -489,9 +448,7 @@ export function VoteEventModal({
   onVotePowerChange,
   onConfirm,
 }: VoteEventModalProps) {
-  if (!open || !voteWindow) {
-    return null;
-  }
+  if (!open || !voteWindow) return null;
 
   const projectedA =
     voteWindow.voteSplit.optionA + (selection === 0 ? votePower : 0);
@@ -571,9 +528,7 @@ export function VoteRevealModal({
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_THINKING_IMAGE);
 
   useEffect(() => {
-    if (!open || !revealedOption) {
-      return;
-    }
+    if (!open || !revealedOption) return;
 
     const resetTimer = window.setTimeout(() => {
       setPhase("thinking");
@@ -603,9 +558,7 @@ export function VoteRevealModal({
     };
   }, [open, pickedOptionIndex, revealedOption]);
 
-  if (!open || !revealedOption) {
-    return null;
-  }
+  if (!open || !revealedOption) return null;
 
   const revealCategoryLabel =
     revealedOption.category === "weapon"

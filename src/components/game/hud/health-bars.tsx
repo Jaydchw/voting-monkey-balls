@@ -1,7 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { BattleBar, type ActiveModifier } from "./battle-bar";
+import {
+  BattleBar,
+  type ActiveModifier,
+} from "@/components/game/hud/battle-bar";
 
 type HealthBarsProps = {
   redHealth: number;
@@ -33,7 +36,6 @@ export function HealthBars({
         modifiers={redModifiers}
         weapons={redWeapons}
       />
-
       <motion.div
         className="text-4xl font-black text-center self-center pt-2"
         animate={{ scale: [1, 1.06, 1] }}
@@ -41,7 +43,6 @@ export function HealthBars({
       >
         VS
       </motion.div>
-
       <BattleBar
         ballId="blue"
         health={blueHealth}

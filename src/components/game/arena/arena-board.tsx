@@ -2,9 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { Card } from "@/components/ui/card";
-import type { GameApi } from "@/components/game/game-board";
+import type { GameApi } from "@/components/game/arena/game-board";
 
-const GameBoard = dynamic(() => import("@/components/game/game-board"), {
+const GameBoard = dynamic(() => import("@/components/game/arena/game-board"), {
   ssr: false,
 });
 

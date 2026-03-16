@@ -22,19 +22,13 @@ export function ShuffleMonkey({
       />
       <div className="absolute left-1/2 top-9 sm:top-10 -translate-x-1/2 flex">
         <div
-          className={`w-14 h-18 sm:w-16 sm:h-20 rounded-lg border-2 border-black/30 bg-yellow-200 -rotate-12 transition-transform duration-200 ${
-            shuffling ? "-translate-y-1" : "translate-y-0"
-          }`}
+          className={`w-14 h-18 sm:w-16 sm:h-20 rounded-lg border-2 border-black/30 bg-yellow-200 -rotate-12 transition-transform duration-200 ${shuffling ? "-translate-y-1" : "translate-y-0"}`}
         />
         <div
-          className={`w-14 h-18 sm:w-16 sm:h-20 rounded-lg border-2 border-black/30 bg-blue-200 -ml-8 sm:-ml-9 transition-transform duration-200 ${
-            shuffling ? "translate-y-1" : "translate-y-0"
-          }`}
+          className={`w-14 h-18 sm:w-16 sm:h-20 rounded-lg border-2 border-black/30 bg-blue-200 -ml-8 sm:-ml-9 transition-transform duration-200 ${shuffling ? "translate-y-1" : "translate-y-0"}`}
         />
         <div
-          className={`w-14 h-18 sm:w-16 sm:h-20 rounded-lg border-2 border-black/30 bg-pink-200 -ml-8 sm:-ml-9 rotate-12 transition-transform duration-200 ${
-            shuffling ? "-translate-y-1" : "translate-y-0"
-          }`}
+          className={`w-14 h-18 sm:w-16 sm:h-20 rounded-lg border-2 border-black/30 bg-pink-200 -ml-8 sm:-ml-9 rotate-12 transition-transform duration-200 ${shuffling ? "-translate-y-1" : "translate-y-0"}`}
         />
       </div>
     </div>

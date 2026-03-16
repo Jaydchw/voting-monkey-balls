@@ -3,20 +3,20 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import PartySocket from "partysocket";
-import { RoundHeader } from "@/components/game/panels/round-header";
+import { RoundHeader } from "@/components/game/hud/round-header";
 import {
   CharacterSelectModal,
   MicrobetsModal,
   PrematchBetModal,
   VoteEventModal,
-} from "@/components/game/panels";
-import { CharacterAvatar } from "@/components/game/character-avatar";
+} from "@/components/game/modals";
+import { CharacterAvatar } from "@/components/game/character/character-avatar";
 import type { BallId, MicroBetKind } from "@/bots/types";
 import type {
   MainBetSelection,
   MicrobetDraft,
   PendingPlayerMicrobet,
-} from "@/components/game/panels/betting-types";
+} from "@/components/game/modals/types";
 import type {
   ClientEnvelope,
   HostBroadcastState,

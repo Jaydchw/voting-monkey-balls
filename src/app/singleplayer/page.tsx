@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Robot, Play } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { BananaInline } from "@/components/game/panels";
+import { BananaInline } from "@/components/ui/banana-inline";
 
 const MIN_BOTS = 0;
 const MAX_BOTS = 20;

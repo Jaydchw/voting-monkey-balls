@@ -6,7 +6,7 @@ import type { Icon } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ModifierIcon } from "./modifier-icon";
+import { ModifierIcon } from "@/components/game/hud/modifier-icon";
 
 export type ActiveModifier = {
   name: string;
@@ -76,9 +76,8 @@ function getIndicatorStyle(
   modifiers: ActiveModifier[],
 ): React.CSSProperties {
   const [from, to] = BALL_BASE[ballId];
-  if (modifiers.length === 0) {
+  if (modifiers.length === 0)
     return { background: `linear-gradient(to right, ${from}, ${to})` };
-  }
   const modColors = [
     ...new Set(
       modifiers
@@ -112,7 +111,7 @@ export function BattleBar({
     const prev = prevHealthRef.current;
     if (health < prev) {
       setDamageDelta(prev - health);
-      setDamageTick((value) => value + 1);
+      setDamageTick((v) => v + 1);
     }
     prevHealthRef.current = health;
   }, [health]);
@@ -141,9 +140,7 @@ export function BattleBar({
             {[0, 1, 2, 3, 4, 5].map((particle) => (
               <motion.span
                 key={`particle-${particle}`}
-                className={`absolute top-8 left-1/2 block h-2 w-2 rounded-full ${
-                  ballId === "red" ? "bg-red-500" : "bg-blue-500"
-                }`}
+                className={`absolute top-8 left-1/2 block h-2 w-2 rounded-full ${ballId === "red" ? "bg-red-500" : "bg-blue-500"}`}
                 initial={{ x: 0, y: 0, scale: 1 }}
                 animate={{
                   x: (particle - 2.5) * 16,

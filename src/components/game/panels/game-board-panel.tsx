@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { GameApi } from "@/components/game/game-board";
+import type { GameApi } from "@/components/game/arena/game-board";
 import type { BallModifier } from "@/game/ball-modifier";
 import type { Weapon } from "@/game/weapon";
 import {
@@ -16,7 +16,7 @@ import {
   WEAPON_CATALOG,
 } from "@/game/catalog";
 
-const GameBoard = dynamic(() => import("@/components/game/game-board"), {
+const GameBoard = dynamic(() => import("@/components/game/arena/game-board"), {
   ssr: false,
 });
 
@@ -91,9 +91,8 @@ function getHealthBarIndicatorStyle(
   modifiers: ModifierState[],
 ) {
   const [baseFrom, baseTo] = BALL_BASE_COLORS[ballId];
-  if (modifiers.length === 0) {
+  if (modifiers.length === 0)
     return { background: `linear-gradient(to right, ${baseFrom}, ${baseTo})` };
-  }
   const modColors = [
     ...new Set(
       modifiers
@@ -125,9 +124,11 @@ export default function GameBoardPanel() {
   const [blueWeapons, setBlueWeapons] = useState<ModifierState[]>([]);
   const [isCircleArena, setIsCircleArena] = useState(false);
   const [gameKey, setGameKey] = useState(0);
+
   const handleBallDied = useCallback((id: "red" | "blue") => {
     setWinner(id === "red" ? "blue" : "red");
   }, []);
+
   const handleClearAll = useCallback(() => {
     setGameKey((k) => k + 1);
     setRedHealth(STARTING_HEALTH);
@@ -144,14 +145,8 @@ export default function GameBoardPanel() {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 0) {
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeLeft((prev) => (prev <= 0 ? 0 : prev - 1));
     }, 1000);
-
     return () => {
       window.clearInterval(interval);
     };
@@ -192,9 +187,7 @@ export default function GameBoardPanel() {
   const renderBallControls = (ballId: "red" | "blue") => (
     <div className="flex flex-col gap-2">
       <span
-        className={`text-sm font-black uppercase tracking-widest ${
-          ballId === "red" ? "text-red-600" : "text-blue-600"
-        }`}
+        className={`text-sm font-black uppercase tracking-widest ${ballId === "red" ? "text-red-600" : "text-blue-600"}`}
       >
         {ballId === "red" ? "Red" : "Blue"} Ball
       </span>
@@ -214,11 +207,8 @@ export default function GameBoardPanel() {
           );
         })}
       </div>
-
       <span
-        className={`mt-2 text-sm font-black uppercase tracking-widest ${
-          ballId === "red" ? "text-red-600" : "text-blue-600"
-        }`}
+        className={`mt-2 text-sm font-black uppercase tracking-widest ${ballId === "red" ? "text-red-600" : "text-blue-600"}`}
       >
         {ballId === "red" ? "Red" : "Blue"} Weapons
       </span>
@@ -384,11 +374,7 @@ export default function GameBoardPanel() {
 
         <div className="flex flex-col items-center">
           <Card
-            className={`border-8 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] overflow-hidden p-0 ${
-              isCircleArena
-                ? "rounded-full flex items-center justify-center"
-                : "rounded-none"
-            }`}
+            className={`border-8 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] overflow-hidden p-0 ${isCircleArena ? "rounded-full flex items-center justify-center" : "rounded-none"}`}
             style={
               isCircleArena
                 ? { width: CIRCLE_ARENA_SIZE, height: CIRCLE_ARENA_SIZE }

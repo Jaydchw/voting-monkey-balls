@@ -12,7 +12,7 @@ import {
 } from "@/lib/name-validation";
 
 const JoinRemotePanel = dynamic(
-  () => import("../../components/game/join-remote-panel"),
+  () => import("../../components/game/panels/join-remote-panel"),
   { ssr: false },
 );
 

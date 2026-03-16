@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BotsGameEngine } from "@/bots/engine";
 import type { BallId, EngineSnapshot, StatTotals } from "@/bots/types";
-import type { GameApi } from "@/components/game/game-board";
-import { BattleBar, type ActiveModifier } from "./panels/battle-bar";
-import { RoundHeader } from "./panels/round-header";
-import { ArenaBoard } from "./panels/arena-board";
-import { BotStandings } from "./panels/bot-standings";
-import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
-import { BotBetsTable } from "./panels/bot-bets-table";
+import type { GameApi } from "@/components/game/arena/game-board";
+import {
+  BattleBar,
+  type ActiveModifier,
+} from "@/components/game/hud/battle-bar";
+import { RoundHeader } from "@/components/game/hud/round-header";
+import { ArenaBoard } from "@/components/game/arena/arena-board";
+import { BotStandings } from "@/components/game/standings/bot-standings";
+import {
+  ActivityFeed,
+  type AppliedEffect,
+} from "@/components/game/standings/activity-feed";
+import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
 import { GameAudioController } from "@/lib/game-audio";
 
 const STARTING_HEALTH = 100;
@@ -52,7 +58,6 @@ export default function BotsGameBoardPanel() {
   const roundAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-
   const audioCtrlRef = useRef<GameAudioController | null>(null);
 
   useEffect(() => {
@@ -97,9 +102,8 @@ export default function BotsGameBoardPanel() {
 
   const handleRedHealthChange = useCallback((value: number) => {
     const previous = previousHealthRef.current.red;
-    if (value < previous) {
+    if (value < previous)
       statsTotalsRef.current.redDamageTaken += previous - value;
-    }
     previousHealthRef.current.red = value;
     healthRef.current.red = value;
     setRedHealth(value);
@@ -107,26 +111,21 @@ export default function BotsGameBoardPanel() {
 
   const handleBlueHealthChange = useCallback((value: number) => {
     const previous = previousHealthRef.current.blue;
-    if (value < previous) {
+    if (value < previous)
       statsTotalsRef.current.blueDamageTaken += previous - value;
-    }
     previousHealthRef.current.blue = value;
     healthRef.current.blue = value;
     setBlueHealth(value);
   }, []);
 
   const handleWallCollision = useCallback((ballId: BallId) => {
-    if (ballId === "red") {
-      statsTotalsRef.current.wallHitsRed += 1;
-      return;
-    }
-    statsTotalsRef.current.wallHitsBlue += 1;
+    if (ballId === "red") statsTotalsRef.current.wallHitsRed += 1;
+    else statsTotalsRef.current.wallHitsBlue += 1;
   }, []);
 
   const handleBallCollision = useCallback(() => {
     statsTotalsRef.current.ballCollisions += 1;
   }, []);
-
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
@@ -148,9 +147,7 @@ export default function BotsGameBoardPanel() {
           if (application.category === "arena") {
             const arena = application.arena();
             gameApiRef.current.addArenaModifier(arena);
-            if (application.label === "Circle Arena") {
-              setIsCircleArena(true);
-            }
+            if (application.label === "Circle Arena") setIsCircleArena(true);
           }
 
           if (application.category === "weapon") {
@@ -197,10 +194,7 @@ export default function BotsGameBoardPanel() {
       }
 
       setSnapshot(stepResult.snapshot);
-
-      if (stepResult.roundResult) {
-        setRoundWinner(stepResult.roundResult.winner);
-      }
+      if (stepResult.roundResult) setRoundWinner(stepResult.roundResult.winner);
 
       if (
         stepResult.roundResult &&
@@ -223,9 +217,8 @@ export default function BotsGameBoardPanel() {
 
   useEffect(() => {
     return () => {
-      if (roundAdvanceTimeoutRef.current) {
+      if (roundAdvanceTimeoutRef.current)
         clearTimeout(roundAdvanceTimeoutRef.current);
-      }
     };
   }, []);
 

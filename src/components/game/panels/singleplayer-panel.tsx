@@ -12,29 +12,32 @@ import type {
   StatTotals,
   VoteWindow,
 } from "@/bots/types";
-import type { GameApi } from "@/components/game/game-board";
-import type { ActiveModifier } from "./panels/battle-bar";
-import { RoundHeader } from "./panels/round-header";
-import { HealthBars } from "./panels/health-bars";
-import { ArenaBoard } from "./panels/arena-board";
-import { BotStandings } from "./panels/bot-standings";
-import { ActivityFeed, type AppliedEffect } from "./panels/activity-feed";
-import { BotBetsTable } from "./panels/bot-bets-table";
-import { Button } from "@/components/ui/button";
+import type { GameApi } from "@/components/game/arena/game-board";
+import type { ActiveModifier } from "@/components/game/hud/battle-bar";
+import { RoundHeader } from "@/components/game/hud/round-header";
+import { HealthBars } from "@/components/game/hud/health-bars";
+import { ArenaBoard } from "@/components/game/arena/arena-board";
+import { BotStandings } from "@/components/game/standings/bot-standings";
 import {
-  BananaInline,
-  MatchDashboardShell,
+  ActivityFeed,
+  type AppliedEffect,
+} from "@/components/game/standings/activity-feed";
+import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
+import { Button } from "@/components/ui/button";
+import { BananaInline } from "@/components/ui/banana-inline";
+import { MatchDashboardShell } from "@/components/game/layout/match-dashboard-shell";
+import {
   MicrobetsModal,
   PrematchBetModal,
   VoteEventModal,
   VoteRevealModal,
-} from "./panels";
+} from "@/components/game/modals";
 import type {
   MainBetSelection,
   MicrobetDraft,
   PendingPlayerMicrobet,
   RevealedVoteOption,
-} from "./panels/betting-types";
+} from "@/components/game/modals/types";
 import { GameAudioController } from "@/lib/game-audio";
 
 const STARTING_HEALTH = 100;
@@ -210,7 +213,7 @@ export default function SingleplayerPanel({
   useEffect(() => {
     if (phase === "running" && prevPhaseRef.current !== "running") {
       audioCtrlRef.current?.setPaused(false);
-      audioCtrlRef.current?.startTracks(2);
+      audioCtrlRef.current?.startTracks(3);
     } else if (phase !== "running" && prevPhaseRef.current === "running") {
       audioCtrlRef.current?.setPaused(true);
     }

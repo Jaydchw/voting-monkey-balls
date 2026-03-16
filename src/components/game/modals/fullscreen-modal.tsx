@@ -21,9 +21,7 @@ export function FullscreenModal({
   panelClassName,
   onBackdropClick,
 }: FullscreenModalProps) {
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   return (
     <div
@@ -32,7 +30,7 @@ export function FullscreenModal({
     >
       <div
         className={`w-full min-h-full sm:min-h-0 ${maxWidthClassName} ${panelClassName ?? ""}`}
-        onClick={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {children}
       </div>

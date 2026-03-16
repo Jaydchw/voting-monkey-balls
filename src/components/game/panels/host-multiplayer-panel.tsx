@@ -19,20 +19,20 @@ import type {
   StatTotals,
   VoteWindow,
 } from "@/bots/types";
-import type { GameApi } from "@/components/game/game-board";
-import type { ActiveModifier } from "@/components/game/panels/battle-bar";
-import { RoundHeader } from "@/components/game/panels/round-header";
-import { HealthBars } from "@/components/game/panels/health-bars";
-import { ArenaBoard } from "@/components/game/panels/arena-board";
-import { BananaInline } from "@/components/game/panels/banana-inline";
-import { BotStandings } from "@/components/game/panels/bot-standings";
-import { MatchDashboardShell } from "@/components/game/panels/match-dashboard-shell";
-import { CharacterAvatar } from "@/components/game/character-avatar";
+import type { GameApi } from "@/components/game/arena/game-board";
+import type { ActiveModifier } from "@/components/game/hud/battle-bar";
+import { RoundHeader } from "@/components/game/hud/round-header";
+import { HealthBars } from "@/components/game/hud/health-bars";
+import { ArenaBoard } from "@/components/game/arena/arena-board";
+import { BananaInline } from "@/components/ui/banana-inline";
+import { BotStandings } from "@/components/game/standings/bot-standings";
+import { MatchDashboardShell } from "@/components/game/layout/match-dashboard-shell";
+import { CharacterAvatar } from "@/components/game/character/character-avatar";
 import {
   ActivityFeed,
   type AppliedEffect,
-} from "@/components/game/panels/activity-feed";
-import { BotBetsTable } from "@/components/game/panels/bot-bets-table";
+} from "@/components/game/standings/activity-feed";
+import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_MONKEY_COLOR,
@@ -273,7 +273,7 @@ export default function HostMultiplayerPanel({
   useEffect(() => {
     if (phase === "running" && prevPhaseRef.current !== "running") {
       audioCtrlRef.current?.setPaused(false);
-      audioCtrlRef.current?.startTracks(2);
+      audioCtrlRef.current?.startTracks(3);
     } else if (phase !== "running" && prevPhaseRef.current === "running") {
       audioCtrlRef.current?.setPaused(true);
     }

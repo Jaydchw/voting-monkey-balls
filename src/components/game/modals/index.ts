@@ -5,5 +5,3 @@ export { CharacterSelectModal } from "./character-select-modal";
 export { FullscreenModal } from "./fullscreen-modal";
 export { FlipOptionCard } from "./flip-option-card";
 export { ShuffleMonkey } from "./shuffle-monkey";
-export { MatchDashboardShell } from "./match-dashboard-shell";
-export { BananaInline } from "./banana-inline";

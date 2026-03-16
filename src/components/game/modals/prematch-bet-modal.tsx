@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { FullscreenModal } from "./fullscreen-modal";
-import { ModalSurface } from "./modal-surface";
-import type { PreMatchModalProps } from "./betting-types";
+import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
+import { ModalSurface } from "@/components/game/modals/modal-surface";
+import type { PreMatchModalProps } from "@/components/game/modals/types";
 
 export function PrematchBetModal({
   open,
@@ -22,13 +22,10 @@ export function PrematchBetModal({
 }: PreMatchModalProps) {
   const [locked, setLocked] = useState(false);
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   const cappedStake = Math.min(bananas, Math.max(minStake, selected.stake));
   const expectedWinnings = cappedStake * 2;
-
   const total = Math.max(1, redHealth + blueHealth);
   const distribution = {
     redPct: Math.round((redHealth / total) * 100),
@@ -36,10 +33,7 @@ export function PrematchBetModal({
   };
 
   const lockSelection = (side: "red" | "blue") => {
-    if (cappedStake < minStake || cappedStake > bananas) {
-      return;
-    }
-
+    if (cappedStake < minStake || cappedStake > bananas) return;
     onSelectSide(side);
     setLocked(true);
     onConfirm();
@@ -112,7 +106,6 @@ export function PrematchBetModal({
               </p>
               <p className="text-base sm:text-lg font-black">{cappedStake}</p>
             </div>
-
             <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
               {presets.map((preset, index) => (
                 <button
@@ -130,7 +123,6 @@ export function PrematchBetModal({
                 </button>
               ))}
             </div>
-
             <div className="mt-2 flex items-center gap-2">
               <Button
                 type="button"

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { GearSix, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FullscreenModal } from "@/components/game/panels/fullscreen-modal";
+import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
 import {
   getAudioSettings,
   setAudioSettings,
@@ -33,9 +33,7 @@ function AudioSettingsDialog({
   onClose: () => void;
   onChange: (key: VolumeSettingKey, value: number) => void;
 }) {
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   return (
     <FullscreenModal
@@ -50,7 +48,7 @@ function AudioSettingsDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Audio settings"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="px-4 py-3 border-b-2 border-black/25 flex items-center justify-between">
           <h3 className="text-lg sm:text-xl font-black uppercase">Settings</h3>
@@ -66,74 +64,34 @@ function AudioSettingsDialog({
         </div>
 
         <div className="p-4 space-y-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-black uppercase tracking-wide text-zinc-800">
-                Master Volume
-              </label>
-              <span className="text-sm font-black text-zinc-700">
-                {formatVolumePercent(settings.masterVolume)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(settings.masterVolume * 100)}
-              onChange={(event) =>
-                onChange("masterVolume", Number(event.target.value) / 100)
-              }
-              className="w-full accent-black"
-              aria-label="Master volume"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-black uppercase tracking-wide text-zinc-800">
-                Sound Effects
-              </label>
-              <span className="text-sm font-black text-zinc-700">
-                {formatVolumePercent(settings.sfxVolume)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(settings.sfxVolume * 100)}
-              onChange={(event) =>
-                onChange("sfxVolume", Number(event.target.value) / 100)
-              }
-              className="w-full accent-black"
-              aria-label="Sound effects volume"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-black uppercase tracking-wide text-zinc-800">
-                Music
-              </label>
-              <span className="text-sm font-black text-zinc-700">
-                {formatVolumePercent(settings.musicVolume)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(settings.musicVolume * 100)}
-              onChange={(event) =>
-                onChange("musicVolume", Number(event.target.value) / 100)
-              }
-              className="w-full accent-black"
-              aria-label="Music volume"
-            />
-          </div>
+          {(["masterVolume", "sfxVolume", "musicVolume"] as const).map(
+            (key) => (
+              <div key={key} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-sm font-black uppercase tracking-wide text-zinc-800">
+                    {key === "masterVolume"
+                      ? "Master Volume"
+                      : key === "sfxVolume"
+                        ? "Sound Effects"
+                        : "Music"}
+                  </label>
+                  <span className="text-sm font-black text-zinc-700">
+                    {formatVolumePercent(settings[key])}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(settings[key] * 100)}
+                  onChange={(e) => onChange(key, Number(e.target.value) / 100)}
+                  className="w-full accent-black"
+                  aria-label={`${key} volume`}
+                />
+              </div>
+            ),
+          )}
         </div>
       </Card>
     </FullscreenModal>
@@ -152,33 +110,24 @@ export function GlobalAudioSettings() {
   );
 
   useEffect(() => {
-    const unsubscribe = subscribeAudioSettings((latest) => {
-      setAudioSettingsState(latest);
-    });
-
+    const unsubscribe = subscribeAudioSettings((latest) =>
+      setAudioSettingsState(latest),
+    );
     return unsubscribe;
   }, []);
 
   useEffect(() => {
-    if (!settingsOpen) {
-      return;
-    }
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSettingsOpen(false);
-      }
+    if (!settingsOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSettingsOpen(false);
     };
-
     window.addEventListener("keydown", handleEscape);
     return () => {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [settingsOpen]);
 
-  if (!isClient || typeof document === "undefined") {
-    return null;
-  }
+  if (!isClient || typeof document === "undefined") return null;
 
   return createPortal(
     <>
@@ -196,7 +145,6 @@ export function GlobalAudioSettings() {
           <GearSix size={20} weight="bold" />
         </Button>
       </div>
-
       <AudioSettingsDialog
         open={settingsOpen}
         settings={audioSettings}
