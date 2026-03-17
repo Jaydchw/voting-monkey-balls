@@ -105,7 +105,8 @@ export class MenuAudioController {
   updateVolume(): void {
     if (!this.masterGain) return;
     const settings = getAudioSettings();
-    this.masterGain.gain.value = settings.masterVolume * settings.musicVolume * 1.3;
+    this.masterGain.gain.value =
+      settings.masterVolume * settings.musicVolume * 1.3;
   }
 
   async load(): Promise<void> {
@@ -210,13 +211,33 @@ export class MenuAudioController {
     }
   }
 
-  getLoopInfo(): { loopPosition: number; loopDuration: number; isPlaying: boolean } {
+  getLoopInfo(): {
+    loopPosition: number;
+    loopDuration: number;
+    isPlaying: boolean;
+  } {
     if (!this.ctx || !this.playbackScheduled) {
-      return { loopPosition: 0, loopDuration: this.loopDuration, isPlaying: false };
+      return {
+        loopPosition: 0,
+        loopDuration: this.loopDuration,
+        isPlaying: false,
+      };
     }
-    const elapsed = this.ctx.currentTime - this.playbackStartTime;
-    const loopPosition = ((elapsed % this.loopDuration) + this.loopDuration) % this.loopDuration;
-    return { loopPosition, loopDuration: this.loopDuration, isPlaying: true };
+    const now = this.ctx.currentTime;
+    if (now < this.playbackStartTime) {
+      return {
+        loopPosition: 0,
+        loopDuration: this.loopDuration,
+        isPlaying: false,
+      };
+    }
+    const elapsed = now - this.playbackStartTime;
+    const loopPosition = elapsed % this.loopDuration;
+    return {
+      loopPosition,
+      loopDuration: this.loopDuration,
+      isPlaying: this.ctx.state === "running",
+    };
   }
 
   setActive(active: boolean): void {
@@ -249,9 +270,7 @@ export class MenuAudioController {
     for (const source of this.sources.values()) {
       try {
         source.stop();
-      } catch {
-        /* already stopped */
-      }
+      } catch {}
       source.disconnect();
     }
     for (const gain of this.gains.values()) {
