@@ -16,7 +16,8 @@ import {
   type AppliedEffect,
 } from "@/components/game/standings/activity-feed";
 import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
-import { GameAudioController } from "@/lib/game-audio";
+import { GamePanelBase } from "@/components/game/panels/game-panel-base";
+import type { GameAudioController } from "@/lib/game-audio";
 
 const STARTING_HEALTH = 100;
 
@@ -31,6 +32,20 @@ function createZeroTotals(): StatTotals {
 }
 
 export default function BotsGameBoardPanel() {
+  return (
+    <GamePanelBase>
+      {(audioCtrlRef) => (
+        <BotsGameBoardPanelInner audioCtrlRef={audioCtrlRef} />
+      )}
+    </GamePanelBase>
+  );
+}
+
+function BotsGameBoardPanelInner({
+  audioCtrlRef,
+}: {
+  audioCtrlRef: React.MutableRefObject<GameAudioController | null>;
+}) {
   const [engine] = useState(() => new BotsGameEngine());
   const gameApiRef = useRef<GameApi | null>(null);
 
@@ -58,14 +73,6 @@ export default function BotsGameBoardPanel() {
   const roundAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const audioCtrlRef = useRef<GameAudioController | null>(null);
-
-  useEffect(() => {
-    audioCtrlRef.current = new GameAudioController();
-    return () => {
-      audioCtrlRef.current?.dispose();
-    };
-  }, []);
 
   const lastRoundLoaded = useRef(0);
   useEffect(() => {
@@ -73,10 +80,10 @@ export default function BotsGameBoardPanel() {
       lastRoundLoaded.current = snapshot.roundNumber;
       audioCtrlRef.current?.loadRound(snapshot.roundNumber).then(() => {
         audioCtrlRef.current?.setPaused(false);
-        audioCtrlRef.current?.startTracks(2);
+        audioCtrlRef.current?.startTracks(3);
       });
     }
-  }, [snapshot.roundNumber]);
+  }, [snapshot.roundNumber, audioCtrlRef]);
 
   const resetBoardForNextRound = useCallback(() => {
     setGameKey((v) => v + 1);
@@ -126,6 +133,7 @@ export default function BotsGameBoardPanel() {
   const handleBallCollision = useCallback(() => {
     statsTotalsRef.current.ballCollisions += 1;
   }, []);
+
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
@@ -140,7 +148,7 @@ export default function BotsGameBoardPanel() {
       });
 
       if (stepResult.applications.length > 0) {
-        audioCtrlRef.current?.startTracks(2);
+        audioCtrlRef.current?.startTracks(3);
         for (const application of stepResult.applications) {
           if (!gameApiRef.current) break;
 
@@ -213,7 +221,7 @@ export default function BotsGameBoardPanel() {
     return () => {
       clearInterval(interval);
     };
-  }, [engine, resetBoardForNextRound]);
+  }, [engine, resetBoardForNextRound, audioCtrlRef]);
 
   useEffect(() => {
     return () => {

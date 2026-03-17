@@ -3,6 +3,7 @@ import { Bungee, Geist_Mono, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { GlobalAudioSettings } from "@/components/global-audio-settings";
+import { MenuAudioProvider } from "@/components/menu-audio-context";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -22,7 +23,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "TTG: Voting Monkey Balls",
-  description: "An interactive auto-battler driven by spectator votes and bets.",
+  description:
+    "An interactive auto-battler driven by spectator votes and bets.",
   icons: {
     icon: "/monkey reactions/emoji/monkey-emojis-1.svg",
   },
@@ -44,7 +46,7 @@ export default function RootLayout({
       )}
     >
       <body className="antialiased">
-        {children}
+        <MenuAudioProvider>{children}</MenuAudioProvider>
         <GlobalAudioSettings />
       </body>
     </html>

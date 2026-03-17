@@ -43,7 +43,8 @@ import type {
   PendingPlayerMicrobet,
   RevealedVoteOption,
 } from "@/components/game/modals/types";
-import { GameAudioController } from "@/lib/game-audio";
+import { GamePanelBase } from "@/components/game/panels/game-panel-base";
+import type { GameAudioController } from "@/lib/game-audio";
 
 const STARTING_HEALTH = 100;
 const STARTING_BANANAS = 100;
@@ -115,9 +116,22 @@ function didMicrobetWin(
 
 type SingleplayerPanelProps = { initialBotCount?: number };
 
-export default function SingleplayerPanel({
+export default function SingleplayerPanel(props: SingleplayerPanelProps) {
+  return (
+    <GamePanelBase>
+      {(audioCtrlRef) => (
+        <SingleplayerPanelInner {...props} audioCtrlRef={audioCtrlRef} />
+      )}
+    </GamePanelBase>
+  );
+}
+
+function SingleplayerPanelInner({
   initialBotCount = DEFAULT_SINGLEPLAYER_BOTS,
-}: SingleplayerPanelProps) {
+  audioCtrlRef,
+}: SingleplayerPanelProps & {
+  audioCtrlRef: React.MutableRefObject<GameAudioController | null>;
+}) {
   const [engine, setEngine] = useState(
     () => new BotsGameEngine({ botCount: initialBotCount }),
   );
@@ -202,14 +216,6 @@ export default function SingleplayerPanel({
   const [settlementNet, setSettlementNet] = useState(0);
 
   const lastVoteStatsRef = useRef<StatTotals | null>(null);
-  const audioCtrlRef = useRef<GameAudioController | null>(null);
-
-  useEffect(() => {
-    audioCtrlRef.current = new GameAudioController();
-    return () => {
-      audioCtrlRef.current?.dispose();
-    };
-  }, []);
 
   const lastRoundLoaded = useRef(0);
   useEffect(() => {
@@ -217,7 +223,7 @@ export default function SingleplayerPanel({
       lastRoundLoaded.current = snapshot.roundNumber;
       void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
     }
-  }, [snapshot.roundNumber]);
+  }, [snapshot.roundNumber, audioCtrlRef]);
 
   const prevPhaseRef = useRef<MatchPhase>("prematch");
   useEffect(() => {
@@ -228,7 +234,7 @@ export default function SingleplayerPanel({
       audioCtrlRef.current?.setPaused(true);
     }
     prevPhaseRef.current = phase;
-  }, [phase]);
+  }, [phase, audioCtrlRef]);
 
   const settlePlayerMicrobets = useCallback(
     (currentTotals: StatTotals): SettlementEntry[] => {
@@ -469,6 +475,7 @@ export default function SingleplayerPanel({
   const handleBallCollision = useCallback(() => {
     statsTotalsRef.current.ballCollisions += 1;
   }, []);
+
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
@@ -510,6 +517,7 @@ export default function SingleplayerPanel({
           category: resolved.application.category,
           label: resolved.application.label,
         });
+        audioCtrlRef.current?.startTracks(3);
       }
       setSnapshot(engine.getSnapshot());
       setVoteWindow(null);
@@ -533,7 +541,13 @@ export default function SingleplayerPanel({
         voteRevealTimeoutRef.current = null;
       }, VOTE_REVEAL_HOLD_MS);
     },
-    [applyVoteApplication, engine, settlePlayerMicrobets, transitionPhase],
+    [
+      applyVoteApplication,
+      audioCtrlRef,
+      engine,
+      settlePlayerMicrobets,
+      transitionPhase,
+    ],
   );
 
   const handleVoteCast = useCallback(

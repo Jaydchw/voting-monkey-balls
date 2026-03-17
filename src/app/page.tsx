@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { useMenuAudio } from "@/components/menu-audio-context";
 
 const MenuArenaPreview = dynamic(
   () =>
@@ -30,13 +33,15 @@ function NavButton({
   href,
   children,
   variant = "primary",
+  onActivate,
 }: {
   href: string;
   children: React.ReactNode;
   variant?: "primary" | "danger" | "success" | "ghost";
+  onActivate?: () => void;
 }) {
   return (
-    <Link href={href} className="w-full">
+    <Link href={href} className="w-full" onClick={onActivate}>
       <button className={[NAV_BTN_BASE, COLOR_MAP[variant]].join(" ")}>
         <span>{children}</span>
         <span className="text-2xl opacity-40 group-hover:opacity-80 transition-opacity">
@@ -59,7 +64,93 @@ function Divider({ label }: { label: string }) {
   );
 }
 
+const sylVariants = {
+  idle: { scale: 1 },
+  hit: { scale: 1.15 },
+};
+
+function Syl({
+  i,
+  active,
+  className,
+  children,
+}: {
+  i: number;
+  active: number;
+  className?: string;
+  children: string;
+}) {
+  const isHit = active === i;
+  return (
+    <motion.span
+      className={`inline-block ${className ?? ""}`}
+      style={isHit ? { color: "#facc15" } : undefined}
+      variants={sylVariants}
+      animate={isHit ? "hit" : "idle"}
+      transition={{ duration: 0.08 }}
+    >
+      {children}
+    </motion.span>
+  );
+}
+
+const BEAT = 1.0;
+const LOOP_DURATION = 8;
+
+const SYLLABLE_TIMES = [
+  BEAT * 3, // "Vo"    3.000s
+  BEAT * 3.5, // "ting"  3.500s
+  BEAT * 4, // "Mon"   4.000s
+  BEAT * 4.25, // "key"   4.250s
+  BEAT * 4.5, // "Balls" 4.500s
+];
+
+const SYLLABLE_HIT_DURATION = [0.2, 0.2, 0.1, 0.1, 0.4];
+
 export default function MainMenu() {
+  const { setActive, getLoopInfo } = useMenuAudio();
+  const [activeWord, setActiveWord] = useState(-1);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    setActive(false);
+  }, [setActive]);
+
+  useEffect(() => {
+    let originMs = performance.now();
+    let synced = false;
+
+    const tick = () => {
+      const { loopPosition, isPlaying } = getLoopInfo();
+
+      if (isPlaying && !synced) {
+        originMs = performance.now() - (loopPosition % LOOP_DURATION) * 1000;
+        synced = true;
+      }
+
+      const pos = ((performance.now() - originMs) / 1000) % LOOP_DURATION;
+
+      let next = -1;
+      for (let i = 0; i < SYLLABLE_TIMES.length; i++) {
+        if (
+          pos >= SYLLABLE_TIMES[i] &&
+          pos < SYLLABLE_TIMES[i] + SYLLABLE_HIT_DURATION[i]
+        ) {
+          next = i;
+          break;
+        }
+      }
+      setActiveWord((prev) => (prev === next ? prev : next));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [getLoopInfo]);
+
+  const handleActivate = () => {
+    setActive(true);
+  };
+
   return (
     <div className="w-screen min-h-screen bg-white text-black font-sans overflow-x-hidden">
       <div className="max-w-350 mx-auto min-h-screen grid grid-cols-1 xl:grid-cols-[520px_1fr] gap-0">
@@ -71,11 +162,23 @@ export default function MainMenu() {
               </span>
             </div>
             <h1 className="text-5xl md:text-6xl font-black uppercase leading-none tracking-tight mb-3">
-              Voting
+              <Syl i={0} active={activeWord}>
+                Vo
+              </Syl>
+              <Syl i={1} active={activeWord}>
+                ting
+              </Syl>
               <br />
-              <span className="text-primary">Monkey</span>
+              <Syl i={2} active={activeWord} className="text-primary">
+                Mon
+              </Syl>
+              <Syl i={3} active={activeWord} className="text-primary">
+                key
+              </Syl>
               <br />
-              Balls
+              <Syl i={4} active={activeWord}>
+                Balls
+              </Syl>
             </h1>
             <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">
               Voting · Monkey · Balls
@@ -83,19 +186,31 @@ export default function MainMenu() {
           </div>
 
           <div className="flex flex-col gap-3 w-full max-w-sm">
-            <NavButton href="/host" variant="primary">
+            <NavButton
+              href="/host"
+              variant="primary"
+              onActivate={handleActivate}
+            >
               Host Game
             </NavButton>
-            <NavButton href="/join" variant="danger">
+            <NavButton
+              href="/join"
+              variant="danger"
+              onActivate={handleActivate}
+            >
               Join Game
             </NavButton>
 
             <Divider label="Freeplay" />
 
-            <NavButton href="/singleplayer" variant="success">
+            <NavButton
+              href="/singleplayer"
+              variant="success"
+              onActivate={handleActivate}
+            >
               Singleplayer
             </NavButton>
-            <NavButton href="/bots" variant="ghost">
+            <NavButton href="/bots" variant="ghost" onActivate={handleActivate}>
               Watch Bots
             </NavButton>
 

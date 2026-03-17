@@ -1,38 +1,161 @@
 import { getAudioSettings } from "@/lib/audio-settings";
 
-export type AudioTrackId =
-  | "happyMelody"
-  | "spookyMelody"
-  | "conflictBongos"
-  | "warmPad"
-  | "dubBlip"
-  | "tomPlinks"
-  | "tripletKick"
-  | "rims"
-  | "stepperHats";
-
 type TrackConfig = {
   src: string;
   volume: number;
 };
 
-const TRACKS: Record<AudioTrackId, TrackConfig> = {
-  happyMelody: { src: "/audio/mirage/happy_melody.mp3", volume: 0.4 },
-  spookyMelody: { src: "/audio/mirage/spooky_melody.mp3", volume: 0.35 },
-  conflictBongos: { src: "/audio/mirage/conflict_bongos.mp3", volume: 0.35 },
-  warmPad: { src: "/audio/mirage/warm_pad.mp3", volume: 0.3 },
-  dubBlip: { src: "/audio/mirage/dub_blip.mp3", volume: 0.55 },
-  tomPlinks: { src: "/audio/mirage/tom_plinks.mp3", volume: 0.65 },
-  tripletKick: { src: "/audio/mirage/triplet_kick.mp3", volume: 0.75 },
-  rims: { src: "/audio/mirage/rims.mp3", volume: 0.7 },
-  stepperHats: { src: "/audio/mirage/stepper_hats.mp3", volume: 0.35 },
+type SongConfig = {
+  id: string;
+  tracks: Record<string, TrackConfig>;
 };
 
-const ROUND_POOLS: AudioTrackId[][] = [
-  ["happyMelody", "warmPad", "rims", "dubBlip"],
-  ["spookyMelody", "tomPlinks", "stepperHats", "tripletKick"],
-  ["conflictBongos", "warmPad", "tripletKick", "rims"],
+const SONGS: SongConfig[] = [
+  {
+    id: "mirage",
+    tracks: {
+      "4x4_kick.mp3": { src: "/audio/mirage/4x4_kick.mp3", volume: 0.75 },
+      "conflict_bongos.mp3": {
+        src: "/audio/mirage/conflict_bongos.mp3",
+        volume: 0.35,
+      },
+      "dubsnare_pair.mp3": {
+        src: "/audio/mirage/dubsnare_pair.mp3",
+        volume: 0.5,
+      },
+      "dub_blip.mp3": { src: "/audio/mirage/dub_blip.mp3", volume: 0.55 },
+      "forest_birds.mp3": {
+        src: "/audio/mirage/forest_birds.mp3",
+        volume: 0.3,
+      },
+      "happy_melody.mp3": {
+        src: "/audio/mirage/happy_melody.mp3",
+        volume: 0.4,
+      },
+      "jersey_snare.mp3": {
+        src: "/audio/mirage/jersey_snare.mp3",
+        volume: 0.6,
+      },
+      "onbeat_step.mp3": { src: "/audio/mirage/onbeat_step.mp3", volume: 0.5 },
+      "rims.mp3": { src: "/audio/mirage/rims.mp3", volume: 0.7 },
+      "shakers1.mp3": { src: "/audio/mirage/shakers1.mp3", volume: 0.4 },
+      "shakers2.mp3": { src: "/audio/mirage/shakers2.mp3", volume: 0.4 },
+      "stepper_hats.mp3": {
+        src: "/audio/mirage/stepper_hats.mp3",
+        volume: 0.35,
+      },
+      "stepper_snare.mp3": {
+        src: "/audio/mirage/stepper_snare.mp3",
+        volume: 0.55,
+      },
+      "tom_plinks.mp3": { src: "/audio/mirage/tom_plinks.mp3", volume: 0.65 },
+      "triplet_kick.mp3": {
+        src: "/audio/mirage/triplet_kick.mp3",
+        volume: 0.75,
+      },
+      "warm_pad.mp3": { src: "/audio/mirage/warm_pad.mp3", volume: 0.3 },
+    },
+  },
+  {
+    id: "conga",
+    tracks: {
+      "bass pt1.mp3": { src: "/audio/conga/bass pt1.mp3", volume: 0.35 },
+      "bass pt2.mp3": { src: "/audio/conga/bass pt2.mp3", volume: 0.35 },
+      "clap.mp3": { src: "/audio/conga/clap.mp3", volume: 0.35 },
+      "conga roll.mp3": { src: "/audio/conga/conga roll.mp3", volume: 0.35 },
+      "conga.mp3": { src: "/audio/conga/conga.mp3", volume: 0.35 },
+      "kick low.mp3": { src: "/audio/conga/kick low.mp3", volume: 0.35 },
+      "kick top.mp3": { src: "/audio/conga/kick top.mp3", volume: 0.35 },
+      "open hat.mp3": { src: "/audio/conga/open hat.mp3", volume: 0.35 },
+      "synth bass.mp3": { src: "/audio/conga/synth bass.mp3", volume: 0.35 },
+      "tambourine.mp3": { src: "/audio/conga/tambourine.mp3", volume: 0.35 },
+      "vox.mp3": { src: "/audio/conga/vox.mp3", volume: 0.35 },
+    },
+  },
+  {
+    id: "groova",
+    tracks: {
+      "groova chord.mp3": {
+        src: "/audio/groova/groova chord.mp3",
+        volume: 0.35,
+      },
+      "groova clap.mp3": { src: "/audio/groova/groova clap.mp3", volume: 0.4 },
+      "groova conga.mp3": {
+        src: "/audio/groova/groova conga.mp3",
+        volume: 0.35,
+      },
+      "groova conga2.mp3": {
+        src: "/audio/groova/groova conga2.mp3",
+        volume: 0.35,
+      },
+      "groova cowbell.mp3": {
+        src: "/audio/groova/groova cowbell.mp3",
+        volume: 0.3,
+      },
+      "groova dronepad.mp3": {
+        src: "/audio/groova/groova dronepad.mp3",
+        volume: 0.3,
+      },
+      "groova epaino_low.mp3": {
+        src: "/audio/groova/groova epaino_low.mp3",
+        volume: 0.35,
+      },
+      "groova epiano_high.mp3": {
+        src: "/audio/groova/groova epiano_high.mp3",
+        volume: 0.35,
+      },
+      "groova hats.mp3": { src: "/audio/groova/groova hats.mp3", volume: 0.35 },
+      "groova horn.mp3": { src: "/audio/groova/groova horn.mp3", volume: 0.35 },
+      "groova kick.mp3": { src: "/audio/groova/groova kick.mp3", volume: 0.55 },
+      "groova m1_high.mp3": {
+        src: "/audio/groova/groova m1_high.mp3",
+        volume: 0.35,
+      },
+      "groova organ.mp3": {
+        src: "/audio/groova/groova organ.mp3",
+        volume: 0.3,
+      },
+      "groova perc.mp3": { src: "/audio/groova/groova perc.mp3", volume: 0.4 },
+      "groova perfect stab.mp3": {
+        src: "/audio/groova/groova perfect stab.mp3",
+        volume: 0.35,
+      },
+      "groova perfect.mp3": {
+        src: "/audio/groova/groova perfect.mp3",
+        volume: 0.35,
+      },
+      "groova plink1.mp3": {
+        src: "/audio/groova/groova plink1.mp3",
+        volume: 0.4,
+      },
+      "groova shaker.mp3": {
+        src: "/audio/groova/groova shaker.mp3",
+        volume: 0.35,
+      },
+      "groova snare-1.mp3": {
+        src: "/audio/groova/groova snare-1.mp3",
+        volume: 0.45,
+      },
+      "groova snare.mp3": {
+        src: "/audio/groova/groova snare.mp3",
+        volume: 0.45,
+      },
+      "groova synth.mp3": {
+        src: "/audio/groova/groova synth.mp3",
+        volume: 0.35,
+      },
+      "groova synthstabs.mp3": {
+        src: "/audio/groova/groova synthstabs.mp3",
+        volume: 0.35,
+      },
+      "groova toms.mp3": { src: "/audio/groova/groova toms.mp3", volume: 0.4 },
+      "groova vox.mp3": { src: "/audio/groova/groova vox.mp3", volume: 0.35 },
+      "groova wub1.mp3": { src: "/audio/groova/groova wub1.mp3", volume: 0.4 },
+    },
+  },
 ];
+
+const TRACKS_TO_REVEAL_PER_VOTE = 3;
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -43,8 +166,14 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-function toFileKey(trackId: AudioTrackId): string {
-  return trackId;
+function pickSongForRound(
+  roundNumber: number,
+  usedSongIds: Set<string>,
+): SongConfig {
+  const available = SONGS.filter((s) => !usedSongIds.has(s.id));
+  const pool = available.length > 0 ? available : SONGS;
+  void roundNumber;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export class GameAudioController {
@@ -52,20 +181,21 @@ export class GameAudioController {
   private masterGain: GainNode | null = null;
   private filter: BiquadFilterNode | null = null;
 
-  private rawBuffers = new Map<AudioTrackId, ArrayBuffer>();
-  private decodedBuffers = new Map<AudioTrackId, AudioBuffer>();
-  private sources = new Map<AudioTrackId, AudioBufferSourceNode>();
-  private gains = new Map<AudioTrackId, GainNode>();
+  private rawBuffers = new Map<string, ArrayBuffer>();
+  private decodedBuffers = new Map<string, AudioBuffer>();
+  private sources = new Map<string, AudioBufferSourceNode>();
+  private gains = new Map<string, GainNode>();
 
-  private currentPool: AudioTrackId[] = [];
-  private unlockedTracks = new Set<AudioTrackId>();
-  private revealQueue: AudioTrackId[] = [];
+  private currentSong: SongConfig | null = null;
+  private currentTrackIds: string[] = [];
+  private revealQueue: string[] = [];
+  private unlockedTracks = new Set<string>();
+  private usedSongIds = new Set<string>();
 
   private loopDuration = 8;
-  private roundStartTime = 0;
-  private pendingUnlockCount = 0;
   private loadComplete = false;
   private playbackScheduled = false;
+  private paused = false;
 
   private interactionHandler: (() => void) | null = null;
 
@@ -98,12 +228,12 @@ export class GameAudioController {
   }
 
   private scheduleAllSources(): void {
+    if (this.playbackScheduled) return;
     const ctx = this.ctx!;
     const startAt = ctx.currentTime + 0.05;
-    this.roundStartTime = startAt;
     this.playbackScheduled = true;
 
-    for (const trackId of this.currentPool) {
+    for (const trackId of this.currentTrackIds) {
       const buffer = this.decodedBuffers.get(trackId);
       if (!buffer) continue;
 
@@ -125,68 +255,77 @@ export class GameAudioController {
     }
   }
 
+  private stopCurrentSources(): void {
+    for (const source of this.sources.values()) {
+      try {
+        source.stop();
+      } catch {
+        /* already stopped */
+      }
+      source.disconnect();
+    }
+    for (const gain of this.gains.values()) {
+      gain.disconnect();
+    }
+    this.sources.clear();
+    this.gains.clear();
+    this.unlockedTracks.clear();
+    this.playbackScheduled = false;
+  }
+
   private tryBeginPlayback(): void {
     if (!this.loadComplete) return;
     if (!this.ctx || this.ctx.state === "suspended") return;
     if (this.playbackScheduled) return;
 
     this.scheduleAllSources();
-
-    if (this.pendingUnlockCount > 0) {
-      const count = this.pendingUnlockCount;
-      this.pendingUnlockCount = 0;
-      this.revealNextTracks(count);
-    }
+    this.applyFilterState();
   }
 
-  private revealNextTracks(count: number): void {
-    if (!this.ctx || !this.playbackScheduled) return;
-    const toReveal = this.revealQueue.splice(0, count);
-    const now = this.ctx.currentTime;
-    for (const trackId of toReveal) {
-      if (this.unlockedTracks.has(trackId)) continue;
-      this.unlockedTracks.add(trackId);
-      const gain = this.gains.get(trackId);
-      if (!gain) continue;
-      gain.gain.cancelScheduledValues(now);
-      gain.gain.setValueAtTime(TRACKS[trackId].volume, now);
-    }
-  }
-
-  updateVolume(): void {
-    if (!this.masterGain) return;
-    const settings = getAudioSettings();
-    this.masterGain.gain.value = settings.masterVolume * settings.musicVolume;
-  }
-
-  setPaused(paused: boolean): void {
+  private applyFilterState(): void {
     if (!this.filter || !this.ctx) return;
     this.filter.frequency.setTargetAtTime(
-      paused ? 800 : 22000,
+      this.paused ? 800 : 22000,
       this.ctx.currentTime,
       0.1,
     );
   }
 
-  async loadRound(round: number): Promise<void> {
-    this.stopAll();
-    this.loadComplete = false;
-    this.playbackScheduled = false;
-    this.unlockedTracks.clear();
-    this.revealQueue = [];
+  updateVolume(): void {
+    if (!this.masterGain) return;
+    const settings = getAudioSettings();
+    this.masterGain.gain.value = settings.masterVolume * settings.musicVolume * 1.3;
+  }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    this.applyFilterState();
+  }
+
+  async loadRound(roundNumber: number): Promise<void> {
+    this.stopCurrentSources();
     this.rawBuffers.clear();
     this.decodedBuffers.clear();
-    this.pendingUnlockCount = 0;
+    this.loadComplete = false;
+    this.playbackScheduled = false;
 
-    const pools = ROUND_POOLS.filter((p) => p.length > 0);
-    void round;
-    const poolIndex = Math.floor(Math.random() * pools.length);
-    this.currentPool = pools[poolIndex];
+    if (this.interactionHandler) {
+      window.removeEventListener("pointerdown", this.interactionHandler);
+      window.removeEventListener("keydown", this.interactionHandler);
+      this.interactionHandler = null;
+    }
+
+    const song = pickSongForRound(roundNumber, this.usedSongIds);
+    this.currentSong = song;
+    this.usedSongIds.add(song.id);
+    this.currentTrackIds = Object.keys(song.tracks);
+    this.revealQueue = shuffle(this.currentTrackIds);
 
     await Promise.all(
-      this.currentPool.map(async (trackId) => {
+      this.currentTrackIds.map(async (trackId) => {
+        const config = song.tracks[trackId];
         try {
-          const res = await fetch(TRACKS[trackId].src);
+          const res = await fetch(config.src);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const raw = await res.arrayBuffer();
           this.rawBuffers.set(trackId, raw);
@@ -196,17 +335,9 @@ export class GameAudioController {
       }),
     );
 
-    const loaded = this.currentPool.filter((t) => this.rawBuffers.has(t));
-    if (loaded.length === 0) return;
+    if (this.rawBuffers.size === 0) return;
 
-    this.revealQueue = shuffle(loaded);
     this.loadComplete = true;
-
-    if (this.interactionHandler) {
-      window.removeEventListener("pointerdown", this.interactionHandler);
-      window.removeEventListener("keydown", this.interactionHandler);
-      this.interactionHandler = null;
-    }
 
     const onInteraction = async () => {
       window.removeEventListener("pointerdown", onInteraction);
@@ -246,45 +377,26 @@ export class GameAudioController {
   }
 
   startTracks(count: number): void {
-    if (!this.loadComplete) {
-      this.pendingUnlockCount = Math.max(this.pendingUnlockCount, count);
-      return;
+    if (!this.ctx || !this.playbackScheduled) return;
+    const toReveal = this.revealQueue.splice(0, count);
+    const now = this.ctx.currentTime;
+    for (const trackId of toReveal) {
+      if (this.unlockedTracks.has(trackId)) continue;
+      this.unlockedTracks.add(trackId);
+      const gain = this.gains.get(trackId);
+      if (!gain || !this.currentSong) continue;
+      const trackVolume = this.currentSong.tracks[trackId]?.volume ?? 0.35;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.linearRampToValueAtTime(trackVolume, now + 0.5);
     }
-
-    if (!this.ctx || this.ctx.state !== "running") {
-      this.pendingUnlockCount = Math.max(this.pendingUnlockCount, count);
-      return;
-    }
-
-    if (!this.playbackScheduled) {
-      this.pendingUnlockCount = Math.max(this.pendingUnlockCount, count);
-      this.tryBeginPlayback();
-      return;
-    }
-
-    this.revealNextTracks(count);
   }
 
   stopAll(): void {
-    for (const source of this.sources.values()) {
-      try {
-        source.stop();
-      } catch {
-        /* already stopped */
-      }
-      source.disconnect();
-    }
-    for (const gain of this.gains.values()) {
-      gain.disconnect();
-    }
-    this.sources.clear();
-    this.gains.clear();
-    this.unlockedTracks.clear();
-    this.playbackScheduled = false;
+    this.stopCurrentSources();
   }
 
   dispose(): void {
-    this.stopAll();
+    this.stopCurrentSources();
     if (this.interactionHandler) {
       window.removeEventListener("pointerdown", this.interactionHandler);
       window.removeEventListener("keydown", this.interactionHandler);
@@ -296,13 +408,9 @@ export class GameAudioController {
     this.ctx = null;
     this.masterGain = null;
     this.filter = null;
-    this.initialized = false;
+    this.currentSong = null;
+    this.usedSongIds.clear();
     this.loadComplete = false;
+    this.playbackScheduled = false;
   }
-
-  private get initialized(): boolean {
-    return this.ctx !== null;
-  }
-
-  private set initialized(_: boolean) {}
 }

@@ -6,7 +6,7 @@ export type AudioSettings = {
 
 export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   masterVolume: 1,
-  sfxVolume: 1,
+  sfxVolume: 0.1,
   musicVolume: 1,
 };
 
@@ -88,9 +88,7 @@ function persistAndBroadcast(next: AudioSettings) {
       AUDIO_SETTINGS_STORAGE_KEY,
       JSON.stringify(next),
     );
-  } catch {
-    // Ignore storage failures and continue with in-memory settings.
-  }
+  } catch {}
 
   window.dispatchEvent(
     new CustomEvent<AudioSettings>(AUDIO_SETTINGS_EVENT, { detail: next }),
