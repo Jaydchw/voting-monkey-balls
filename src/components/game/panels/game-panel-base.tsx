@@ -17,11 +17,15 @@ export function GamePanelBase({ children }: GamePanelBaseProps) {
   const audioCtrlRef = useRef<GameAudioController | null>(null);
 
   useEffect(() => {
-    audioCtrlRef.current = new GameAudioController();
+    const ctrl = new GameAudioController();
+    audioCtrlRef.current = ctrl;
+
     pauseForGame();
 
+    void ctrl.loadRound(1);
+
     return () => {
-      audioCtrlRef.current?.dispose();
+      ctrl.dispose();
       audioCtrlRef.current = null;
       resumeFromGame();
     };

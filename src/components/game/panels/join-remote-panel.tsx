@@ -29,6 +29,7 @@ import {
   PARTYKIT_HOST,
   PARTYKIT_PARTY,
 } from "@/lib/multiplayer";
+import { useMenuAudio } from "@/components/menu-audio-context";
 
 const MAIN_BET_MIN_STAKE = 20;
 
@@ -142,6 +143,15 @@ export default function JoinRemotePanel({
   playerName,
   onExit,
 }: JoinRemotePanelProps) {
+  const { pauseForGame, resumeFromGame } = useMenuAudio();
+
+  useEffect(() => {
+    pauseForGame();
+    return () => {
+      resumeFromGame();
+    };
+  }, [pauseForGame, resumeFromGame]);
+
   const socketRef = useRef<PartySocket | null>(null);
   const phaseRef = useRef<HostBroadcastState["phase"] | null>(null);
   const playerToken = useId();
@@ -307,6 +317,15 @@ export default function JoinRemotePanel({
     });
   };
 
+  const confirmMicrobets = () => {
+    const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
+      kind: bet.kind,
+      outcome: bet.outcome,
+      stake: bet.stake,
+    }));
+    sendAction({ type: "player-action", action: { kind: "microbet", bets } });
+  };
+
   const addMicrobet = () => {
     const odds = calcBooleanOdds(microbetDraft.kind);
     setQueuedMicrobets((prev) => {
@@ -349,15 +368,6 @@ export default function JoinRemotePanel({
 
   const removeMicrobet = (id: string) =>
     setQueuedMicrobets((prev) => prev.filter((bet) => bet.id !== id));
-
-  const confirmMicrobets = () => {
-    const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
-      kind: bet.kind,
-      outcome: bet.outcome,
-      stake: bet.stake,
-    }));
-    sendAction({ type: "player-action", action: { kind: "microbet", bets } });
-  };
 
   const skipMicrobets = () =>
     sendAction({ type: "player-action", action: { kind: "microbet-skip" } });

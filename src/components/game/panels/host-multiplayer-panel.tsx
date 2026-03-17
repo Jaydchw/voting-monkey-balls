@@ -42,60 +42,6 @@ import {
 import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
 import { BlockButton } from "@/components/ui/block-button";
 import { BlockCard } from "@/components/ui/block-card";
-
-function IconButton({
-  children,
-  size = "md",
-  className = "",
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  children: ReactNode;
-  size?: "sm" | "md" | "lg";
-}) {
-  const sizeClass =
-    size === "sm" ? "w-8 h-8" : size === "lg" ? "w-12 h-12" : "w-10 h-10";
-  return (
-    <button
-      className={[
-        "border-4 border-black flex items-center justify-center bg-white hover:bg-zinc-100 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all duration-100",
-        sizeClass,
-        className,
-      ].join(" ")}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SectionBadge({
-  children,
-  color = "yellow",
-}: {
-  children: ReactNode;
-  color?: "yellow" | "primary" | "danger" | "success";
-}) {
-  const colorClass =
-    color === "primary"
-      ? "bg-primary text-primary-foreground"
-      : color === "danger"
-        ? "bg-destructive text-destructive-foreground"
-        : color === "success"
-          ? "bg-green-400 text-black"
-          : "bg-yellow-300 text-black";
-  return (
-    <div
-      className={[
-        "inline-block border-4 border-black px-3 py-1",
-        colorClass,
-      ].join(" ")}
-    >
-      <span className="text-xs font-black uppercase tracking-[0.3em]">
-        {children}
-      </span>
-    </div>
-  );
-}
 import {
   DEFAULT_MONKEY_COLOR,
   DEFAULT_MONKEY_SVG,
@@ -119,6 +65,7 @@ import type {
   ServerEnvelope,
 } from "@/multiplayer/protocol";
 import { GameAudioController } from "@/lib/game-audio";
+import { useMenuAudio } from "@/components/menu-audio-context";
 
 const STARTING_HEALTH = 100;
 const DEFAULT_DECISION_TIMER_SECONDS = 12;
@@ -217,7 +164,59 @@ function serializeVoteWindow(voteWindow: VoteWindow): SerializableVoteWindow {
   };
 }
 
-type HostMultiplayerPanelProps = { roomCode: string; onExit: () => void };
+function IconButton({
+  children,
+  size = "md",
+  className = "",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: ReactNode;
+  size?: "sm" | "md" | "lg";
+}) {
+  const sizeClass =
+    size === "sm" ? "w-8 h-8" : size === "lg" ? "w-12 h-12" : "w-10 h-10";
+  return (
+    <button
+      className={[
+        "border-4 border-black flex items-center justify-center bg-white hover:bg-zinc-100 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all duration-100",
+        sizeClass,
+        className,
+      ].join(" ")}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SectionBadge({
+  children,
+  color = "yellow",
+}: {
+  children: ReactNode;
+  color?: "yellow" | "primary" | "danger" | "success";
+}) {
+  const colorClass =
+    color === "primary"
+      ? "bg-primary text-primary-foreground"
+      : color === "danger"
+        ? "bg-destructive text-destructive-foreground"
+        : color === "success"
+          ? "bg-green-400 text-black"
+          : "bg-yellow-300 text-black";
+  return (
+    <div
+      className={[
+        "inline-block border-4 border-black px-3 py-1",
+        colorClass,
+      ].join(" ")}
+    >
+      <span className="text-xs font-black uppercase tracking-[0.3em]">
+        {children}
+      </span>
+    </div>
+  );
+}
 
 function NumberInput({
   label,
@@ -251,13 +250,30 @@ function NumberInput({
   );
 }
 
+type HostMultiplayerPanelProps = { roomCode: string; onExit: () => void };
+
 export default function HostMultiplayerPanel({
   roomCode,
   onExit,
 }: HostMultiplayerPanelProps) {
+  const { pauseForGame, resumeFromGame } = useMenuAudio();
+
   const [engine, setEngine] = useState(() => new BotsGameEngine());
   const gameApiRef = useRef<GameApi | null>(null);
   const socketRef = useRef<PartySocket | null>(null);
+  const audioCtrlRef = useRef<GameAudioController | null>(null);
+
+  useEffect(() => {
+    const ctrl = new GameAudioController();
+    audioCtrlRef.current = ctrl;
+    pauseForGame();
+    void ctrl.loadRound(1);
+    return () => {
+      ctrl.dispose();
+      audioCtrlRef.current = null;
+      resumeFromGame();
+    };
+  }, [pauseForGame, resumeFromGame]);
 
   const [matchStarted, setMatchStarted] = useState(false);
   const [phase, setPhase] = useState<MatchPhase>("lobby");
@@ -329,22 +345,12 @@ export default function HostMultiplayerPanel({
     {},
   );
   const maybeAdvanceDecisionPhaseRef = useRef<() => void>(() => {});
-  const audioCtrlRef = useRef<GameAudioController | null>(null);
 
   useEffect(() => {
-    audioCtrlRef.current = new GameAudioController();
-    return () => {
-      audioCtrlRef.current?.dispose();
-    };
-  }, []);
-
-  useEffect(() => {
-    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
-  }, [audioCtrlRef, snapshot.roundNumber]);
-
-  useEffect(() => {
-    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
-  }, [audioCtrlRef, snapshot.roundNumber]);
+    if (snapshot.roundNumber > 1) {
+      void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+    }
+  }, [snapshot.roundNumber]);
 
   const prevPhaseRef = useRef<MatchPhase>("lobby");
   useEffect(() => {
@@ -755,6 +761,7 @@ export default function HostMultiplayerPanel({
     gameApiRef.current = api;
     api.setPaused(phaseRef.current !== "running");
   }, []);
+
   const handleRedHealthChange = useCallback((value: number) => {
     const prev = previousHealthRef.current.red;
     if (value < prev) statsTotalsRef.current.redDamageTaken += prev - value;
@@ -762,6 +769,7 @@ export default function HostMultiplayerPanel({
     healthRef.current.red = value;
     setRedHealth(value);
   }, []);
+
   const handleBlueHealthChange = useCallback((value: number) => {
     const prev = previousHealthRef.current.blue;
     if (value < prev) statsTotalsRef.current.blueDamageTaken += prev - value;
@@ -769,13 +777,16 @@ export default function HostMultiplayerPanel({
     healthRef.current.blue = value;
     setBlueHealth(value);
   }, []);
+
   const handleWallCollision = useCallback((ballId: BallId) => {
     if (ballId === "red") statsTotalsRef.current.wallHitsRed += 1;
     else statsTotalsRef.current.wallHitsBlue += 1;
   }, []);
+
   const handleBallCollision = useCallback(() => {
     statsTotalsRef.current.ballCollisions += 1;
   }, []);
+
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
@@ -817,6 +828,7 @@ export default function HostMultiplayerPanel({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   }, [roomCode]);
+
   const shareRoomLink = useCallback(async () => {
     const url = `${window.location.origin}/join?code=${roomCode}`;
     if (navigator.share) {
@@ -904,6 +916,7 @@ export default function HostMultiplayerPanel({
     if (!matchStarted || !gameApiRef.current) return;
     gameApiRef.current.setPaused(phase !== "running");
   }, [matchStarted, phase]);
+
   useEffect(() => {
     return () => {
       if (roundAdvanceTimeoutRef.current)
@@ -1210,7 +1223,6 @@ export default function HostMultiplayerPanel({
                   </p>
                 )}
               </div>
-
               <BlockButton
                 variant="success"
                 size="xl"

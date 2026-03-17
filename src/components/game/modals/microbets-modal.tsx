@@ -138,6 +138,7 @@ export function MicrobetsModal({
   onDraftChange,
   onAddQuickBet,
   onRemoveBet,
+  onConfirm,
   onSkip,
 }: MicrobetsModalProps) {
   if (!open) return null;
@@ -175,6 +176,7 @@ export function MicrobetsModal({
   };
 
   const totalStake = placedBets.reduce((s, b) => s + b.stake, 0);
+  const hasBets = totalStake > 0;
 
   return (
     <FullscreenModal
@@ -259,7 +261,7 @@ export function MicrobetsModal({
 
           <div className="flex items-center justify-between">
             <p className="text-xs font-black uppercase text-zinc-400">
-              {totalStake > 0 ? (
+              {hasBets ? (
                 <>
                   Total staked:{" "}
                   <span className="text-yellow-700">{totalStake}</span> bananas
@@ -268,9 +270,20 @@ export function MicrobetsModal({
                 "No bets placed yet"
               )}
             </p>
-            <BlockButton variant="ghost" size="sm" onClick={onSkip}>
-              {totalStake > 0 ? "Confirm & Continue" : "Skip"}
-            </BlockButton>
+            <div className="flex gap-2">
+              {hasBets && (
+                <BlockButton variant="ghost" size="sm" onClick={onSkip}>
+                  Skip
+                </BlockButton>
+              )}
+              <BlockButton
+                variant={hasBets ? "success" : "ghost"}
+                size="sm"
+                onClick={hasBets ? onConfirm : onSkip}
+              >
+                {hasBets ? "Confirm & Lock In" : "Skip"}
+              </BlockButton>
+            </div>
           </div>
         </div>
       </div>

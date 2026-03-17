@@ -218,11 +218,9 @@ function SingleplayerPanelInner({
   const lastVoteStatsRef = useRef<StatTotals | null>(null);
 
   useEffect(() => {
-    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
-  }, [audioCtrlRef, snapshot.roundNumber]);
-
-  useEffect(() => {
-    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+    if (snapshot.roundNumber > 1) {
+      void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+    }
   }, [audioCtrlRef, snapshot.roundNumber]);
 
   const prevPhaseRef = useRef<MatchPhase>("prematch");
@@ -498,9 +496,8 @@ function SingleplayerPanelInner({
     transitionPhase("running", 0);
   }, [transitionPhase]);
 
-  const resolveVoteAndShowSettlement = useCallback(
+  const resolveVoteAndShowReveal = useCallback(
     (selection: 0 | 1 | 2, playerVotes: number) => {
-      if (selection === null) return;
       const spend = Math.max(0, Math.floor(playerVotes));
       if (spend > 0) {
         if (playerBananasRef.current < spend) return;
@@ -527,40 +524,27 @@ function SingleplayerPanelInner({
       if (voteRevealTimeoutRef.current)
         clearTimeout(voteRevealTimeoutRef.current);
       voteRevealTimeoutRef.current = setTimeout(() => {
-        const entries = settlePlayerMicrobets(statsTotalsRef.current);
-        const net = entries.reduce(
-          (sum, e) => sum + (e.won ? e.payout - e.stake : -e.stake),
-          0,
-        );
-        setSettlementEntries(entries);
-        setSettlementNet(net);
         setMicrobetInsights(engine.getPendingMicrobetInsights());
         setQueuedMicrobets([]);
         setMicrobetDraft({ kind: "redDamageToBlue", outcome: true, stake: 5 });
-        transitionPhase(entries.length > 0 ? "settlement" : "microbet", 0);
+        transitionPhase("microbet", 0);
         voteRevealTimeoutRef.current = null;
       }, VOTE_REVEAL_HOLD_MS);
     },
-    [
-      applyVoteApplication,
-      audioCtrlRef,
-      engine,
-      settlePlayerMicrobets,
-      transitionPhase,
-    ],
+    [applyVoteApplication, audioCtrlRef, engine, transitionPhase],
   );
 
   const handleVoteCast = useCallback(
     (selection: 0 | 1 | 2) => {
       if (phaseRef.current !== "vote") return;
       setVoteSelection(selection);
-      resolveVoteAndShowSettlement(selection, votePowerStake);
+      resolveVoteAndShowReveal(selection, votePowerStake);
     },
-    [resolveVoteAndShowSettlement, votePowerStake],
+    [resolveVoteAndShowReveal, votePowerStake],
   );
 
   const handleSettlementContinue = useCallback(() => {
-    transitionPhase("microbet", 0);
+    transitionPhase("vote", 0);
   }, [transitionPhase]);
 
   const handleMicrobetAdd = useCallback(() => {
@@ -656,20 +640,46 @@ function SingleplayerPanelInner({
       });
 
       if (stepResult.voteWindow) {
-        lastVoteStatsRef.current = { ...statsTotalsRef.current };
+        const currentTotals = statsTotalsRef.current;
+
+        const entries = settlePlayerMicrobets(currentTotals);
+        const net = entries.reduce(
+          (sum, e) => sum + (e.won ? e.payout - e.stake : -e.stake),
+          0,
+        );
+
+        lastVoteStatsRef.current = { ...currentTotals };
+
+        setSettlementEntries(entries);
+        setSettlementNet(net);
         setVoteWindow(stepResult.voteWindow);
         setVoteSelection(null);
         setVotePowerStake(1);
         setPickedVoteOptionIndex(null);
         setRevealedVoteOption(null);
-        transitionPhase("vote", 0);
+
+        if (entries.length > 0) {
+          transitionPhase("settlement", 0);
+        } else {
+          transitionPhase("vote", 0);
+        }
       }
 
       setSnapshot(stepResult.snapshot);
 
       if (stepResult.roundResult && !roundBetSettledRef.current) {
         roundBetSettledRef.current = true;
-        settlePlayerMicrobets(statsTotalsRef.current);
+        const currentTotals = statsTotalsRef.current;
+        const entries = settlePlayerMicrobets(currentTotals);
+        const net = entries.reduce(
+          (sum, e) => sum + (e.won ? e.payout - e.stake : -e.stake),
+          0,
+        );
+        if (entries.length > 0) {
+          setSettlementEntries(entries);
+          setSettlementNet(net);
+        }
+
         setRoundWinner(stepResult.roundResult.winner);
         if (currentBetRef.current) {
           const bet = currentBetRef.current;
@@ -707,7 +717,6 @@ function SingleplayerPanelInner({
     applyVoteApplication,
     engine,
     resetBoardForNextRound,
-    resolveVoteAndShowSettlement,
     settlePlayerMicrobets,
     transitionPhase,
   ]);
