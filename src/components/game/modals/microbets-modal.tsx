@@ -11,14 +11,6 @@ import type {
 
 const STAKE_PER_CLICK = 5;
 
-const KIND_LABEL: Record<MicroBetKind, string> = {
-  redDamageToBlue: "Red outdamages Blue",
-  blueDamageToRed: "Blue outdamages Red",
-  redWallHits: "Red gets more wall hits",
-  blueWallHits: "Blue gets more wall hits",
-  ballCollisions: "Collisions hit 10+",
-};
-
 const KIND_COLORS: Record<
   MicroBetKind,
   { border: string; bg: string; hover: string; badge: string }

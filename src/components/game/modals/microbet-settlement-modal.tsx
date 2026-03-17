@@ -21,6 +21,40 @@ export type SettlementEntry = {
   won: boolean;
 };
 
+export type CondensedSettlementEntry = {
+  kind: MicroBetKind;
+  outcome: boolean;
+  totalStake: number;
+  payout: number;
+  won: boolean;
+  count: number;
+};
+
+function condenseEntries(
+  entries: SettlementEntry[],
+): CondensedSettlementEntry[] {
+  const map = new Map<string, CondensedSettlementEntry>();
+  for (const entry of entries) {
+    const key = `${entry.kind}::${String(entry.outcome)}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.totalStake += entry.stake;
+      existing.payout += entry.payout;
+      existing.count += 1;
+    } else {
+      map.set(key, {
+        kind: entry.kind,
+        outcome: entry.outcome,
+        totalStake: entry.stake,
+        payout: entry.payout,
+        won: entry.won,
+        count: 1,
+      });
+    }
+  }
+  return Array.from(map.values());
+}
+
 type MicrobetSettlementModalProps = {
   open: boolean;
   settlements: SettlementEntry[];
@@ -42,9 +76,10 @@ export function MicrobetSettlementModal({
 }: MicrobetSettlementModalProps) {
   if (!open) return null;
 
-  const winsCount = settlements.filter((s) => s.won).length;
-  const lossCount = settlements.filter((s) => !s.won).length;
-  const hasBets = settlements.length > 0;
+  const condensed = condenseEntries(settlements);
+  const winsCount = condensed.filter((s) => s.won).length;
+  const lossCount = condensed.filter((s) => !s.won).length;
+  const hasBets = condensed.length > 0;
   const isNet0 = netChange === 0;
   const isWin = netChange > 0;
 
@@ -123,8 +158,8 @@ export function MicrobetSettlementModal({
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
                 >
-                  {winsCount}W · {lossCount}L across {settlements.length} bet
-                  {settlements.length !== 1 ? "s" : ""}
+                  {winsCount}W · {lossCount}L across {condensed.length} bet
+                  {condensed.length !== 1 ? "s" : ""}
                 </motion.p>
               )}
             </div>
@@ -133,9 +168,9 @@ export function MicrobetSettlementModal({
           {hasBets && (
             <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-1">
               <AnimatePresence>
-                {settlements.map((entry, i) => (
+                {condensed.map((entry, i) => (
                   <motion.div
-                    key={`${entry.kind}-${i}`}
+                    key={`${entry.kind}-${String(entry.outcome)}`}
                     initial={{ opacity: 0, x: entry.won ? -16 : 16 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{
@@ -153,13 +188,19 @@ export function MicrobetSettlementModal({
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <p className="text-xs font-black uppercase text-zinc-800 truncate">
                         {KIND_LABEL[entry.kind]}
+                        {entry.count > 1 && (
+                          <span className="ml-1.5 text-zinc-500 font-bold">
+                            ×{entry.count}
+                          </span>
+                        )}
                       </p>
                       <p className="text-[10px] font-bold text-zinc-500 uppercase">
-                        {entry.outcome ? "YES" : "NO"} · staked {entry.stake}
+                        {entry.outcome ? "YES" : "NO"} · staked{" "}
+                        {entry.totalStake}
                       </p>
                     </div>
                     <motion.div
-                      className={`ml-3 shrink-0 text-right`}
+                      className="ml-3 shrink-0 text-right"
                       initial={{ scale: 1.6, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.2 + i * 0.07, type: "spring" }}
@@ -169,7 +210,9 @@ export function MicrobetSettlementModal({
                           entry.won ? "text-green-700" : "text-red-500"
                         }`}
                       >
-                        {entry.won ? `+${entry.payout}` : `-${entry.stake}`}
+                        {entry.won
+                          ? `+${entry.payout}`
+                          : `-${entry.totalStake}`}
                       </p>
                       <p className="text-[10px] font-bold text-zinc-400 uppercase">
                         {entry.won ? "win" : "loss"}
@@ -183,7 +226,7 @@ export function MicrobetSettlementModal({
 
           {!hasBets && (
             <p className="text-sm text-zinc-500 text-center py-4 border-2 border-dashed border-zinc-200">
-              You didn't place any microbets last interval.
+              You didn&apos;t place any microbets last interval.
             </p>
           )}
 
@@ -203,7 +246,7 @@ export function MicrobetSettlementModal({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
             >
-              Next Round →
+              Continue →
             </motion.button>
           </div>
         </div>

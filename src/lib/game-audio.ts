@@ -342,17 +342,12 @@ export class GameAudioController {
     }
 
     this.loadComplete = true;
-    console.log(
-      "[GameAudio] Load complete, ctx state:",
-      this.ctx?.state ?? "no ctx",
-    );
 
     const onInteraction = async () => {
       window.removeEventListener("pointerdown", onInteraction);
       window.removeEventListener("keydown", onInteraction);
       this.interactionHandler = null;
 
-      console.log("[GameAudio] Interaction fired, resuming context");
       const ctx = this.getContext();
       if (ctx.state === "suspended") {
         await ctx.resume();
@@ -367,32 +362,22 @@ export class GameAudioController {
         | undefined;
       if (firstBuf) this.loopDuration = firstBuf.duration;
 
-      console.log(
-        "[GameAudio] Scheduling sources after interaction, pendingTrackCount:",
-        this.pendingTrackCount,
-      );
       this.tryBeginPlayback();
-      this.startTracks(this.pendingTrackCount > 0 ? this.pendingTrackCount : 3);
+      this.startTracks(this.pendingTrackCount > 0 ? this.pendingTrackCount : 2);
       this.pendingTrackCount = 0;
     };
 
     this.interactionHandler = onInteraction;
 
     if (this.ctx && this.ctx.state === "running") {
-      console.log(
-        "[GameAudio] Context already running, decoding and scheduling immediately",
-      );
       await this.decodeAll();
       const firstBuf = this.decodedBuffers.values().next().value as
         | AudioBuffer
         | undefined;
       if (firstBuf) this.loopDuration = firstBuf.duration;
       this.tryBeginPlayback();
-      this.startTracks(3);
+      this.startTracks(2);
     } else {
-      console.log(
-        "[GameAudio] Context suspended or absent, waiting for interaction",
-      );
       window.addEventListener("pointerdown", onInteraction);
       window.addEventListener("keydown", onInteraction);
     }

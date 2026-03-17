@@ -59,7 +59,8 @@ type MatchPhase =
   | "vote"
   | "reveal"
   | "settlement"
-  | "microbet";
+  | "microbet"
+  | "round-end-settlement";
 
 const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
   redDamageToBlue: "Red deals damage to Blue",
@@ -77,17 +78,6 @@ function createZeroTotals(): StatTotals {
     wallHitsBlue: 0,
     ballCollisions: 0,
   };
-}
-
-function calcBooleanOdds(kind: MicroBetKind): number {
-  const prob: Record<MicroBetKind, number> = {
-    redDamageToBlue: 0.5,
-    blueDamageToRed: 0.5,
-    redWallHits: 0.5,
-    blueWallHits: 0.5,
-    ballCollisions: 0.45,
-  };
-  return Number((0.92 / prob[kind]).toFixed(2));
 }
 
 function didMicrobetWin(
@@ -216,6 +206,7 @@ function SingleplayerPanelInner({
   const [settlementNet, setSettlementNet] = useState(0);
 
   const lastVoteStatsRef = useRef<StatTotals | null>(null);
+  const pendingRoundAdvanceRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (snapshot.roundNumber > 1) {
@@ -227,7 +218,7 @@ function SingleplayerPanelInner({
   useEffect(() => {
     if (phase === "running" && prevPhaseRef.current !== "running") {
       audioCtrlRef.current?.setPaused(false);
-      audioCtrlRef.current?.startTracks(3);
+      audioCtrlRef.current?.startTracks(2);
     } else if (phase !== "running" && prevPhaseRef.current === "running") {
       audioCtrlRef.current?.setPaused(true);
     }
@@ -253,7 +244,7 @@ function SingleplayerPanelInner({
 
       for (const bet of active) {
         const won = didMicrobetWin(bet.kind, bet.outcome, delta);
-        const payout = won ? Math.floor(bet.stake * bet.odds) : 0;
+        const payout = won ? bet.stake * 2 : 0;
         payoutTotal += payout;
         entries.push({
           kind: bet.kind,
@@ -401,6 +392,7 @@ function SingleplayerPanelInner({
     setSettlementEntries([]);
     setSettlementNet(0);
     lastVoteStatsRef.current = null;
+    pendingRoundAdvanceRef.current = null;
   }, []);
 
   const resetBoardForNextRound = useCallback(() => {
@@ -514,7 +506,7 @@ function SingleplayerPanelInner({
           category: resolved.application.category,
           label: resolved.application.label,
         });
-        audioCtrlRef.current?.startTracks(3);
+        audioCtrlRef.current?.startTracks(2);
       }
       setSnapshot(engine.getSnapshot());
       setVoteWindow(null);
@@ -544,12 +536,19 @@ function SingleplayerPanelInner({
   );
 
   const handleSettlementContinue = useCallback(() => {
-    transitionPhase("vote", 0);
+    if (phaseRef.current === "round-end-settlement") {
+      const advance = pendingRoundAdvanceRef.current;
+      pendingRoundAdvanceRef.current = null;
+      setSettlementEntries([]);
+      setSettlementNet(0);
+      if (advance) advance();
+    } else {
+      transitionPhase("vote", 0);
+    }
   }, [transitionPhase]);
 
   const handleMicrobetAdd = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
-    const odds = calcBooleanOdds(microbetDraft.kind);
     setQueuedMicrobets((prev) => {
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
@@ -562,7 +561,7 @@ function SingleplayerPanelInner({
           kind: microbetDraft.kind,
           outcome: microbetDraft.outcome,
           stake,
-          odds,
+          odds: 2,
         },
       ];
     });
@@ -570,7 +569,6 @@ function SingleplayerPanelInner({
 
   const handleMicrobetQuickAdd = useCallback((draft: MicrobetDraft) => {
     if (phaseRef.current !== "microbet") return;
-    const odds = calcBooleanOdds(draft.kind);
     setQueuedMicrobets((prev) => {
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
@@ -583,7 +581,7 @@ function SingleplayerPanelInner({
           kind: draft.kind,
           outcome: draft.outcome,
           stake,
-          odds,
+          odds: 2,
         },
       ];
     });
@@ -641,10 +639,9 @@ function SingleplayerPanelInner({
 
       if (stepResult.voteWindow) {
         const currentTotals = statsTotalsRef.current;
-
         const entries = settlePlayerMicrobets(currentTotals);
         const net = entries.reduce(
-          (sum, e) => sum + (e.won ? e.payout - e.stake : -e.stake),
+          (sum, e) => sum + (e.won ? e.stake : -e.stake),
           0,
         );
 
@@ -669,18 +666,16 @@ function SingleplayerPanelInner({
 
       if (stepResult.roundResult && !roundBetSettledRef.current) {
         roundBetSettledRef.current = true;
+
         const currentTotals = statsTotalsRef.current;
         const entries = settlePlayerMicrobets(currentTotals);
         const net = entries.reduce(
-          (sum, e) => sum + (e.won ? e.payout - e.stake : -e.stake),
+          (sum, e) => sum + (e.won ? e.stake : -e.stake),
           0,
         );
-        if (entries.length > 0) {
-          setSettlementEntries(entries);
-          setSettlementNet(net);
-        }
 
         setRoundWinner(stepResult.roundResult.winner);
+
         if (currentBetRef.current) {
           const bet = currentBetRef.current;
           const won = bet.side === stepResult.roundResult.winner;
@@ -694,32 +689,34 @@ function SingleplayerPanelInner({
           setPlayerBananas(playerBananasRef.current);
           setMainBetResult({ won, pnl });
         }
-      }
 
-      if (
-        stepResult.roundResult &&
-        !stepResult.snapshot.tournamentFinished &&
-        !roundAdvanceTimeoutRef.current
-      ) {
-        roundAdvanceTimeoutRef.current = setTimeout(() => {
+        const doAdvance = () => {
           const nextSnapshot = engine.startNextRound();
           resetBoardForNextRound();
           if (nextSnapshot) setSnapshot(nextSnapshot);
-          roundAdvanceTimeoutRef.current = null;
-        }, 4000);
+        };
+
+        if (entries.length > 0) {
+          setSettlementEntries(entries);
+          setSettlementNet(net);
+          pendingRoundAdvanceRef.current = doAdvance;
+          roundAdvanceTimeoutRef.current = setTimeout(() => {
+            transitionPhase("round-end-settlement", 0);
+            roundAdvanceTimeoutRef.current = null;
+          }, 2000);
+        } else if (!stepResult.snapshot.tournamentFinished) {
+          roundAdvanceTimeoutRef.current = setTimeout(() => {
+            doAdvance();
+            roundAdvanceTimeoutRef.current = null;
+          }, 4000);
+        }
       }
     }, 1000);
 
     return () => {
       clearInterval(interval);
     };
-  }, [
-    applyVoteApplication,
-    engine,
-    resetBoardForNextRound,
-    settlePlayerMicrobets,
-    transitionPhase,
-  ]);
+  }, [engine, resetBoardForNextRound, settlePlayerMicrobets, transitionPhase]);
 
   const queuedStakeTotal = queuedMicrobets.reduce(
     (sum, bet) => sum + bet.stake,
@@ -1001,7 +998,7 @@ function SingleplayerPanelInner({
       />
 
       <MicrobetSettlementModal
-        open={phase === "settlement"}
+        open={phase === "settlement" || phase === "round-end-settlement"}
         settlements={settlementEntries}
         netChange={settlementNet}
         totalBananas={playerBananas}
