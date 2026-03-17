@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Gear, TrendUp } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "framer-motion";
 import { BotsGameEngine } from "@/bots/engine";
 import type {
   BallId,
@@ -44,6 +45,7 @@ const STARTING_HEALTH = 100;
 const STARTING_BANANAS = 100;
 const MAIN_BET_MIN_STAKE = 20;
 const DEFAULT_SINGLEPLAYER_BOTS = 0;
+const VOTE_REVEAL_HOLD_MS = 3000;
 
 type BetResult = { won: boolean; pnl: number };
 type MatchPhase = "prematch" | "running" | "vote" | "reveal" | "microbet";
@@ -150,6 +152,7 @@ export default function SingleplayerPanel({
   const phaseCountdownRef = useRef(0);
 
   const [playerBananas, setPlayerBananas] = useState(STARTING_BANANAS);
+  const [prevPlayerBananas, setPrevPlayerBananas] = useState(STARTING_BANANAS);
   const playerBananasRef = useRef(STARTING_BANANAS);
 
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
@@ -251,6 +254,7 @@ export default function SingleplayerPanel({
     }
 
     if (payoutTotal > 0) {
+      setPrevPlayerBananas(playerBananasRef.current);
       playerBananasRef.current += payoutTotal;
       setPlayerBananas(playerBananasRef.current);
     }
@@ -400,6 +404,7 @@ export default function SingleplayerPanel({
     setBlueWeapons([]);
     gameApiRef.current = null;
 
+    setPrevPlayerBananas(STARTING_BANANAS);
     playerBananasRef.current = STARTING_BANANAS;
     setPlayerBananas(STARTING_BANANAS);
     currentBetRef.current = null;
@@ -466,6 +471,7 @@ export default function SingleplayerPanel({
     if (mainBetSelection.stake < MAIN_BET_MIN_STAKE) return;
     if (playerBananasRef.current < mainBetSelection.stake) return;
 
+    setPrevPlayerBananas(playerBananasRef.current);
     playerBananasRef.current -= mainBetSelection.stake;
     setPlayerBananas(playerBananasRef.current);
 
@@ -491,6 +497,7 @@ export default function SingleplayerPanel({
         if (playerBananasRef.current < spend) {
           return;
         }
+        setPrevPlayerBananas(playerBananasRef.current);
         playerBananasRef.current -= spend;
         setPlayerBananas(playerBananasRef.current);
       }
@@ -524,7 +531,7 @@ export default function SingleplayerPanel({
         });
         transitionPhase("microbet", 0);
         voteRevealTimeoutRef.current = null;
-      }, 2100);
+      }, VOTE_REVEAL_HOLD_MS);
     },
     [applyVoteApplication, engine, transitionPhase],
   );
@@ -595,6 +602,7 @@ export default function SingleplayerPanel({
     }
 
     if (totalStake > 0) {
+      setPrevPlayerBananas(playerBananasRef.current);
       playerBananasRef.current -= totalStake;
       setPlayerBananas(playerBananasRef.current);
     }
@@ -672,7 +680,8 @@ export default function SingleplayerPanel({
           const bet = currentBetRef.current;
           const won = bet.side === stepResult.roundResult.winner;
           const payout = won ? bet.stake * 2 : 0;
-          const pnl = won ? bet.stake : bet.stake;
+          const pnl = bet.stake;
+          setPrevPlayerBananas(playerBananasRef.current);
           playerBananasRef.current = Math.max(
             0,
             playerBananasRef.current + payout,
@@ -713,6 +722,7 @@ export default function SingleplayerPanel({
     0,
   );
   const hasBots = snapshot.bots.length > 0;
+  const bananaDiff = playerBananas - prevPlayerBananas;
 
   return (
     <>
@@ -760,9 +770,43 @@ export default function SingleplayerPanel({
                 <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
                   Your <BananaInline>Bananas</BananaInline>
                 </p>
-                <p className="text-3xl font-black tabular-nums">
-                  <BananaInline iconSize={18}>{playerBananas}</BananaInline>
-                </p>
+                <div className="relative inline-block">
+                  <motion.p
+                    key={playerBananas}
+                    className="text-3xl font-black tabular-nums"
+                    initial={{
+                      scale: 1.2,
+                      color:
+                        bananaDiff > 0
+                          ? "#16a34a"
+                          : bananaDiff < 0
+                            ? "#dc2626"
+                            : "#000",
+                    }}
+                    animate={{ scale: 1, color: "#000" }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                  >
+                    <BananaInline iconSize={18}>{playerBananas}</BananaInline>
+                  </motion.p>
+                  <AnimatePresence>
+                    {bananaDiff !== 0 && (
+                      <motion.span
+                        key={`diff-${playerBananas}`}
+                        className="absolute -top-5 right-0 text-sm font-black pointer-events-none"
+                        style={{
+                          color: bananaDiff > 0 ? "#16a34a" : "#dc2626",
+                        }}
+                        initial={{ opacity: 1, y: 0 }}
+                        animate={{ opacity: 0, y: -18 }}
+                        exit={{}}
+                        transition={{ duration: 0.9, ease: "easeOut" }}
+                      >
+                        {bananaDiff > 0 ? "+" : ""}
+                        {bananaDiff}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
                 <p className="mt-2 text-xs font-black uppercase text-zinc-700">
                   Phase: {phase}
                 </p>
@@ -774,7 +818,7 @@ export default function SingleplayerPanel({
                 </p>
                 {currentBet ? (
                   <p className="text-sm font-black uppercase">
-                    {currentBet.side} -{" "}
+                    {currentBet.side} —{" "}
                     <BananaInline>{currentBet.stake}</BananaInline>
                   </p>
                 ) : (
@@ -782,13 +826,40 @@ export default function SingleplayerPanel({
                     No main bet this round.
                   </p>
                 )}
-                {mainBetResult && (
-                  <p className="mt-2 text-sm font-black uppercase">
-                    {mainBetResult.won
-                      ? `Win +${mainBetResult.pnl}`
-                      : `Loss -${mainBetResult.pnl}`}
-                  </p>
-                )}
+                <AnimatePresence mode="wait">
+                  {mainBetResult && (
+                    <motion.div
+                      key={mainBetResult.won ? "win" : "loss"}
+                      initial={{ opacity: 0, scale: 0.6, y: 6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.8, y: -6 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 340,
+                        damping: 22,
+                      }}
+                      className={`mt-2 px-3 py-2 border-4 border-black font-black uppercase tracking-widest text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${
+                        mainBetResult.won
+                          ? "bg-green-400 text-black"
+                          : "bg-red-200 text-black"
+                      }`}
+                    >
+                      <motion.span
+                        className="block"
+                        animate={
+                          mainBetResult.won
+                            ? { scale: [1, 1.18, 1, 1.1, 1] }
+                            : { scale: [1, 0.92, 1] }
+                        }
+                        transition={{ duration: 0.5 }}
+                      >
+                        {mainBetResult.won
+                          ? `WIN +${mainBetResult.pnl} 🍌`
+                          : `LOSS -${mainBetResult.pnl}`}
+                      </motion.span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
@@ -802,17 +873,40 @@ export default function SingleplayerPanel({
                   {activeMicrobets.length} running
                 </p>
                 {lastMicrobetSettlements.length > 0 ? (
-                  <p className="mt-2 text-xs text-zinc-700">
+                  <motion.p
+                    key={lastMicrobetSettlements.length}
+                    className="mt-2 text-xs text-zinc-700"
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
                     Last interval:{" "}
-                    {lastMicrobetSettlements.filter((item) => item.won).length}{" "}
-                    / {lastMicrobetSettlements.length} won
-                  </p>
+                    <span
+                      className={
+                        lastMicrobetSettlements.filter((s) => s.won).length > 0
+                          ? "text-green-700 font-black"
+                          : "text-red-600 font-black"
+                      }
+                    >
+                      {
+                        lastMicrobetSettlements.filter((item) => item.won)
+                          .length
+                      }
+                      {" / "}
+                      {lastMicrobetSettlements.length} won
+                    </span>
+                  </motion.p>
                 ) : null}
               </div>
             </div>
 
             {roundWinner ? (
-              <div className="mt-5 w-full rounded-2xl border border-black/15 bg-white/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.85, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                className="mt-5 w-full rounded-2xl border border-black/15 bg-white/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]"
+              >
                 <span
                   className="text-2xl font-black uppercase"
                   style={{
@@ -821,15 +915,20 @@ export default function SingleplayerPanel({
                 >
                   {roundWinner.toUpperCase()} wins this round
                 </span>
-              </div>
+              </motion.div>
             ) : null}
 
             {snapshot.tournamentFinished ? (
-              <div className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: "spring", stiffness: 220, damping: 18 }}
+                className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]"
+              >
                 <span className="text-2xl font-black uppercase">
                   Tournament Complete
                 </span>
-              </div>
+              </motion.div>
             ) : null}
           </div>
         }
@@ -929,13 +1028,42 @@ export default function SingleplayerPanel({
           <p className="text-xs font-black uppercase tracking-widest mb-2">
             Recent microbet results
           </p>
-          <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-            {lastMicrobetSettlements.map((entry, index) => (
-              <p key={`${entry.label}-${index}`} className="text-xs">
-                {entry.won ? "Win" : "Loss"} - {entry.label}
-                {entry.won ? ` (+${entry.payout})` : ""}
-              </p>
-            ))}
+          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+            <AnimatePresence initial={false}>
+              {lastMicrobetSettlements.map((entry, index) => (
+                <motion.div
+                  key={`${entry.label}-${index}`}
+                  initial={{ opacity: 0, x: entry.won ? -14 : 14, scale: 0.92 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: entry.won ? -8 : 8 }}
+                  transition={{
+                    delay: index * 0.07,
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 24,
+                  }}
+                  className={`flex items-center justify-between px-2.5 py-1.5 border-l-4 ${
+                    entry.won
+                      ? "border-green-400 bg-green-50"
+                      : "border-red-300 bg-red-50"
+                  }`}
+                >
+                  <p className="text-xs font-bold text-zinc-800 truncate">
+                    {entry.label}
+                  </p>
+                  <motion.p
+                    className={`text-xs font-black ml-2 shrink-0 ${
+                      entry.won ? "text-green-700" : "text-red-600"
+                    }`}
+                    initial={{ scale: 1.4 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: index * 0.07 + 0.1, duration: 0.25 }}
+                  >
+                    {entry.won ? `+${entry.payout}` : "✗"}
+                  </motion.p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
             {lastMicrobetSettlements.length === 0 && (
               <p className="text-xs text-zinc-600">
                 Place interval microbets to see settlement results here.
@@ -943,10 +1071,15 @@ export default function SingleplayerPanel({
             )}
           </div>
           {phase === "microbet" && queuedStakeTotal > 0 && (
-            <p className="text-xs font-black uppercase mt-3">
+            <motion.p
+              key={queuedStakeTotal}
+              className="text-xs font-black uppercase mt-3"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
               Queued stake total:{" "}
               <BananaInline>{queuedStakeTotal}</BananaInline>
-            </p>
+            </motion.p>
           )}
         </div>
       </div>

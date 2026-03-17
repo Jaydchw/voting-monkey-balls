@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Mountains, Sparkle, Sword, Star } from "@phosphor-icons/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { BlockSlider } from "@/components/ui/block-slider";
 import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
 import { FlipOptionCard } from "@/components/game/modals/flip-option-card";
@@ -545,7 +546,7 @@ export function VoteRevealModal({
             onSelect: () => undefined,
           }),
         );
-      }, 1500),
+      }, 1200),
     ];
     return () => timers.forEach(window.clearTimeout);
   }, [open, pickedOptionIndex, revealedOption]);
@@ -559,6 +560,13 @@ export function VoteRevealModal({
         ? "Ball Modifier"
         : "Arena Modifier";
 
+  const categoryColor =
+    revealedOption.category === "weapon"
+      ? "#ef4444"
+      : revealedOption.category === "modifier"
+        ? "#8b5cf6"
+        : "#06b6d4";
+
   return (
     <FullscreenModal
       open={open && Boolean(revealedOption)}
@@ -571,62 +579,147 @@ export function VoteRevealModal({
         </p>
 
         <div className="relative h-28 mt-2">
-          <Image
-            src={monkeyImageSrc}
-            alt="Monkey"
-            width={128}
-            height={128}
-            className={[
-              "absolute left-1/2 top-0 -translate-x-1/2 w-24 h-24 sm:w-28 sm:h-28 object-contain transition-transform duration-300",
-              phase === "revealed" ? "scale-110" : "scale-100",
-            ].join(" ")}
-          />
+          <motion.div
+            className="absolute left-1/2 top-0 -translate-x-1/2"
+            animate={
+              phase === "revealed"
+                ? { scale: [1, 1.15, 1.05], rotate: [0, -4, 4, 0] }
+                : { scale: 1, rotate: 0 }
+            }
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
+            <Image
+              src={monkeyImageSrc}
+              alt="Monkey"
+              width={128}
+              height={128}
+              className="w-24 h-24 sm:w-28 sm:h-28 object-contain"
+            />
+          </motion.div>
         </div>
 
-        <div className="flex items-end justify-center gap-3 h-24 mt-2">
+        <div className="flex items-end justify-center gap-3 h-28 mt-2">
           {[0, 1, 2].map((cardIndex) => {
             const isPicked = cardIndex === pickedIndex;
             const isRevealed = phase === "revealed" && isPicked;
             return (
-              <div
+              <motion.div
                 key={cardIndex}
+                animate={
+                  isPicked && phase === "revealed"
+                    ? {
+                        y: [-2, -12, -8],
+                        scale: [1, 1.12, 1.08],
+                        boxShadow: [
+                          "4px 4px 0px 0px rgba(0,0,0,1)",
+                          `0px 0px 24px 6px ${categoryColor}88`,
+                          `0px 0px 16px 4px ${categoryColor}66`,
+                        ],
+                      }
+                    : isPicked
+                      ? { y: -4, scale: 1.04 }
+                      : { y: 0, scale: 1 }
+                }
+                transition={{ duration: 0.5, ease: "easeOut" }}
                 className={[
-                  "w-16 sm:w-20 h-20 sm:h-24 border-4 flex items-center justify-center transition-all duration-500",
-                  isPicked && phase !== "thinking"
-                    ? "-translate-y-2 scale-105"
-                    : "",
+                  "w-16 sm:w-20 h-20 sm:h-24 border-4 flex items-center justify-center transition-colors duration-300",
                   isRevealed
-                    ? "border-black bg-yellow-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-                    : "border-black bg-gradient-to-br from-yellow-100 to-amber-200 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+                    ? "border-black bg-yellow-300"
+                    : "border-black bg-gradient-to-br from-yellow-100 to-amber-200",
                 ].join(" ")}
               >
                 {!isRevealed ? (
                   <p className="text-2xl font-black opacity-30">?</p>
                 ) : (
-                  <p className="text-[10px] font-black uppercase tracking-wide px-1">
+                  <motion.p
+                    className="text-[10px] font-black uppercase tracking-wide px-1 text-center"
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1, type: "spring", stiffness: 280 }}
+                  >
                     Winner
-                  </p>
+                  </motion.p>
                 )}
-              </div>
+              </motion.div>
             );
           })}
         </div>
 
-        <div
-          className={[
-            "mt-4 transition-all duration-400",
-            phase === "revealed"
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-2",
-          ].join(" ")}
-        >
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
-            {categoryLabel}
-          </p>
-          <h3 className="text-xl sm:text-2xl font-black uppercase mt-1">
-            {revealedOption.label}
-          </h3>
-        </div>
+        <AnimatePresence mode="wait">
+          {phase === "revealed" && (
+            <motion.div
+              key="revealed-text"
+              className="mt-5"
+              initial={{ opacity: 0, y: 14, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+              <motion.p
+                className="text-[10px] font-black uppercase tracking-[0.3em]"
+                style={{ color: categoryColor }}
+              >
+                {categoryLabel}
+              </motion.p>
+              <motion.h3
+                className="text-xl sm:text-2xl font-black uppercase mt-1"
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 0.4, delay: 0.15 }}
+              >
+                {revealedOption.label}
+              </motion.h3>
+
+              <motion.div
+                className="mt-3 flex justify-center gap-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: categoryColor }}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.3 + i * 0.06, type: "spring" }}
+                  />
+                ))}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {phase === "thinking" && (
+          <motion.div
+            className="mt-5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
+              Counting votes...
+            </p>
+            <motion.div
+              className="flex justify-center gap-2 mt-3"
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+            >
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  className="w-2 h-2 rounded-full bg-zinc-300"
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{
+                    duration: 0.6,
+                    delay: i * 0.15,
+                    repeat: Infinity,
+                  }}
+                />
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
       </div>
     </FullscreenModal>
   );
