@@ -74,16 +74,13 @@ function BotsGameBoardPanelInner({
     null,
   );
 
-  const lastRoundLoaded = useRef(0);
   useEffect(() => {
-    if (snapshot.roundNumber !== lastRoundLoaded.current) {
-      lastRoundLoaded.current = snapshot.roundNumber;
-      audioCtrlRef.current?.loadRound(snapshot.roundNumber).then(() => {
-        audioCtrlRef.current?.setPaused(false);
-        audioCtrlRef.current?.startTracks(3);
-      });
-    }
-  }, [snapshot.roundNumber, audioCtrlRef]);
+    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+  }, [audioCtrlRef, snapshot.roundNumber]);
+
+  useEffect(() => {
+    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+  }, [audioCtrlRef, snapshot.roundNumber]);
 
   const resetBoardForNextRound = useCallback(() => {
     setGameKey((v) => v + 1);

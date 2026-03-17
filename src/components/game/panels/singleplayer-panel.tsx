@@ -217,13 +217,13 @@ function SingleplayerPanelInner({
 
   const lastVoteStatsRef = useRef<StatTotals | null>(null);
 
-  const lastRoundLoaded = useRef(0);
   useEffect(() => {
-    if (snapshot.roundNumber !== lastRoundLoaded.current) {
-      lastRoundLoaded.current = snapshot.roundNumber;
-      void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
-    }
-  }, [snapshot.roundNumber, audioCtrlRef]);
+    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+  }, [audioCtrlRef, snapshot.roundNumber]);
+
+  useEffect(() => {
+    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+  }, [audioCtrlRef, snapshot.roundNumber]);
 
   const prevPhaseRef = useRef<MatchPhase>("prematch");
   useEffect(() => {

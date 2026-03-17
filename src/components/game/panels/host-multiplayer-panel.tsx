@@ -338,13 +338,13 @@ export default function HostMultiplayerPanel({
     };
   }, []);
 
-  const lastRoundLoaded = useRef(0);
   useEffect(() => {
-    if (snapshot.roundNumber !== lastRoundLoaded.current) {
-      lastRoundLoaded.current = snapshot.roundNumber;
-      void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
-    }
-  }, [snapshot.roundNumber]);
+    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+  }, [audioCtrlRef, snapshot.roundNumber]);
+
+  useEffect(() => {
+    void audioCtrlRef.current?.loadRound(snapshot.roundNumber);
+  }, [audioCtrlRef, snapshot.roundNumber]);
 
   const prevPhaseRef = useRef<MatchPhase>("lobby");
   useEffect(() => {

@@ -55,12 +55,13 @@ export function playGameSfx(
     return;
   }
   const settings = getAudioSettings();
-  const isMusic = id.startsWith("music");
-  const channelVolume = isMusic ? settings.musicVolume : settings.sfxVolume * 0.005;
   const baseVolume = options?.volume ?? 1;
   const volume = Math.max(
     0,
-    Math.min(1, baseVolume * settings.masterVolume * channelVolume),
+    Math.min(
+      1,
+      baseVolume * settings.masterVolume * settings.sfxVolume * 0.005,
+    ),
   );
 
   scene.sound.play(id, {

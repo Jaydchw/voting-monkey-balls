@@ -106,7 +106,7 @@ export class MenuAudioController {
     if (!this.masterGain) return;
     const settings = getAudioSettings();
     this.masterGain.gain.value =
-      settings.masterVolume * settings.musicVolume * 1.3;
+      settings.masterVolume * settings.musicVolume * 1.6;
   }
 
   async load(): Promise<void> {
