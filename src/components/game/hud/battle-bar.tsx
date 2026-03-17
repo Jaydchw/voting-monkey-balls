@@ -149,7 +149,7 @@ export function BattleBar({
 
   useEffect(() => {
     prevHealthRef.current = health;
-  }, []);
+  }, [health]);
 
   const label = ballId === "red" ? "Red" : "Blue";
   const ringClass = getRingClass(modifiers);

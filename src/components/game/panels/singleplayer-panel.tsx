@@ -33,6 +33,10 @@ import {
   VoteEventModal,
   VoteRevealModal,
 } from "@/components/game/modals";
+import {
+  MicrobetSettlementModal,
+  type SettlementEntry,
+} from "@/components/game/modals/microbet-settlement-modal";
 import type {
   MainBetSelection,
   MicrobetDraft,
@@ -48,7 +52,13 @@ const DEFAULT_SINGLEPLAYER_BOTS = 0;
 const VOTE_REVEAL_HOLD_MS = 3000;
 
 type BetResult = { won: boolean; pnl: number };
-type MatchPhase = "prematch" | "running" | "vote" | "reveal" | "microbet";
+type MatchPhase =
+  | "prematch"
+  | "running"
+  | "vote"
+  | "reveal"
+  | "settlement"
+  | "microbet";
 
 const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
   redDamageToBlue: "Red deals damage to Blue",
@@ -69,14 +79,14 @@ function createZeroTotals(): StatTotals {
 }
 
 function calcBooleanOdds(kind: MicroBetKind): number {
-  const probabilityByKind: Record<MicroBetKind, number> = {
+  const prob: Record<MicroBetKind, number> = {
     redDamageToBlue: 0.5,
     blueDamageToRed: 0.5,
     redWallHits: 0.5,
     blueWallHits: 0.5,
     ballCollisions: 0.45,
   };
-  return Number((0.92 / probabilityByKind[kind]).toFixed(2));
+  return Number((0.92 / prob[kind]).toFixed(2));
 }
 
 function didMicrobetWin(
@@ -84,32 +94,26 @@ function didMicrobetWin(
   outcome: boolean,
   delta: StatTotals,
 ): boolean {
-  if (kind === "redDamageToBlue") {
+  if (kind === "redDamageToBlue")
     return outcome
       ? delta.blueDamageTaken > delta.redDamageTaken
       : delta.blueDamageTaken <= delta.redDamageTaken;
-  }
-  if (kind === "blueDamageToRed") {
+  if (kind === "blueDamageToRed")
     return outcome
       ? delta.redDamageTaken > delta.blueDamageTaken
       : delta.redDamageTaken <= delta.blueDamageTaken;
-  }
-  if (kind === "redWallHits") {
+  if (kind === "redWallHits")
     return outcome
       ? delta.wallHitsRed > delta.wallHitsBlue
       : delta.wallHitsRed <= delta.wallHitsBlue;
-  }
-  if (kind === "blueWallHits") {
+  if (kind === "blueWallHits")
     return outcome
       ? delta.wallHitsBlue > delta.wallHitsRed
       : delta.wallHitsBlue <= delta.wallHitsRed;
-  }
   return outcome ? delta.ballCollisions >= 10 : delta.ballCollisions < 10;
 }
 
-type SingleplayerPanelProps = {
-  initialBotCount?: number;
-};
+type SingleplayerPanelProps = { initialBotCount?: number };
 
 export default function SingleplayerPanel({
   initialBotCount = DEFAULT_SINGLEPLAYER_BOTS,
@@ -161,7 +165,6 @@ export default function SingleplayerPanel({
   });
   const [currentBet, setCurrentBet] = useState<MainBetSelection | null>(null);
   const [mainBetResult, setMainBetResult] = useState<BetResult | null>(null);
-
   const currentBetRef = useRef<MainBetSelection | null>(null);
   const roundBetSettledRef = useRef(false);
 
@@ -193,8 +196,12 @@ export default function SingleplayerPanel({
     Array<{ label: string; won: boolean; payout: number }>
   >([]);
 
-  const lastVoteStatsRef = useRef<StatTotals | null>(null);
+  const [settlementEntries, setSettlementEntries] = useState<SettlementEntry[]>(
+    [],
+  );
+  const [settlementNet, setSettlementNet] = useState(0);
 
+  const lastVoteStatsRef = useRef<StatTotals | null>(null);
   const audioCtrlRef = useRef<GameAudioController | null>(null);
 
   useEffect(() => {
@@ -223,46 +230,56 @@ export default function SingleplayerPanel({
     prevPhaseRef.current = phase;
   }, [phase]);
 
-  const settlePlayerMicrobets = useCallback((currentTotals: StatTotals) => {
-    const last = lastVoteStatsRef.current;
-    const active = activeMicrobetsRef.current;
-    if (!last || active.length === 0) {
-      return;
-    }
+  const settlePlayerMicrobets = useCallback(
+    (currentTotals: StatTotals): SettlementEntry[] => {
+      const last = lastVoteStatsRef.current;
+      const active = activeMicrobetsRef.current;
+      if (!last || active.length === 0) return [];
 
-    const delta: StatTotals = {
-      redDamageTaken: currentTotals.redDamageTaken - last.redDamageTaken,
-      blueDamageTaken: currentTotals.blueDamageTaken - last.blueDamageTaken,
-      wallHitsRed: currentTotals.wallHitsRed - last.wallHitsRed,
-      wallHitsBlue: currentTotals.wallHitsBlue - last.wallHitsBlue,
-      ballCollisions: currentTotals.ballCollisions - last.ballCollisions,
-    };
+      const delta: StatTotals = {
+        redDamageTaken: currentTotals.redDamageTaken - last.redDamageTaken,
+        blueDamageTaken: currentTotals.blueDamageTaken - last.blueDamageTaken,
+        wallHitsRed: currentTotals.wallHitsRed - last.wallHitsRed,
+        wallHitsBlue: currentTotals.wallHitsBlue - last.wallHitsBlue,
+        ballCollisions: currentTotals.ballCollisions - last.ballCollisions,
+      };
 
-    const settlements: Array<{ label: string; won: boolean; payout: number }> =
-      [];
-    let payoutTotal = 0;
+      const entries: SettlementEntry[] = [];
+      let payoutTotal = 0;
 
-    for (const bet of active) {
-      const won = didMicrobetWin(bet.kind, bet.outcome, delta);
-      const payout = won ? Math.floor(bet.stake * bet.odds) : 0;
-      payoutTotal += payout;
-      settlements.push({
-        label: `${MICROBET_KIND_LABEL[bet.kind]}: ${bet.outcome ? "YES" : "NO"}`,
-        won,
-        payout,
-      });
-    }
+      for (const bet of active) {
+        const won = didMicrobetWin(bet.kind, bet.outcome, delta);
+        const payout = won ? Math.floor(bet.stake * bet.odds) : 0;
+        payoutTotal += payout;
+        entries.push({
+          kind: bet.kind,
+          outcome: bet.outcome,
+          stake: bet.stake,
+          payout,
+          won,
+        });
+      }
 
-    if (payoutTotal > 0) {
-      setPrevPlayerBananas(playerBananasRef.current);
-      playerBananasRef.current += payoutTotal;
-      setPlayerBananas(playerBananasRef.current);
-    }
+      if (payoutTotal > 0) {
+        setPrevPlayerBananas(playerBananasRef.current);
+        playerBananasRef.current += payoutTotal;
+        setPlayerBananas(playerBananasRef.current);
+      }
 
-    setLastMicrobetSettlements(settlements);
-    activeMicrobetsRef.current = [];
-    setActiveMicrobets([]);
-  }, []);
+      setLastMicrobetSettlements(
+        entries.map((e) => ({
+          label: `${MICROBET_KIND_LABEL[e.kind]}: ${e.outcome ? "YES" : "NO"}`,
+          won: e.won,
+          payout: e.payout,
+        })),
+      );
+
+      activeMicrobetsRef.current = [];
+      setActiveMicrobets([]);
+      return entries;
+    },
+    [],
+  );
 
   const transitionPhase = useCallback((next: MatchPhase, seconds: number) => {
     phaseRef.current = next;
@@ -277,18 +294,12 @@ export default function SingleplayerPanel({
         ReturnType<typeof engine.resolvePendingVote>["application"]
       >,
     ) => {
-      if (!gameApiRef.current) {
-        return;
-      }
-
+      if (!gameApiRef.current) return;
       if (application.category === "arena") {
         const arena = application.arena();
         gameApiRef.current.addArenaModifier(arena);
-        if (application.label === "Circle Arena") {
-          setIsCircleArena(true);
-        }
+        if (application.label === "Circle Arena") setIsCircleArena(true);
       }
-
       if (application.category === "weapon") {
         const redW = application.red();
         const blueW = application.blue();
@@ -303,7 +314,6 @@ export default function SingleplayerPanel({
           { name: blueW.name, icon: blueW.icon, quality: blueW.quality },
         ]);
       }
-
       if (application.category === "modifier") {
         const redM = application.red();
         const blueM = application.blue();
@@ -318,7 +328,6 @@ export default function SingleplayerPanel({
           { name: blueM.name, icon: blueM.icon, quality: blueM.quality },
         ]);
       }
-
       setAppliedEffects((prev) =>
         [
           {
@@ -333,12 +342,18 @@ export default function SingleplayerPanel({
     [engine],
   );
 
-  const resetBoardForNextRound = useCallback(() => {
+  const clearAllTimers = useCallback(() => {
+    if (roundAdvanceTimeoutRef.current) {
+      clearTimeout(roundAdvanceTimeoutRef.current);
+      roundAdvanceTimeoutRef.current = null;
+    }
     if (voteRevealTimeoutRef.current) {
       clearTimeout(voteRevealTimeoutRef.current);
       voteRevealTimeoutRef.current = null;
     }
+  }, []);
 
+  const resetBoardState = useCallback(() => {
     setGameKey((v) => v + 1);
     setRedHealth(STARTING_HEALTH);
     setBlueHealth(STARTING_HEALTH);
@@ -354,81 +369,74 @@ export default function SingleplayerPanel({
     setRedWeapons([]);
     setBlueWeapons([]);
     gameApiRef.current = null;
+  }, []);
 
+  const resetBetState = useCallback(() => {
     currentBetRef.current = null;
     roundBetSettledRef.current = false;
     setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
     setCurrentBet(null);
     setMainBetResult(null);
+  }, []);
 
+  const resetVoteState = useCallback(() => {
     setVoteWindow(null);
     setVoteSelection(null);
     setVotePowerStake(1);
     setPickedVoteOptionIndex(null);
     setRevealedVoteOption(null);
+  }, []);
 
+  const resetMicrobetState = useCallback(() => {
     setMicrobetInsights([]);
     setMicrobetDraft({ kind: "redDamageToBlue", outcome: true, stake: 5 });
     setQueuedMicrobets([]);
     activeMicrobetsRef.current = [];
     setActiveMicrobets([]);
     setLastMicrobetSettlements([]);
+    setSettlementEntries([]);
+    setSettlementNet(0);
     lastVoteStatsRef.current = null;
+  }, []);
 
+  const resetBoardForNextRound = useCallback(() => {
+    clearAllTimers();
+    resetBoardState();
+    resetBetState();
+    resetVoteState();
+    resetMicrobetState();
     transitionPhase("prematch", 0);
-  }, [transitionPhase]);
+  }, [
+    clearAllTimers,
+    resetBoardState,
+    resetBetState,
+    resetVoteState,
+    resetMicrobetState,
+    transitionPhase,
+  ]);
 
   const restartSingleplayerMatch = useCallback(() => {
-    if (voteRevealTimeoutRef.current) {
-      clearTimeout(voteRevealTimeoutRef.current);
-      voteRevealTimeoutRef.current = null;
-    }
-
+    clearAllTimers();
     const nextEngine = new BotsGameEngine({ botCount: initialBotCount });
     setEngine(nextEngine);
     setSnapshot(nextEngine.getSnapshot());
-
-    setGameKey((v) => v + 1);
-    setRedHealth(STARTING_HEALTH);
-    setBlueHealth(STARTING_HEALTH);
-    healthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
-    previousHealthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
-    statsTotalsRef.current = createZeroTotals();
-    forcedWinnerRef.current = undefined;
-    setRoundWinner(null);
-    setIsCircleArena(false);
-    setAppliedEffects([]);
-    setRedModifiers([]);
-    setBlueModifiers([]);
-    setRedWeapons([]);
-    setBlueWeapons([]);
-    gameApiRef.current = null;
-
+    resetBoardState();
     setPrevPlayerBananas(STARTING_BANANAS);
     playerBananasRef.current = STARTING_BANANAS;
     setPlayerBananas(STARTING_BANANAS);
-    currentBetRef.current = null;
-    roundBetSettledRef.current = false;
-    setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
-    setCurrentBet(null);
-    setMainBetResult(null);
-
-    setVoteWindow(null);
-    setVoteSelection(null);
-    setVotePowerStake(1);
-    setPickedVoteOptionIndex(null);
-    setRevealedVoteOption(null);
-
-    setMicrobetInsights([]);
-    setMicrobetDraft({ kind: "redDamageToBlue", outcome: true, stake: 5 });
-    setQueuedMicrobets([]);
-    activeMicrobetsRef.current = [];
-    setActiveMicrobets([]);
-    setLastMicrobetSettlements([]);
-    lastVoteStatsRef.current = null;
-
+    resetBetState();
+    resetVoteState();
+    resetMicrobetState();
     transitionPhase("prematch", 0);
-  }, [initialBotCount, transitionPhase]);
+  }, [
+    clearAllTimers,
+    initialBotCount,
+    resetBoardState,
+    resetBetState,
+    resetVoteState,
+    resetMicrobetState,
+    transitionPhase,
+  ]);
 
   const handleGameReady = useCallback((api: GameApi) => {
     gameApiRef.current = api;
@@ -461,7 +469,6 @@ export default function SingleplayerPanel({
   const handleBallCollision = useCallback(() => {
     statsTotalsRef.current.ballCollisions += 1;
   }, []);
-
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
@@ -470,11 +477,9 @@ export default function SingleplayerPanel({
     if (phaseRef.current !== "prematch") return;
     if (mainBetSelection.stake < MAIN_BET_MIN_STAKE) return;
     if (playerBananasRef.current < mainBetSelection.stake) return;
-
     setPrevPlayerBananas(playerBananasRef.current);
     playerBananasRef.current -= mainBetSelection.stake;
     setPlayerBananas(playerBananasRef.current);
-
     const bet: MainBetSelection = { ...mainBetSelection };
     currentBetRef.current = bet;
     setCurrentBet(bet);
@@ -486,24 +491,18 @@ export default function SingleplayerPanel({
     transitionPhase("running", 0);
   }, [transitionPhase]);
 
-  const resolveVoteAndOpenMicrobet = useCallback(
+  const resolveVoteAndShowSettlement = useCallback(
     (selection: 0 | 1 | 2, playerVotes: number) => {
-      if (selection === null) {
-        return;
-      }
-
+      if (selection === null) return;
       const spend = Math.max(0, Math.floor(playerVotes));
       if (spend > 0) {
-        if (playerBananasRef.current < spend) {
-          return;
-        }
+        if (playerBananasRef.current < spend) return;
         setPrevPlayerBananas(playerBananasRef.current);
         playerBananasRef.current -= spend;
         setPlayerBananas(playerBananasRef.current);
       }
 
       setPickedVoteOptionIndex(selection);
-
       const resolved = engine.resolvePendingVote(selection, spend);
       if (resolved.application) {
         applyVoteApplication(resolved.application);
@@ -513,37 +512,42 @@ export default function SingleplayerPanel({
         });
       }
       setSnapshot(engine.getSnapshot());
-
       setVoteWindow(null);
       setVotePowerStake(1);
       transitionPhase("reveal", 0);
 
-      if (voteRevealTimeoutRef.current) {
+      if (voteRevealTimeoutRef.current)
         clearTimeout(voteRevealTimeoutRef.current);
-      }
       voteRevealTimeoutRef.current = setTimeout(() => {
+        const entries = settlePlayerMicrobets(statsTotalsRef.current);
+        const net = entries.reduce(
+          (sum, e) => sum + (e.won ? e.payout - e.stake : -e.stake),
+          0,
+        );
+        setSettlementEntries(entries);
+        setSettlementNet(net);
         setMicrobetInsights(engine.getPendingMicrobetInsights());
         setQueuedMicrobets([]);
-        setMicrobetDraft({
-          kind: "redDamageToBlue",
-          outcome: true,
-          stake: 5,
-        });
-        transitionPhase("microbet", 0);
+        setMicrobetDraft({ kind: "redDamageToBlue", outcome: true, stake: 5 });
+        transitionPhase(entries.length > 0 ? "settlement" : "microbet", 0);
         voteRevealTimeoutRef.current = null;
       }, VOTE_REVEAL_HOLD_MS);
     },
-    [applyVoteApplication, engine, transitionPhase],
+    [applyVoteApplication, engine, settlePlayerMicrobets, transitionPhase],
   );
 
   const handleVoteCast = useCallback(
     (selection: 0 | 1 | 2) => {
       if (phaseRef.current !== "vote") return;
       setVoteSelection(selection);
-      resolveVoteAndOpenMicrobet(selection, votePowerStake);
+      resolveVoteAndShowSettlement(selection, votePowerStake);
     },
-    [resolveVoteAndOpenMicrobet, votePowerStake],
+    [resolveVoteAndShowSettlement, votePowerStake],
   );
+
+  const handleSettlementContinue = useCallback(() => {
+    transitionPhase("microbet", 0);
+  }, [transitionPhase]);
 
   const handleMicrobetAdd = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
@@ -552,18 +556,17 @@ export default function SingleplayerPanel({
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
       const stake = Math.min(remaining, microbetDraft.stake);
-      if (stake <= 0) {
-        return prev;
-      }
-
-      const bet: PendingPlayerMicrobet = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        kind: microbetDraft.kind,
-        outcome: microbetDraft.outcome,
-        stake,
-        odds,
-      };
-      return [...prev, bet];
+      if (stake <= 0) return prev;
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          kind: microbetDraft.kind,
+          outcome: microbetDraft.outcome,
+          stake,
+          odds,
+        },
+      ];
     });
   }, [microbetDraft]);
 
@@ -574,18 +577,17 @@ export default function SingleplayerPanel({
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, playerBananasRef.current - queuedTotal);
       const stake = Math.min(remaining, draft.stake);
-      if (stake <= 0) {
-        return prev;
-      }
-
-      const bet: PendingPlayerMicrobet = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        kind: draft.kind,
-        outcome: draft.outcome,
-        stake,
-        odds,
-      };
-      return [...prev, bet];
+      if (stake <= 0) return prev;
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          kind: draft.kind,
+          outcome: draft.outcome,
+          stake,
+          odds,
+        },
+      ];
     });
   }, []);
 
@@ -597,50 +599,39 @@ export default function SingleplayerPanel({
   const handleMicrobetConfirm = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
     const totalStake = queuedMicrobets.reduce((sum, bet) => sum + bet.stake, 0);
-    if (totalStake > playerBananasRef.current) {
-      return;
-    }
-
+    if (totalStake > playerBananasRef.current) return;
     if (totalStake > 0) {
       setPrevPlayerBananas(playerBananasRef.current);
       playerBananasRef.current -= totalStake;
       setPlayerBananas(playerBananasRef.current);
     }
-
     activeMicrobetsRef.current = queuedMicrobets;
     setActiveMicrobets(queuedMicrobets);
     setQueuedMicrobets([]);
+    lastVoteStatsRef.current = { ...statsTotalsRef.current };
     transitionPhase("running", 0);
   }, [queuedMicrobets, transitionPhase]);
 
   const handleMicrobetSkip = useCallback(() => {
     if (phaseRef.current !== "microbet") return;
     setQueuedMicrobets([]);
+    lastVoteStatsRef.current = { ...statsTotalsRef.current };
     transitionPhase("running", 0);
   }, [transitionPhase]);
 
   useEffect(() => {
-    if (gameApiRef.current) {
-      gameApiRef.current.setPaused(phase !== "running");
-    }
+    if (gameApiRef.current) gameApiRef.current.setPaused(phase !== "running");
   }, [phase]);
 
   useEffect(() => {
     return () => {
-      if (roundAdvanceTimeoutRef.current) {
-        clearTimeout(roundAdvanceTimeoutRef.current);
-      }
-      if (voteRevealTimeoutRef.current) {
-        clearTimeout(voteRevealTimeoutRef.current);
-      }
+      clearAllTimers();
     };
-  }, []);
+  }, [clearAllTimers]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (phaseRef.current !== "running") {
-        return;
-      }
+      if (phaseRef.current !== "running") return;
 
       const stepResult = engine.step({
         redHealth: healthRef.current.red,
@@ -651,17 +642,7 @@ export default function SingleplayerPanel({
       });
 
       if (stepResult.voteWindow) {
-        const cur = statsTotalsRef.current;
-        settlePlayerMicrobets(cur);
-
-        lastVoteStatsRef.current = {
-          redDamageTaken: cur.redDamageTaken,
-          blueDamageTaken: cur.blueDamageTaken,
-          wallHitsRed: cur.wallHitsRed,
-          wallHitsBlue: cur.wallHitsBlue,
-          ballCollisions: cur.ballCollisions,
-        };
-
+        lastVoteStatsRef.current = { ...statsTotalsRef.current };
         setVoteWindow(stepResult.voteWindow);
         setVoteSelection(null);
         setVotePowerStake(1);
@@ -712,7 +693,7 @@ export default function SingleplayerPanel({
     applyVoteApplication,
     engine,
     resetBoardForNextRound,
-    resolveVoteAndOpenMicrobet,
+    resolveVoteAndShowSettlement,
     settlePlayerMicrobets,
     transitionPhase,
   ]);
@@ -753,7 +734,6 @@ export default function SingleplayerPanel({
               redWeapons={redWeapons}
               blueWeapons={blueWeapons}
             />
-
             <ArenaBoard
               gameKey={gameKey}
               isCircleArena={isCircleArena}
@@ -792,7 +772,7 @@ export default function SingleplayerPanel({
                     {bananaDiff !== 0 && (
                       <motion.span
                         key={`diff-${playerBananas}`}
-                        className="absolute -top-5 right-0 text-sm font-black pointer-events-none"
+                        className="absolute -top-5 right-0 text-sm font-black pointer-events-none select-none"
                         style={{
                           color: bananaDiff > 0 ? "#16a34a" : "#dc2626",
                         }}
@@ -838,11 +818,7 @@ export default function SingleplayerPanel({
                         stiffness: 340,
                         damping: 22,
                       }}
-                      className={`mt-2 px-3 py-2 border-4 border-black font-black uppercase tracking-widest text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${
-                        mainBetResult.won
-                          ? "bg-green-400 text-black"
-                          : "bg-red-200 text-black"
-                      }`}
+                      className={`mt-2 px-3 py-2 border-4 border-black font-black uppercase tracking-widest text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${mainBetResult.won ? "bg-green-400 text-black" : "bg-red-200 text-black"}`}
                     >
                       <motion.span
                         className="block"
@@ -888,11 +864,7 @@ export default function SingleplayerPanel({
                           : "text-red-600 font-black"
                       }
                     >
-                      {
-                        lastMicrobetSettlements.filter((item) => item.won)
-                          .length
-                      }
-                      {" / "}
+                      {lastMicrobetSettlements.filter((s) => s.won).length}/
                       {lastMicrobetSettlements.length} won
                     </span>
                   </motion.p>
@@ -923,7 +895,7 @@ export default function SingleplayerPanel({
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring", stiffness: 220, damping: 18 }}
-                className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]"
+                className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center"
               >
                 <span className="text-2xl font-black uppercase">
                   Tournament Complete
@@ -956,7 +928,6 @@ export default function SingleplayerPanel({
                 </Button>
               </div>
             </div>
-
             <ActivityFeed
               latestVoteSummary={snapshot.latestVoteSummary}
               latestMicrobetSummary={snapshot.latestMicrobetSummary}
@@ -1006,6 +977,14 @@ export default function SingleplayerPanel({
         revealedOption={revealedVoteOption}
       />
 
+      <MicrobetSettlementModal
+        open={phase === "settlement"}
+        settlements={settlementEntries}
+        netChange={settlementNet}
+        totalBananas={playerBananas}
+        onContinue={handleSettlementContinue}
+      />
+
       <MicrobetsModal
         open={phase === "microbet"}
         countdown={phaseCountdown}
@@ -1035,26 +1014,20 @@ export default function SingleplayerPanel({
                   key={`${entry.label}-${index}`}
                   initial={{ opacity: 0, x: entry.won ? -14 : 14, scale: 0.92 }}
                   animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: entry.won ? -8 : 8 }}
+                  exit={{ opacity: 0 }}
                   transition={{
                     delay: index * 0.07,
                     type: "spring",
                     stiffness: 300,
                     damping: 24,
                   }}
-                  className={`flex items-center justify-between px-2.5 py-1.5 border-l-4 ${
-                    entry.won
-                      ? "border-green-400 bg-green-50"
-                      : "border-red-300 bg-red-50"
-                  }`}
+                  className={`flex items-center justify-between px-2.5 py-1.5 border-l-4 ${entry.won ? "border-green-400 bg-green-50" : "border-red-300 bg-red-50"}`}
                 >
                   <p className="text-xs font-bold text-zinc-800 truncate">
                     {entry.label}
                   </p>
                   <motion.p
-                    className={`text-xs font-black ml-2 shrink-0 ${
-                      entry.won ? "text-green-700" : "text-red-600"
-                    }`}
+                    className={`text-xs font-black ml-2 shrink-0 ${entry.won ? "text-green-700" : "text-red-600"}`}
                     initial={{ scale: 1.4 }}
                     animate={{ scale: 1 }}
                     transition={{ delay: index * 0.07 + 0.1, duration: 0.25 }}

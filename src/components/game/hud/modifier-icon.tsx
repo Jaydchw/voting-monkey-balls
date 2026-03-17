@@ -28,23 +28,31 @@ export function ModifierIcon({
     (sum, char) => sum + char.charCodeAt(0),
     0,
   );
-  const delay = (seed % 8) * 0.08;
+  const floatDelay = (seed % 8) * 0.08;
+  const color = QUALITY_COLOR[quality] ?? "#71717a";
 
   return (
     <motion.span
       title={name}
       className={`inline-flex items-center justify-center h-8 ${variant === "weapon" ? "px-1.5" : "w-8"}`}
-      initial={{ opacity: 0, y: 3 }}
-      animate={{ opacity: 1, y: [0, -2, 0] }}
+      initial={{ opacity: 0, scale: 0, rotate: -25 }}
+      animate={{ opacity: 1, scale: 1, rotate: 0, y: [0, -2, 0] }}
       transition={{
-        opacity: { duration: 0.2 },
-        y: { duration: 1.8, repeat: Infinity, ease: "easeInOut", delay },
+        opacity: { duration: 0.18 },
+        scale: { type: "spring", stiffness: 340, damping: 16 },
+        rotate: { duration: 0.22, ease: "easeOut" },
+        y: {
+          duration: 1.8,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: floatDelay,
+        },
       }}
     >
       <IconComp
         size={variant === "weapon" ? 16 : 18}
         weight="fill"
-        color={QUALITY_COLOR[quality] ?? "#71717a"}
+        color={color}
       />
     </motion.span>
   );

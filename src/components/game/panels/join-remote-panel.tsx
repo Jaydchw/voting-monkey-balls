@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import PartySocket from "partysocket";
+import { motion, AnimatePresence } from "framer-motion";
 import { RoundHeader } from "@/components/game/hud/round-header";
 import {
   CharacterSelectModal,
@@ -28,9 +29,6 @@ import {
   PARTYKIT_HOST,
   PARTYKIT_PARTY,
 } from "@/lib/multiplayer";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 
 const MAIN_BET_MIN_STAKE = 20;
 
@@ -43,14 +41,14 @@ const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
 };
 
 function calcBooleanOdds(kind: MicroBetKind): number {
-  const probabilityByKind: Record<MicroBetKind, number> = {
+  const prob: Record<MicroBetKind, number> = {
     redDamageToBlue: 0.5,
     blueDamageToRed: 0.5,
     redWallHits: 0.5,
     blueWallHits: 0.5,
     ballCollisions: 0.45,
   };
-  return Number((0.92 / probabilityByKind[kind]).toFixed(2));
+  return Number((0.92 / prob[kind]).toFixed(2));
 }
 
 type JoinRemotePanelProps = {
@@ -58,6 +56,86 @@ type JoinRemotePanelProps = {
   playerName: string;
   onExit: () => void;
 };
+
+function HealthMini({
+  label,
+  color,
+  health,
+}: {
+  label: string;
+  color: "red" | "blue";
+  health: number;
+}) {
+  const pct = Math.max(0, Math.min(100, health));
+  const isLow = health <= 25;
+  return (
+    <div className="flex-1">
+      <div className="flex items-center justify-between mb-1">
+        <span
+          className={`text-xs font-black uppercase tracking-widest ${color === "red" ? "text-red-600" : "text-blue-600"}`}
+        >
+          {label}
+        </span>
+        <motion.span
+          key={Math.round(health)}
+          className="text-xs font-black tabular-nums"
+          initial={{ scale: 1.2 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          {Math.round(health)}
+        </motion.span>
+      </div>
+      <div className="h-3 bg-zinc-200 border-2 border-black overflow-hidden">
+        <motion.div
+          className={`h-full ${color === "red" ? "bg-red-500" : "bg-blue-500"}`}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+        />
+      </div>
+      {isLow && health > 0 && (
+        <motion.p
+          className={`text-[10px] font-black uppercase mt-0.5 ${color === "red" ? "text-red-500" : "text-blue-500"}`}
+          animate={{ opacity: [1, 0.4, 1] }}
+          transition={{ duration: 0.6, repeat: Infinity }}
+        >
+          LOW HP
+        </motion.p>
+      )}
+    </div>
+  );
+}
+
+function PhaseIndicator({ phase }: { phase: string }) {
+  const colors: Record<string, string> = {
+    prematch: "bg-yellow-300 text-black",
+    running: "bg-green-400 text-black",
+    vote: "bg-violet-400 text-white",
+    reveal: "bg-violet-300 text-black",
+    microbet: "bg-orange-400 text-black",
+    lobby: "bg-zinc-200 text-zinc-700",
+    finished: "bg-zinc-400 text-white",
+  };
+  const labels: Record<string, string> = {
+    prematch: "Place Bets",
+    running: "In Progress",
+    vote: "Voting Now",
+    reveal: "Vote Result",
+    microbet: "Microbets",
+    lobby: "Lobby",
+    finished: "Finished",
+  };
+  return (
+    <motion.span
+      key={phase}
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`inline-block px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.2em] border-2 border-black ${colors[phase] ?? "bg-zinc-100 text-zinc-700"}`}
+    >
+      {labels[phase] ?? phase}
+    </motion.span>
+  );
+}
 
 export default function JoinRemotePanel({
   roomCode,
@@ -98,18 +176,12 @@ export default function JoinRemotePanel({
   const autoHandledPhaseRef = useRef<string | null>(null);
 
   const myParticipant = useMemo(() => {
-    if (!state) {
-      return null;
-    }
-
-    return (
-      state.participants.find(
-        (participant) => participant.token === playerToken,
-      ) ?? null
-    );
+    if (!state) return null;
+    return state.participants.find((p) => p.token === playerToken) ?? null;
   }, [playerToken, state]);
 
   const bananas = myParticipant?.bananas ?? 0;
+
   const participantLeaderboard = useMemo(() => {
     if (!state) return [];
     return [...state.participants].sort((a, b) => b.bananas - a.bananas);
@@ -128,26 +200,24 @@ export default function JoinRemotePanel({
       room: roomCode,
       protocol: getSocketProtocol(),
     });
-
     socketRef.current = socket;
 
     socket.addEventListener("open", () => {
       setSocketConnected(true);
-      const hello: ClientEnvelope = {
-        type: "hello",
-        role: "joiner",
-        playerName,
-        playerToken,
-      };
-      socket.send(JSON.stringify(hello));
+      socket.send(
+        JSON.stringify({
+          type: "hello",
+          role: "joiner",
+          playerName,
+          playerToken,
+        } satisfies ClientEnvelope),
+      );
       socket.send(
         JSON.stringify({ type: "request-state" } satisfies ClientEnvelope),
       );
     });
 
-    socket.addEventListener("close", () => {
-      setSocketConnected(false);
-    });
+    socket.addEventListener("close", () => setSocketConnected(false));
 
     socket.addEventListener("message", (event) => {
       let payload: ServerEnvelope;
@@ -167,24 +237,21 @@ export default function JoinRemotePanel({
               stake: 5,
             });
           }
-
           if (payload.state.phase !== "vote") {
             setVotePowerStake(1);
             setVoteSelection(null);
           }
-
           if (payload.state.phase !== "prematch") {
             setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
             setPrematchDecisionSubmitted(false);
             setPrematchDecision(null);
           }
-
           if (payload.state.phase === "prematch") {
             setPrematchDecisionSubmitted(false);
             setPrematchDecision(null);
+            prematchTouchedRef.current = false;
           }
         }
-
         phaseRef.current = payload.state.phase;
         setState(payload.state);
       }
@@ -198,33 +265,21 @@ export default function JoinRemotePanel({
 
   const sendAction = (action: ClientEnvelope) => {
     const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      return;
-    }
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify(action));
   };
 
   const submitCharacter = (svgType: string, color: string) => {
-    if (characterSelectionSubmitted || myParticipant?.characterSvg) {
-      return;
-    }
-
+    if (characterSelectionSubmitted || myParticipant?.characterSvg) return;
     sendAction({
       type: "player-action",
-      action: {
-        kind: "set-character",
-        svgType,
-        color,
-      },
+      action: { kind: "set-character", svgType, color },
     });
     setCharacterSelectionSubmitted(true);
   };
 
   const placeMainBet = () => {
-    if (prematchDecisionSubmitted) {
-      return;
-    }
-
+    if (prematchDecisionSubmitted) return;
     sendAction({
       type: "player-action",
       action: {
@@ -238,28 +293,17 @@ export default function JoinRemotePanel({
   };
 
   const skipMainBet = () => {
-    if (prematchDecisionSubmitted) {
-      return;
-    }
-
+    if (prematchDecisionSubmitted) return;
     sendAction({ type: "player-action", action: { kind: "main-bet-skip" } });
     setPrematchDecision("skip");
     setPrematchDecisionSubmitted(true);
   };
 
   const castVote = (selection: 0 | 1 | 2) => {
-    if (selection === null) {
-      return;
-    }
-
     setVoteSelection(selection);
     sendAction({
       type: "player-action",
-      action: {
-        kind: "vote",
-        selection,
-        power: votePowerStake,
-      },
+      action: { kind: "vote", selection, power: votePowerStake },
     });
   };
 
@@ -269,19 +313,17 @@ export default function JoinRemotePanel({
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, bananas - queuedTotal);
       const stake = Math.min(remaining, microbetDraft.stake);
-      if (stake <= 0) {
-        return prev;
-      }
-
-      const bet: PendingPlayerMicrobet = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        kind: microbetDraft.kind,
-        outcome: microbetDraft.outcome,
-        stake,
-        odds,
-      };
-
-      return [...prev, bet];
+      if (stake <= 0) return prev;
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          kind: microbetDraft.kind,
+          outcome: microbetDraft.outcome,
+          stake,
+          odds,
+        },
+      ];
     });
   };
 
@@ -291,25 +333,22 @@ export default function JoinRemotePanel({
       const queuedTotal = prev.reduce((sum, bet) => sum + bet.stake, 0);
       const remaining = Math.max(0, bananas - queuedTotal);
       const stake = Math.min(remaining, Math.max(1, quickDraft.stake));
-      if (stake <= 0) {
-        return prev;
-      }
-
-      const bet: PendingPlayerMicrobet = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        kind: quickDraft.kind,
-        outcome: quickDraft.outcome,
-        stake,
-        odds,
-      };
-
-      return [...prev, bet];
+      if (stake <= 0) return prev;
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          kind: quickDraft.kind,
+          outcome: quickDraft.outcome,
+          stake,
+          odds,
+        },
+      ];
     });
   };
 
-  const removeMicrobet = (id: string) => {
+  const removeMicrobet = (id: string) =>
     setQueuedMicrobets((prev) => prev.filter((bet) => bet.id !== id));
-  };
 
   const confirmMicrobets = () => {
     const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
@@ -317,35 +356,20 @@ export default function JoinRemotePanel({
       outcome: bet.outcome,
       stake: bet.stake,
     }));
-
-    sendAction({
-      type: "player-action",
-      action: { kind: "microbet", bets },
-    });
+    sendAction({ type: "player-action", action: { kind: "microbet", bets } });
   };
 
-  const skipMicrobets = () => {
+  const skipMicrobets = () =>
     sendAction({ type: "player-action", action: { kind: "microbet-skip" } });
-  };
 
   useEffect(() => {
-    if (!state) {
-      return;
-    }
-
-    if (needsCharacterSelection) {
-      return;
-    }
-
+    if (!state || needsCharacterSelection) return;
     const phaseToken = `${state.snapshot.roundNumber}-${state.phase}`;
     if (state.phaseCountdown > 0) {
       autoHandledPhaseRef.current = null;
       return;
     }
-
-    if (autoHandledPhaseRef.current === phaseToken) {
-      return;
-    }
+    if (autoHandledPhaseRef.current === phaseToken) return;
 
     if (state.phase === "prematch" && !prematchDecisionSubmitted) {
       const minStake = Math.max(
@@ -480,26 +504,38 @@ export default function JoinRemotePanel({
 
   if (!state) {
     return (
-      <div className="w-screen min-h-screen flex items-center justify-center bg-white text-black p-6">
-        <Card className="w-full max-w-lg border-8 border-black rounded-none p-8 shadow-[16px_16px_0_0_rgba(0,0,0,1)] bg-white">
-          <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-            Joining Room {roomCode}
+      <div className="w-screen min-h-screen flex items-center justify-center bg-white p-6">
+        <motion.div
+          className="w-full max-w-md border-8 border-black p-8 bg-white shadow-[16px_16px_0_0_rgba(0,0,0,1)]"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <p className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-2">
+            Joining Room
           </p>
-          <h1 className="text-4xl font-black uppercase mt-2">{playerName}</h1>
-          <p className="mt-3 text-sm text-zinc-700">
-            Waiting for host state...
+          <h1 className="text-4xl font-black uppercase mb-1">{playerName}</h1>
+          <p className="text-sm font-black tracking-widest text-zinc-400 mb-6">
+            Room {roomCode}
           </p>
-          <p className="mt-2 text-xs font-black uppercase text-zinc-500">
-            Socket: {socketConnected ? "Connected" : "Connecting..."}
-          </p>
-          <Button
-            variant="secondary"
-            className="mt-6 border-4 border-black rounded-none font-black uppercase"
+          <div className="flex items-center gap-3 mb-6">
+            <motion.div
+              className={`w-3 h-3 rounded-full border-2 border-black ${socketConnected ? "bg-green-400" : "bg-zinc-300"}`}
+              animate={!socketConnected ? { scale: [1, 1.3, 1] } : {}}
+              transition={{ duration: 0.8, repeat: Infinity }}
+            />
+            <span className="text-xs font-black uppercase tracking-widest">
+              {socketConnected
+                ? "Connected — waiting for host..."
+                : "Connecting..."}
+            </span>
+          </div>
+          <button
             onClick={onExit}
+            className="border-4 border-black px-4 py-2 font-black uppercase text-sm bg-zinc-100 hover:bg-zinc-200 transition-colors"
           >
             Leave Room
-          </Button>
-        </Card>
+          </button>
+        </motion.div>
       </div>
     );
   }
@@ -509,310 +545,401 @@ export default function JoinRemotePanel({
       ? [
           {
             id: "main",
-            label: `Main bet: ${myParticipant.activeMainBet.side.toUpperCase()} (${myParticipant.activeMainBet.stake})`,
+            label: `Main: ${myParticipant.activeMainBet.side.toUpperCase()} — ${myParticipant.activeMainBet.stake} 🍌`,
+            isMain: true,
           },
         ]
       : []),
-    ...(myParticipant?.activeMicrobets ?? []).map((bet, index) => ({
-      id: `active-${index}`,
+    ...(myParticipant?.activeMicrobets ?? []).map((bet, i) => ({
+      id: `active-${i}`,
       label: `${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "YES" : "NO"} (${bet.stake} @ ${bet.odds.toFixed(2)}x)`,
+      isMain: false,
     })),
-    ...(myParticipant?.queuedMicrobets ?? []).map((bet, index) => ({
-      id: `queued-${index}`,
+    ...(myParticipant?.queuedMicrobets ?? []).map((bet, i) => ({
+      id: `queued-${i}`,
       label: `Queued: ${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "YES" : "NO"} (${bet.stake})`,
+      isMain: false,
     })),
   ];
 
+  const myRank =
+    participantLeaderboard.findIndex((p) => p.token === playerToken) + 1;
+
   return (
-    <div className="w-screen min-h-screen bg-white text-black p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="w-screen min-h-screen bg-white text-black">
+      <div className="max-w-5xl mx-auto p-4 md:p-6">
         <RoundHeader
           roundNumber={state.snapshot.roundNumber}
           roundsTotal={state.snapshot.roundsTotal}
           timeLeftSeconds={state.snapshot.timeLeftSeconds}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-4 md:gap-6">
-          <div className="space-y-5">
-            <Card className="border-4 border-black rounded-none p-4 md:p-5 bg-white shadow-[8px_8px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600">
-                Live Table
-              </p>
-              <h2 className="text-3xl md:text-4xl font-black uppercase mt-2">
-                {playerName}
-              </h2>
-              <p className="text-xs uppercase font-black text-zinc-500 mt-1">
-                Room {roomCode} | Phase {state.phase}
-              </p>
-
-              <div className="grid grid-cols-1 gap-4 mt-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] p-4">
+              <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <div className="flex items-center justify-between text-xs uppercase font-black mb-1">
-                    <span className="text-red-700">Red</span>
-                    <span>{state.redHealth} HP</span>
-                  </div>
-                  <Progress
-                    value={state.redHealth}
-                    className="h-8 border-2 border-black rounded-none bg-zinc-100 **:data-[slot=progress-track]:h-full **:data-[slot=progress-track]:bg-zinc-200"
-                    indicatorStyle={{
-                      background: "linear-gradient(to right, #7f1d1d, #ef4444)",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-xs uppercase font-black mb-1">
-                    <span className="text-blue-700">Blue</span>
-                    <span>{state.blueHealth} HP</span>
-                  </div>
-                  <Progress
-                    value={state.blueHealth}
-                    className="h-8 border-2 border-black rounded-none bg-zinc-100 **:data-[slot=progress-track]:h-full **:data-[slot=progress-track]:bg-zinc-200"
-                    indicatorStyle={{
-                      background: "linear-gradient(to right, #1e3a8a, #3b82f6)",
-                    }}
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-              <Card className="border-4 border-black rounded-none p-4 bg-yellow-300 text-black shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest">
-                  Bankroll
-                </p>
-                <p className="text-4xl font-black mt-1">{bananas}</p>
-              </Card>
-
-              <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-                  Round Payout
-                </p>
-                <p className="text-4xl font-black mt-1 text-green-700">
-                  +{myParticipant?.roundPayout ?? 0}
-                </p>
-              </Card>
-
-              <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-                <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-                  Total Payout
-                </p>
-                <p className="text-4xl font-black mt-1 text-blue-700">
-                  +{myParticipant?.totalPayout ?? 0}
-                </p>
-              </Card>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600 mb-3">
-                Player Leaderboard
-              </p>
-              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {participantLeaderboard.map((participant, index) => (
-                  <div
-                    key={participant.id}
-                    className="border-2 border-black p-3 bg-zinc-50"
-                  >
-                    <p className="text-[11px] font-black uppercase tracking-widest text-zinc-600 text-center mb-1">
-                      #{index + 1}
-                    </p>
-                    <p className="text-xs font-black uppercase tracking-wider text-center mb-2">
-                      {participant.name}
-                    </p>
-                    <div className="flex justify-center">
-                      <CharacterAvatar
-                        svgType={participant.characterSvg}
-                        color={participant.characterColor}
-                        size={54}
-                        className="border-2 border-black bg-white"
-                      />
-                    </div>
-                    <p className="text-xs font-black uppercase text-center mt-2">
-                      {participant.bananas} bananas
-                    </p>
-                  </div>
-                ))}
-                {participantLeaderboard.length === 0 && (
-                  <p className="text-xs text-zinc-600">
-                    No players in leaderboard.
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">
+                    Playing as
                   </p>
-                )}
+                  <h2 className="text-2xl font-black uppercase leading-tight">
+                    {playerName}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div
+                      className={`w-2 h-2 rounded-full ${socketConnected ? "bg-green-400" : "bg-red-400"}`}
+                    />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                      {socketConnected ? `Room ${roomCode}` : "Reconnecting..."}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {myParticipant?.characterSvg && (
+                    <CharacterAvatar
+                      svgType={myParticipant.characterSvg}
+                      color={myParticipant.characterColor}
+                      size={52}
+                      className="border-2 border-black"
+                    />
+                  )}
+                  <PhaseIndicator phase={state.phase} />
+                </div>
               </div>
-            </Card>
 
-            <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600 mb-3">
+              <div className="flex gap-6 mb-4">
+                <HealthMini label="Red" color="red" health={state.redHealth} />
+                <div className="flex items-center text-xl font-black text-zinc-300 self-center px-2">
+                  VS
+                </div>
+                <HealthMini
+                  label="Blue"
+                  color="blue"
+                  health={state.blueHealth}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="border-4 border-black bg-yellow-300 p-3 text-center shadow-[3px_3px_0_0_rgba(0,0,0,1)]">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-yellow-800 mb-1">
+                    Bankroll
+                  </p>
+                  <motion.p
+                    key={bananas}
+                    className="text-2xl font-black tabular-nums"
+                    initial={{ scale: 1.18 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    {bananas}
+                  </motion.p>
+                  <p className="text-[10px] text-yellow-800">🍌</p>
+                </div>
+
+                <div className="border-4 border-black bg-green-50 p-3 text-center shadow-[3px_3px_0_0_rgba(0,0,0,1)]">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-green-700 mb-1">
+                    Round Payout
+                  </p>
+                  <motion.p
+                    key={myParticipant?.roundPayout ?? 0}
+                    className="text-2xl font-black tabular-nums text-green-700"
+                    initial={{ scale: 1.15 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    +{myParticipant?.roundPayout ?? 0}
+                  </motion.p>
+                </div>
+
+                <div className="border-4 border-black bg-blue-50 p-3 text-center shadow-[3px_3px_0_0_rgba(0,0,0,1)]">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1">
+                    Total Payout
+                  </p>
+                  <p className="text-2xl font-black tabular-nums text-blue-700">
+                    +{myParticipant?.totalPayout ?? 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-4">
+              <p className="text-xs font-black uppercase tracking-widest mb-3 text-zinc-600">
                 Active Bets
               </p>
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {activeLedger.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="border border-black/20 p-2 bg-zinc-50"
-                  >
-                    <p className="text-xs font-bold text-zinc-900">
-                      {entry.label}
-                    </p>
-                  </div>
-                ))}
-                {activeLedger.length === 0 && (
-                  <p className="text-xs text-zinc-600">
-                    No active or queued bets yet.
-                  </p>
-                )}
-              </div>
-            </Card>
+              {activeLedger.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  <AnimatePresence initial={false}>
+                    {activeLedger.map((entry) => (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 8 }}
+                        className={`flex items-center gap-3 px-3 py-2 border-l-4 ${entry.isMain ? "border-yellow-400 bg-yellow-50" : "border-zinc-300 bg-zinc-50"}`}
+                      >
+                        <span
+                          className={`text-[10px] font-black uppercase shrink-0 ${entry.isMain ? "text-yellow-700" : "text-zinc-500"}`}
+                        >
+                          {entry.isMain ? "MAIN" : "MICRO"}
+                        </span>
+                        <p className="text-xs font-bold text-zinc-800 truncate">
+                          {entry.label}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-400 italic">
+                  No active bets yet.
+                </p>
+              )}
+            </div>
 
-            <Card className="border-4 border-black rounded-none p-4 bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)]">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-600 mb-1">
+            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-4">
+              <p className="text-xs font-black uppercase tracking-widest mb-3 text-zinc-600">
                 Market Feed
               </p>
-              <p className="text-xs text-zinc-600 mb-3">
-                Community pressure from bots and the table.
-              </p>
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {state.microbetInsights.map((insight) => (
-                  <div
-                    key={insight.kind}
-                    className="border border-black/20 p-2 bg-zinc-50"
-                  >
-                    <p className="text-xs font-bold text-zinc-900">
-                      {MICROBET_KIND_LABEL[insight.kind]}
-                    </p>
-                    <p className="text-xs text-zinc-700 mt-1">
-                      {insight.count} bets | {insight.totalStake} stake | yes
-                      picks {insight.averageTarget.toFixed(0)}%
-                    </p>
-                  </div>
-                ))}
-                {state.microbetInsights.length === 0 && (
-                  <p className="text-xs text-zinc-600">
-                    No open market insights yet.
+              {state.microbetInsights.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {state.microbetInsights.map((insight) => (
+                    <div
+                      key={insight.kind}
+                      className="border-2 border-zinc-200 p-2.5 bg-zinc-50"
+                    >
+                      <p className="text-xs font-black text-zinc-800">
+                        {MICROBET_KIND_LABEL[insight.kind]}
+                      </p>
+                      <div className="flex items-center justify-between mt-1 gap-2">
+                        <div className="flex-1 h-1.5 bg-zinc-200 overflow-hidden rounded-full">
+                          <div
+                            className="h-full bg-violet-400"
+                            style={{ width: `${insight.averageTarget}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-black text-zinc-500 shrink-0">
+                          {insight.averageTarget.toFixed(0)}% yes
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">
+                        {insight.count} bets · {insight.totalStake} staked
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-400 italic">
+                  No market insights yet.
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={onExit}
+              className="self-start border-4 border-black px-4 py-2 font-black uppercase text-sm bg-white hover:bg-zinc-100 shadow-[3px_3px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0_0_rgba(0,0,0,1)] transition-all"
+            >
+              Leave Room
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
+                  Leaderboard
+                </p>
+                {myRank > 0 && (
+                  <span className="text-[10px] font-black uppercase text-zinc-400">
+                    You: #{myRank}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
+                <AnimatePresence>
+                  {participantLeaderboard.map((participant, index) => {
+                    const isMe = participant.token === playerToken;
+                    return (
+                      <motion.div
+                        key={participant.id}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.04 }}
+                        className={`flex items-center gap-2 p-2 border-2 ${isMe ? "border-yellow-400 bg-yellow-50" : "border-zinc-100 bg-zinc-50"}`}
+                      >
+                        <span className="text-[10px] font-black text-zinc-400 w-5">
+                          #{index + 1}
+                        </span>
+                        <CharacterAvatar
+                          svgType={participant.characterSvg}
+                          color={participant.characterColor}
+                          size={36}
+                          className="shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-xs font-black uppercase truncate ${isMe ? "text-yellow-800" : "text-zinc-800"}`}
+                          >
+                            {participant.name} {isMe && "★"}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full ${participant.connected ? "bg-green-400" : "bg-zinc-300"}`}
+                            />
+                            <p className="text-[10px] font-bold text-zinc-400 tabular-nums">
+                              {participant.bananas} 🍌
+                            </p>
+                          </div>
+                        </div>
+                        {participant.activeMainBet && (
+                          <span
+                            className={`text-[10px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${participant.activeMainBet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
+                          >
+                            {participant.activeMainBet.side.toUpperCase()}
+                          </span>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+                {participantLeaderboard.length === 0 && (
+                  <p className="text-xs text-zinc-400 italic text-center py-4">
+                    No players yet
                   </p>
                 )}
               </div>
-            </Card>
+            </div>
 
-            <Button
-              variant="secondary"
-              className="w-fit border-4 border-black rounded-none font-black uppercase"
-              onClick={onExit}
-            >
-              Leave Room
-            </Button>
+            {state.roundWinner && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="border-4 border-black p-3 text-center font-black uppercase tracking-widest shadow-[4px_4px_0_0_rgba(0,0,0,1)] bg-yellow-200"
+              >
+                <p className="text-xs text-zinc-500 mb-1">Round Winner</p>
+                <p
+                  className="text-xl"
+                  style={{
+                    color: state.roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
+                  }}
+                >
+                  {state.roundWinner.toUpperCase()}
+                </p>
+              </motion.div>
+            )}
           </div>
         </div>
-
-        <PrematchBetModal
-          open={
-            state.phase === "prematch" &&
-            !prematchDecisionSubmitted &&
-            !needsCharacterSelection
-          }
-          countdown={state.phaseCountdown}
-          redHealth={state.redHealth}
-          blueHealth={state.blueHealth}
-          bananas={bananas}
-          selected={mainBetSelection}
-          minStake={Math.max(
-            5,
-            Math.floor((state.settings.startingBananas || 100) / 10),
-          )}
-          onSelectSide={(side: BallId) => {
-            prematchTouchedRef.current = true;
-            setMainBetSelection((prev) => ({ ...prev, side }));
-          }}
-          onSelectStake={(stake: number) => {
-            prematchTouchedRef.current = true;
-            setMainBetSelection((prev) => ({ ...prev, stake }));
-          }}
-          onConfirm={placeMainBet}
-          onSkip={skipMainBet}
-        />
-
-        <CharacterSelectModal
-          open={Boolean(
-            needsCharacterSelection && !characterSelectionSubmitted,
-          )}
-          playerName={playerName}
-          onConfirm={({ svgType, color }) => submitCharacter(svgType, color)}
-        />
-
-        {state.phase === "prematch" && prematchDecisionSubmitted && (
-          <div className="fixed inset-0 z-50 bg-white/95 flex items-center justify-center p-4">
-            <Card className="w-full max-w-xl border-8 border-black rounded-none p-6 bg-white text-center shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
-              <Image
-                src={
-                  prematchDecision === "skip"
-                    ? "/monkey%20reactions/thinking_nobg/hm.png"
-                    : "/monkey%20reactions/thinking_nobg/thumbs.png"
-                }
-                alt="Monkey reaction"
-                width={96}
-                height={96}
-                className="w-24 h-24 mx-auto object-contain"
-              />
-              <p className="text-xs font-black uppercase tracking-widest text-zinc-600 mt-3">
-                Decision locked
-              </p>
-              <h3 className="text-3xl font-black uppercase mt-1">
-                {prematchDecision === "skip"
-                  ? "Skipping This Round"
-                  : `Bet Locked: ${(prematchDecision ?? "red").toUpperCase()}`}
-              </h3>
-              <p className="text-sm font-bold text-zinc-700 mt-3">
-                Waiting for all players to finish pre-round picks...
-              </p>
-            </Card>
-          </div>
-        )}
-
-        <VoteEventModal
-          open={state.phase === "vote"}
-          countdown={state.phaseCountdown}
-          redHealth={state.redHealth}
-          blueHealth={state.blueHealth}
-          bananas={bananas}
-          voteWindow={state.voteWindow}
-          selection={voteSelection}
-          votePower={votePowerStake}
-          onSelectOption={(value: 0 | 1 | 2) => {
-            voteTouchedRef.current = true;
-            setVoteSelection(value);
-          }}
-          onVotePowerChange={(value: number) => {
-            voteTouchedRef.current = true;
-            setVotePowerStake(value);
-          }}
-          onConfirm={castVote}
-          isRemote
-        />
-
-        <MicrobetsModal
-          open={state.phase === "microbet"}
-          countdown={state.phaseCountdown}
-          redHealth={state.redHealth}
-          blueHealth={state.blueHealth}
-          bananas={bananas}
-          insights={state.microbetInsights}
-          draft={microbetDraft}
-          placedBets={queuedMicrobets}
-          onDraftChange={(value: MicrobetDraft) => {
-            microbetTouchedRef.current = true;
-            setMicrobetDraft(value);
-          }}
-          onAddBet={addMicrobet}
-          onAddQuickBet={(value: MicrobetDraft) => {
-            microbetTouchedRef.current = true;
-            addQuickMicrobet(value);
-          }}
-          onRemoveBet={removeMicrobet}
-          onConfirm={confirmMicrobets}
-          onSkip={skipMicrobets}
-        />
       </div>
+
+      <PrematchBetModal
+        open={
+          state.phase === "prematch" &&
+          !prematchDecisionSubmitted &&
+          !needsCharacterSelection
+        }
+        countdown={state.phaseCountdown}
+        redHealth={state.redHealth}
+        blueHealth={state.blueHealth}
+        bananas={bananas}
+        selected={mainBetSelection}
+        minStake={Math.max(
+          5,
+          Math.floor((state.settings.startingBananas || 100) / 10),
+        )}
+        onSelectSide={(side: BallId) => {
+          prematchTouchedRef.current = true;
+          setMainBetSelection((prev) => ({ ...prev, side }));
+        }}
+        onSelectStake={(stake: number) => {
+          prematchTouchedRef.current = true;
+          setMainBetSelection((prev) => ({ ...prev, stake }));
+        }}
+        onConfirm={placeMainBet}
+        onSkip={skipMainBet}
+      />
+
+      <CharacterSelectModal
+        open={Boolean(needsCharacterSelection && !characterSelectionSubmitted)}
+        playerName={playerName}
+        onConfirm={({ svgType, color }) => submitCharacter(svgType, color)}
+      />
+
+      {state.phase === "prematch" && prematchDecisionSubmitted && (
+        <div className="fixed inset-0 z-50 bg-white/95 flex items-center justify-center p-4">
+          <motion.div
+            className="w-full max-w-md border-8 border-black p-6 bg-white text-center shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <Image
+              src={
+                prematchDecision === "skip"
+                  ? "/monkey%20reactions/thinking_nobg/hm.png"
+                  : "/monkey%20reactions/thinking_nobg/thumbs.png"
+              }
+              alt="Monkey reaction"
+              width={96}
+              height={96}
+              className="w-20 h-20 mx-auto object-contain"
+            />
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 mt-3">
+              Decision Locked
+            </p>
+            <h3 className="text-2xl font-black uppercase mt-1">
+              {prematchDecision === "skip"
+                ? "Sitting this one out"
+                : `${(prematchDecision ?? "red").toUpperCase()} — ${mainBetSelection.stake} 🍌`}
+            </h3>
+            <p className="text-xs font-bold text-zinc-400 mt-2">
+              Waiting for all players...
+            </p>
+          </motion.div>
+        </div>
+      )}
+
+      <VoteEventModal
+        open={state.phase === "vote"}
+        countdown={state.phaseCountdown}
+        redHealth={state.redHealth}
+        blueHealth={state.blueHealth}
+        bananas={bananas}
+        voteWindow={state.voteWindow}
+        selection={voteSelection}
+        votePower={votePowerStake}
+        onSelectOption={(value: 0 | 1 | 2) => {
+          voteTouchedRef.current = true;
+          setVoteSelection(value);
+        }}
+        onVotePowerChange={(value: number) => {
+          voteTouchedRef.current = true;
+          setVotePowerStake(value);
+        }}
+        onConfirm={castVote}
+        isRemote
+      />
+
+      <MicrobetsModal
+        open={state.phase === "microbet"}
+        countdown={state.phaseCountdown}
+        redHealth={state.redHealth}
+        blueHealth={state.blueHealth}
+        bananas={bananas}
+        insights={state.microbetInsights}
+        draft={microbetDraft}
+        placedBets={queuedMicrobets}
+        onDraftChange={(value: MicrobetDraft) => {
+          microbetTouchedRef.current = true;
+          setMicrobetDraft(value);
+        }}
+        onAddBet={addMicrobet}
+        onAddQuickBet={(value: MicrobetDraft) => {
+          microbetTouchedRef.current = true;
+          addQuickMicrobet(value);
+        }}
+        onRemoveBet={removeMicrobet}
+        onConfirm={confirmMicrobets}
+        onSkip={skipMicrobets}
+      />
     </div>
   );
 }

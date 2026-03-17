@@ -202,7 +202,7 @@ function VoteCard({
       disabled={!revealed}
       onPick={onPick}
       back={
-        <div className="absolute inset-0 h-64 sm:h-72 border-4 border-black bg-gradient-to-br from-yellow-100 to-amber-200 flex items-center justify-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <div className="absolute inset-0 h-64 sm:h-72 border-4 border-black bg-linear-to-br from-yellow-100 to-amber-200 flex items-center justify-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
           <div className="text-center">
             <p className="text-6xl font-black opacity-40">?</p>
             <p className="text-[10px] font-black uppercase tracking-[0.3em] mt-2 text-zinc-600">
@@ -215,7 +215,7 @@ function VoteCard({
         <div
           className={[
             "relative h-64 sm:h-72 border-4 flex flex-col overflow-hidden",
-            "transition-all duration-150 [transform:rotateY(180deg)] backface-hidden",
+            "transition-all duration-150 transform-[rotateY(180deg)] backface-hidden",
             option.selected
               ? ["border-black", style.selected].join(" ")
               : "border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5",
@@ -625,7 +625,7 @@ export function VoteRevealModal({
                   "w-16 sm:w-20 h-20 sm:h-24 border-4 flex items-center justify-center transition-colors duration-300",
                   isRevealed
                     ? "border-black bg-yellow-300"
-                    : "border-black bg-gradient-to-br from-yellow-100 to-amber-200",
+                    : "border-black bg-linear-to-br from-yellow-100 to-amber-200",
                 ].join(" ")}
               >
                 {!isRevealed ? (
