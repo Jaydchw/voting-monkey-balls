@@ -186,6 +186,8 @@ export default function JoinRemotePanel({
   const [queuedMicrobets, setQueuedMicrobets] = useState<
     PendingPlayerMicrobet[]
   >([]);
+  const [microbetDecisionMade, setMicrobetDecisionMade] = useState(false);
+  const [microbetDecisionWasSkip, setMicrobetDecisionWasSkip] = useState(false);
 
   const [settlementEntries, setSettlementEntries] = useState<SettlementEntry[]>(
     [],
@@ -265,6 +267,8 @@ export default function JoinRemotePanel({
               stake: 5,
             });
             microbetTouchedRef.current = false;
+            setMicrobetDecisionMade(false);
+            setMicrobetDecisionWasSkip(false);
           }
           if (incoming.phase !== "vote") {
             setVotePowerStake(1);
@@ -381,6 +385,8 @@ export default function JoinRemotePanel({
       stake: bet.stake,
     }));
     sendAction({ type: "player-action", action: { kind: "microbet", bets } });
+    setMicrobetDecisionMade(true);
+    setMicrobetDecisionWasSkip(false);
   };
 
   const addMicrobet = () => {
@@ -424,8 +430,11 @@ export default function JoinRemotePanel({
   const removeMicrobet = (id: string) =>
     setQueuedMicrobets((prev) => prev.filter((bet) => bet.id !== id));
 
-  const skipMicrobets = () =>
+  const skipMicrobets = () => {
     sendAction({ type: "player-action", action: { kind: "microbet-skip" } });
+    setMicrobetDecisionMade(true);
+    setMicrobetDecisionWasSkip(true);
+  };
 
   useEffect(() => {
     if (!state || needsCharacterSelection) return;
@@ -518,6 +527,8 @@ export default function JoinRemotePanel({
             type: "player-action",
             action: { kind: "microbet", bets },
           });
+          setMicrobetDecisionMade(true);
+          setMicrobetDecisionWasSkip(false);
         }, 0);
       } else if (!microbetTouchedRef.current) {
         const randomDraft: MicrobetDraft = {
@@ -547,6 +558,8 @@ export default function JoinRemotePanel({
                 odds: 2,
               },
             ]);
+            setMicrobetDecisionMade(true);
+            setMicrobetDecisionWasSkip(false);
           }, 0);
         } else {
           window.setTimeout(() => {
@@ -554,6 +567,8 @@ export default function JoinRemotePanel({
               type: "player-action",
               action: { kind: "microbet-skip" },
             });
+            setMicrobetDecisionMade(true);
+            setMicrobetDecisionWasSkip(true);
           }, 0);
         }
       } else {
@@ -562,6 +577,8 @@ export default function JoinRemotePanel({
             type: "player-action",
             action: { kind: "microbet-skip" },
           });
+          setMicrobetDecisionMade(true);
+          setMicrobetDecisionWasSkip(true);
         }, 0);
       }
       autoHandledPhaseRef.current = phaseToken;
@@ -658,6 +675,8 @@ export default function JoinRemotePanel({
       side: null as BallId | null,
     })),
   ];
+
+  const microbetStakeTotal = queuedMicrobets.reduce((s, b) => s + b.stake, 0);
 
   return (
     <div className="w-screen min-h-screen bg-white text-black">
@@ -942,7 +961,7 @@ export default function JoinRemotePanel({
       />
 
       <MicrobetsModal
-        open={state.phase === "microbet"}
+        open={state.phase === "microbet" && !microbetDecisionMade}
         countdown={state.phaseCountdown}
         redHealth={state.redHealth}
         blueHealth={state.blueHealth}
@@ -963,6 +982,49 @@ export default function JoinRemotePanel({
         onConfirm={confirmMicrobets}
         onSkip={skipMicrobets}
       />
+
+      {state.phase === "microbet" && microbetDecisionMade && (
+        <div className="fixed inset-0 z-50 bg-white/95 flex items-center justify-center p-4">
+          <motion.div
+            className="w-full max-w-md border-8 border-black p-6 bg-white text-center shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <Image
+              src={
+                microbetDecisionWasSkip
+                  ? "/monkey%20reactions/thinking_nobg/hm.png"
+                  : "/monkey%20reactions/thinking_nobg/thumbs.png"
+              }
+              alt="Monkey reaction"
+              width={96}
+              height={96}
+              className="w-20 h-20 mx-auto object-contain"
+            />
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 mt-3">
+              Microbets Locked
+            </p>
+            <h3 className="text-2xl font-black uppercase mt-1">
+              {microbetDecisionWasSkip
+                ? "Skipped"
+                : `${queuedMicrobets.length} Bet${queuedMicrobets.length !== 1 ? "s" : ""} Placed`}
+            </h3>
+            {!microbetDecisionWasSkip && microbetStakeTotal > 0 && (
+              <p className="text-sm font-black text-zinc-600 mt-1">
+                {microbetStakeTotal} 🍌 staked
+              </p>
+            )}
+            <motion.p
+              className="text-xs font-bold text-zinc-400 mt-3 uppercase tracking-widest"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1.4, repeat: Infinity }}
+            >
+              Waiting for all players...
+            </motion.p>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

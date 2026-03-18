@@ -75,6 +75,7 @@ import {
   type LeaderboardEntry,
 } from "@/components/game/tournament-leaderboard";
 import { RoundWinScreen } from "@/components/game/round-win-screen";
+import { PhaseScreen } from "@/components/game/phase-screen";
 
 const STARTING_HEALTH = 100;
 const DEFAULT_DECISION_TIMER_SECONDS = 12;
@@ -1287,16 +1288,11 @@ export default function HostMultiplayerPanel({
     [participantBananas, roomParticipants, settings.startingBananas],
   );
 
-  const pausePrompt =
-    phase === "prematch"
-      ? "Make your bets!"
-      : phase === "vote"
-        ? "Vote now!"
-        : phase === "reveal"
-          ? "Applying vote result..."
-          : phase === "microbet"
-            ? "Place your microbets!"
-            : null;
+  const phaseScreenActive =
+    phase === "prematch" ||
+    phase === "vote" ||
+    phase === "reveal" ||
+    phase === "microbet";
 
   if (!matchStarted) {
     return (
@@ -1504,7 +1500,7 @@ export default function HostMultiplayerPanel({
               roundsTotal={snapshot.roundsTotal}
               timeLeftSeconds={snapshot.timeLeftSeconds}
             />
-            {pausePrompt && (
+            {phaseScreenActive && (
               <PhaseProgressBar
                 phase={phase}
                 countdown={phaseCountdown}
@@ -1514,25 +1510,21 @@ export default function HostMultiplayerPanel({
           </>
         }
         overlay={
-          pausePrompt ? (
-            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
-              <div className="px-6 text-center text-white">
-                <p className="text-sm font-black uppercase tracking-[0.4em] opacity-80">
-                  Match Paused
-                </p>
-                <h2 className="mt-3 text-5xl font-black uppercase md:text-7xl">
-                  {pausePrompt}
-                </h2>
-                {phaseCountdown > 0 && (
-                  <p className="mt-3 text-3xl font-black tabular-nums">
-                    {phaseCountdown}s
-                  </p>
-                )}
-                <p className="mt-5 text-lg font-bold uppercase">
-                  Waiting on players...
-                </p>
-              </div>
-            </div>
+          phaseScreenActive ? (
+            <PhaseScreen
+              phase={phase}
+              countdown={phaseCountdown}
+              maxSeconds={phaseMaxSeconds}
+              playersReady={
+                phase === "prematch"
+                  ? Object.keys(mainBets).length
+                  : phase === "vote"
+                    ? voteActionsCount
+                    : undefined
+              }
+              playersTotal={roomParticipants.filter((p) => p.connected).length}
+              waitForAll={settings.waitForAllDecisions}
+            />
           ) : null
         }
         leftPanel={

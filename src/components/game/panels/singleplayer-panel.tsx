@@ -160,14 +160,11 @@ function SingleplayerPanelInner({
     LeaderboardEntry[]
   >([]);
   const [showWinScreen, setShowWinScreen] = useState(false);
-  const [playerCharacter, setPlayerCharacter] = useState<{
-    svgType: string;
-    color: string;
-  } | null>(null);
 
   const playerCharacterRef = useRef<{ svgType: string; color: string } | null>(
     null,
   );
+
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
   const previousHealthRef = useRef({
     red: STARTING_HEALTH,
@@ -536,7 +533,6 @@ function SingleplayerPanelInner({
   const handleCharacterConfirm = useCallback(
     (value: { svgType: string; color: string }) => {
       playerCharacterRef.current = value;
-      setPlayerCharacter(value);
       transitionPhase("prematch", 0);
     },
     [transitionPhase],
@@ -797,7 +793,13 @@ function SingleplayerPanelInner({
     return () => {
       clearInterval(interval);
     };
-  }, [engine, resetBoardForNextRound, settlePlayerMicrobets, transitionPhase]);
+  }, [
+    engine,
+    resetBoardForNextRound,
+    settlePlayerMicrobets,
+    snapshotLeaderboardEntries,
+    transitionPhase,
+  ]);
 
   const queuedStakeTotal = queuedMicrobets.reduce(
     (sum, bet) => sum + bet.stake,
