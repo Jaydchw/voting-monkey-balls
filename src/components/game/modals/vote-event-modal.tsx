@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Mountains, Sparkle, Sword, Star } from "@phosphor-icons/react";
@@ -341,18 +343,24 @@ function SharedVoteModal({
     return () => timers.forEach(window.clearTimeout);
   }, [open]);
 
+  const pickedCategory =
+    selection !== null ? options[selection]?.category : undefined;
+  const pickedQuality =
+    selection !== null ? options[selection]?.qualityScore : undefined;
+
   useEffect(() => {
-    if (selection !== null && selection !== undefined) {
-      const picked = options[selection];
-      if (picked) {
-        const t = window.setTimeout(
-          () => setMonkeyImageSrc(chooseMonkeyReaction(picked)),
-          0,
-        );
-        return () => window.clearTimeout(t);
-      }
+    if (selection !== null && pickedCategory && pickedQuality !== undefined) {
+      const dummy = {
+        category: pickedCategory,
+        qualityScore: pickedQuality,
+      } as VoteCardOption;
+      const t = window.setTimeout(
+        () => setMonkeyImageSrc(chooseMonkeyReaction(dummy)),
+        0,
+      );
+      return () => window.clearTimeout(t);
     }
-  }, [selection, options]);
+  }, [selection, pickedCategory, pickedQuality]);
 
   if (!open) return null;
 
@@ -517,8 +525,11 @@ export function VoteRevealModal({
   const [pickedIndex, setPickedIndex] = useState(1);
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_THINKING_IMAGE);
 
+  const optionCategory = revealedOption?.category;
+  const optionLabel = revealedOption?.label;
+
   useEffect(() => {
-    if (!open || !revealedOption) return;
+    if (!open || !optionCategory || !optionLabel) return;
     const timers = [
       window.setTimeout(() => {
         setPhase("thinking");
@@ -530,8 +541,8 @@ export function VoteRevealModal({
         setMonkeyImageSrc(
           chooseMonkeyReaction({
             key: "r",
-            category: revealedOption.category,
-            label: revealedOption.label,
+            category: optionCategory,
+            label: optionLabel,
             qualityScore: 8,
             icons: [],
             projectedVotes: 0,
@@ -542,7 +553,7 @@ export function VoteRevealModal({
       }, 1200),
     ];
     return () => timers.forEach(window.clearTimeout);
-  }, [open, pickedOptionIndex, revealedOption]);
+  }, [open, pickedOptionIndex, optionCategory, optionLabel]);
 
   if (!open || !revealedOption) return null;
 
