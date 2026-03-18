@@ -37,6 +37,7 @@ import {
   MicrobetSettlementModal,
   type SettlementEntry,
 } from "@/components/game/modals/microbet-settlement-modal";
+import { CharacterSelectModal } from "@/components/game/modals/character-select-modal";
 import type {
   MainBetSelection,
   MicrobetDraft,
@@ -54,6 +55,7 @@ const VOTE_REVEAL_HOLD_MS = 3000;
 
 type BetResult = { won: boolean; pnl: number };
 type MatchPhase =
+  | "character-select"
   | "prematch"
   | "running"
   | "vote"
@@ -104,7 +106,10 @@ function didMicrobetWin(
   return outcome ? delta.ballCollisions >= 10 : delta.ballCollisions < 10;
 }
 
-type SingleplayerPanelProps = { initialBotCount?: number };
+type SingleplayerPanelProps = {
+  initialBotCount?: number;
+  characterSelectEnabled?: boolean;
+};
 
 export default function SingleplayerPanel(props: SingleplayerPanelProps) {
   return (
@@ -118,6 +123,7 @@ export default function SingleplayerPanel(props: SingleplayerPanelProps) {
 
 function SingleplayerPanelInner({
   initialBotCount = DEFAULT_SINGLEPLAYER_BOTS,
+  characterSelectEnabled = true,
   audioCtrlRef,
 }: SingleplayerPanelProps & {
   audioCtrlRef: React.MutableRefObject<GameAudioController | null>;
@@ -140,7 +146,9 @@ function SingleplayerPanelInner({
   const [blueModifiers, setBlueModifiers] = useState<ActiveModifier[]>([]);
   const [redWeapons, setRedWeapons] = useState<ActiveModifier[]>([]);
   const [blueWeapons, setBlueWeapons] = useState<ActiveModifier[]>([]);
-  const [phase, setPhase] = useState<MatchPhase>("prematch");
+  const [phase, setPhase] = useState<MatchPhase>(
+    characterSelectEnabled ? "character-select" : "prematch",
+  );
   const [phaseCountdown, setPhaseCountdown] = useState(0);
 
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
@@ -156,7 +164,9 @@ function SingleplayerPanelInner({
   const voteRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const phaseRef = useRef<MatchPhase>("prematch");
+  const phaseRef = useRef<MatchPhase>(
+    characterSelectEnabled ? "character-select" : "prematch",
+  );
   const phaseCountdownRef = useRef(0);
 
   const [playerBananas, setPlayerBananas] = useState(STARTING_BANANAS);
@@ -214,7 +224,9 @@ function SingleplayerPanelInner({
     }
   }, [audioCtrlRef, snapshot.roundNumber]);
 
-  const prevPhaseRef = useRef<MatchPhase>("prematch");
+  const prevPhaseRef = useRef<MatchPhase>(
+    characterSelectEnabled ? "character-select" : "prematch",
+  );
   useEffect(() => {
     if (phase === "running" && prevPhaseRef.current !== "running") {
       audioCtrlRef.current?.setPaused(false);
@@ -353,7 +365,10 @@ function SingleplayerPanelInner({
     setRedHealth(STARTING_HEALTH);
     setBlueHealth(STARTING_HEALTH);
     healthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
-    previousHealthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
+    previousHealthRef.current = {
+      red: STARTING_HEALTH,
+      blue: STARTING_HEALTH,
+    };
     statsTotalsRef.current = createZeroTotals();
     forcedWinnerRef.current = undefined;
     setRoundWinner(null);
@@ -423,10 +438,14 @@ function SingleplayerPanelInner({
     resetBetState();
     resetVoteState();
     resetMicrobetState();
-    transitionPhase("prematch", 0);
+    transitionPhase(
+      characterSelectEnabled ? "character-select" : "prematch",
+      0,
+    );
   }, [
     clearAllTimers,
     initialBotCount,
+    characterSelectEnabled,
     resetBoardState,
     resetBetState,
     resetVoteState,
@@ -469,6 +488,10 @@ function SingleplayerPanelInner({
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
+
+  const handleCharacterConfirm = useCallback(() => {
+    transitionPhase("prematch", 0);
+  }, [transitionPhase]);
 
   const handleMainBetPlace = useCallback(() => {
     if (phaseRef.current !== "prematch") return;
@@ -727,6 +750,12 @@ function SingleplayerPanelInner({
 
   return (
     <>
+      <CharacterSelectModal
+        open={phase === "character-select"}
+        playerName="Player"
+        onConfirm={handleCharacterConfirm}
+      />
+
       <MatchDashboardShell
         reserveLeftSpace
         header={
@@ -1032,7 +1061,11 @@ function SingleplayerPanelInner({
               {lastMicrobetSettlements.map((entry, index) => (
                 <motion.div
                   key={`${entry.label}-${index}`}
-                  initial={{ opacity: 0, x: entry.won ? -14 : 14, scale: 0.92 }}
+                  initial={{
+                    opacity: 0,
+                    x: entry.won ? -14 : 14,
+                    scale: 0.92,
+                  }}
                   animate={{ opacity: 1, x: 0, scale: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{

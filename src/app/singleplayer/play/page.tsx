@@ -22,6 +22,12 @@ export default function SingleplayerPlayPage() {
       ? new URLSearchParams(window.location.search)
       : new URLSearchParams();
   const initialBotCount = clampBots(Number(params.get("bots")));
+  const characterSelectEnabled = params.get("characterSelect") !== "0";
 
-  return <SingleplayerPanel initialBotCount={initialBotCount} />;
+  return (
+    <SingleplayerPanel
+      initialBotCount={initialBotCount}
+      characterSelectEnabled={characterSelectEnabled}
+    />
+  );
 }

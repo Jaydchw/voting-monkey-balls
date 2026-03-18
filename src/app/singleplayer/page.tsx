@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Robot, Play } from "@phosphor-icons/react";
+import { Robot, Play, UserCircle } from "@phosphor-icons/react";
 
 const MIN_BOTS = 0;
 const MAX_BOTS = 20;
@@ -15,9 +15,12 @@ const START_BTN =
 
 export default function SingleplayerPage() {
   const [botCount, setBotCount] = useState(0);
+  const [characterSelectEnabled, setCharacterSelectEnabled] = useState(true);
+
   const playHref = useMemo(
-    () => `/singleplayer/play?bots=${botCount}`,
-    [botCount],
+    () =>
+      `/singleplayer/play?bots=${botCount}&characterSelect=${characterSelectEnabled ? "1" : "0"}`,
+    [botCount, characterSelectEnabled],
   );
 
   return (
@@ -96,6 +99,40 @@ export default function SingleplayerPage() {
                 {botCount}
               </span>
             </div>
+          </div>
+
+          <div className="border-t-4 border-black pt-5">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.25em] text-zinc-500 mb-4">
+              <UserCircle size={14} weight="fill" />
+              Character Select
+            </p>
+            <button
+              type="button"
+              onClick={() => setCharacterSelectEnabled((v) => !v)}
+              className={`w-full border-4 border-black py-3 font-black uppercase tracking-widest text-sm transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] flex items-center justify-between px-4 ${
+                characterSelectEnabled
+                  ? "bg-yellow-300 text-black"
+                  : "bg-zinc-100 text-zinc-500"
+              }`}
+            >
+              <span>
+                {characterSelectEnabled
+                  ? "Character Select Enabled"
+                  : "Character Select Disabled"}
+              </span>
+              <span
+                className={`w-6 h-6 border-4 border-black flex items-center justify-center ${characterSelectEnabled ? "bg-black text-white" : "bg-white"}`}
+              >
+                {characterSelectEnabled && (
+                  <span className="text-xs font-black">✓</span>
+                )}
+              </span>
+            </button>
+            <p className="mt-2 text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
+              {characterSelectEnabled
+                ? "You'll pick your monkey before the match starts"
+                : "Match starts immediately with default character"}
+            </p>
           </div>
 
           <Link href={playHref}>
