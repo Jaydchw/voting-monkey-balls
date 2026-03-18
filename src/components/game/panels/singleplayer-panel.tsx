@@ -231,7 +231,7 @@ function SingleplayerPanelInner({
   const phaseCountdownRef = useRef(0);
 
   const [playerBananas, setPlayerBananas] = useState(STARTING_BANANAS);
-  const [prevPlayerBananas, setPrevPlayerBananas] = useState(STARTING_BANANAS);
+  const [, setPrevPlayerBananas] = useState(STARTING_BANANAS);
   const playerBananasRef = useRef(STARTING_BANANAS);
 
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
