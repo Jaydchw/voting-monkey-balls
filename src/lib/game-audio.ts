@@ -3,6 +3,9 @@ import { getAudioSettings } from "@/lib/audio-settings";
 type TrackConfig = {
   src: string;
   volume: number;
+  enabled?: boolean;
+  minRound?: number;           // The track won't be randomly revealed before this round
+  forceEnableAtRound?: number; // The track will automatically turn on at this round
 };
 
 type SongConfig = {
@@ -75,82 +78,31 @@ const SONGS: SongConfig[] = [
   {
     id: "groova",
     tracks: {
-      "groova chord.mp3": {
-        src: "/audio/groova/groova chord.mp3",
-        volume: 0.35,
-      },
-      "groova clap.mp3": { src: "/audio/groova/groova clap.mp3", volume: 0.4 },
-      "groova conga.mp3": {
-        src: "/audio/groova/groova conga.mp3",
-        volume: 0.35,
-      },
-      "groova conga2.mp3": {
-        src: "/audio/groova/groova conga2.mp3",
-        volume: 0.35,
-      },
-      "groova cowbell.mp3": {
-        src: "/audio/groova/groova cowbell.mp3",
-        volume: 0.3,
-      },
-      "groova dronepad.mp3": {
-        src: "/audio/groova/groova dronepad.mp3",
-        volume: 0.3,
-      },
-      "groova epaino_low.mp3": {
-        src: "/audio/groova/groova epaino_low.mp3",
-        volume: 0.35,
-      },
-      "groova epiano_high.mp3": {
-        src: "/audio/groova/groova epiano_high.mp3",
-        volume: 0.35,
-      },
-      "groova hats.mp3": { src: "/audio/groova/groova hats.mp3", volume: 0.35 },
-      "groova horn.mp3": { src: "/audio/groova/groova horn.mp3", volume: 0.35 },
-      "groova kick.mp3": { src: "/audio/groova/groova kick.mp3", volume: 0.55 },
-      "groova m1_high.mp3": {
-        src: "/audio/groova/groova m1_high.mp3",
-        volume: 0.35,
-      },
-      "groova organ.mp3": {
-        src: "/audio/groova/groova organ.mp3",
-        volume: 0.3,
-      },
-      "groova perc.mp3": { src: "/audio/groova/groova perc.mp3", volume: 0.4 },
-      "groova perfect stab.mp3": {
-        src: "/audio/groova/groova perfect stab.mp3",
-        volume: 0.35,
-      },
-      "groova perfect.mp3": {
-        src: "/audio/groova/groova perfect.mp3",
-        volume: 0.35,
-      },
-      "groova plink1.mp3": {
-        src: "/audio/groova/groova plink1.mp3",
-        volume: 0.4,
-      },
-      "groova shaker.mp3": {
-        src: "/audio/groova/groova shaker.mp3",
-        volume: 0.35,
-      },
-      "groova snare-1.mp3": {
-        src: "/audio/groova/groova snare-1.mp3",
-        volume: 0.45,
-      },
-      "groova snare.mp3": {
-        src: "/audio/groova/groova snare.mp3",
-        volume: 0.45,
-      },
-      "groova synth.mp3": {
-        src: "/audio/groova/groova synth.mp3",
-        volume: 0.35,
-      },
-      "groova synthstabs.mp3": {
-        src: "/audio/groova/groova synthstabs.mp3",
-        volume: 0.35,
-      },
-      "groova toms.mp3": { src: "/audio/groova/groova toms.mp3", volume: 0.4 },
-      "groova vox.mp3": { src: "/audio/groova/groova vox.mp3", volume: 0.35 },
-      "groova wub1.mp3": { src: "/audio/groova/groova wub1.mp3", volume: 0.4 },
+      "groova chord.mp3": { src: "/audio/groova/groova chord.mp3", enabled: false, volume: 0.35 },
+      "groova clap.mp3": { src: "/audio/groova/groova clap.mp3", enabled: false, volume: 0.35 },
+      "groova conga.mp3": { src: "/audio/groova/groova conga.mp3", enabled: true, volume: 0.35 },
+      "groova conga2.mp3": { src: "/audio/groova/groova conga2.mp3", enabled: false, volume: 0.35 },
+      "groova cowbell.mp3": { src: "/audio/groova/groova cowbell.mp3", enabled: false, volume: 0.22 },
+      "groova dronepad.mp3": { src: "/audio/groova/groova dronepad.mp3", enabled: false, volume: 0.35 },
+      "groova epaino_low.mp3": { src: "/audio/groova/groova epaino_low.mp3", enabled: false, volume: 0.35 },
+      "groova epiano_high.mp3": { src: "/audio/groova/groova epiano_high.mp3", enabled: false, volume: 0.35 },
+      "groova hats.mp3": { src: "/audio/groova/groova hats.mp3", enabled: false, volume: 0.14 },
+      "groova horn.mp3": { src: "/audio/groova/groova horn.mp3", enabled: false, volume: 0.22 },
+      "groova kick.mp3": { src: "/audio/groova/groova kick.mp3", enabled: false, volume: 0.18, forceEnableAtRound: 3 },
+      "groova m1_high.mp3": { src: "/audio/groova/groova m1_high.mp3", enabled: true, volume: 0.26 },
+      "groova organ.mp3": { src: "/audio/groova/groova organ.mp3", enabled: true, volume: 0.14 },
+      "groova perc.mp3": { src: "/audio/groova/groova perc.mp3", enabled: false, volume: 0.35 },
+      "groova perfect stab.mp3": { src: "/audio/groova/groova perfect stab.mp3", enabled: false, volume: 0.35, minRound: 5 },
+      "groova perfect.mp3": { src: "/audio/groova/groova perfect.mp3", enabled: false, volume: 0.35, minRound: 5 },
+      "groova plink1.mp3": { src: "/audio/groova/groova plink1.mp3", enabled: false, volume: 0.35 },
+      "groova shaker.mp3": { src: "/audio/groova/groova shaker.mp3", enabled: false, volume: 0.1 },
+      "groova snare-1.mp3": { src: "/audio/groova/groova snare-1.mp3", enabled: false, volume: 0.35 },
+      "groova snare.mp3": { src: "/audio/groova/groova snare.mp3", enabled: false, volume: 0.35 },
+      "groova synth.mp3": { src: "/audio/groova/groova synth.mp3", enabled: false, volume: 0.35 },
+      "groova synthstabs.mp3": { src: "/audio/groova/groova synthstabs.mp3", enabled: false, volume: 0.35 },
+      "groova toms.mp3": { src: "/audio/groova/groova toms.mp3", enabled: false, volume: 0.35 },
+      "groova vox.mp3": { src: "/audio/groova/groova vox.mp3", enabled: true, volume: 0.22 },
+      "groova wub1.mp3": { src: "/audio/groova/groova wub1.mp3", enabled: false, volume: 0.35 }
     },
   },
 ];
@@ -175,6 +127,25 @@ function pickSongForRound(
 }
 
 export class GameAudioController {
+      // Start enabled and force-enabled tracks
+      private startEnabledTracks(currentRound: number): void {
+        if (!this.ctx || !this.playbackScheduled || !this.currentSong) return;
+        const now = this.ctx.currentTime;
+        // Find all tracks that are enabled by default OR have reached their forceEnable round
+        const enabledTracks = this.currentTrackIds.filter((trackId) => {
+          const config = this.currentSong!.tracks[trackId];
+          return config.enabled || (config.forceEnableAtRound && currentRound >= config.forceEnableAtRound);
+        });
+        for (const trackId of enabledTracks) {
+          if (this.unlockedTracks.has(trackId)) continue;
+          this.unlockedTracks.add(trackId);
+          const gain = this.gains.get(trackId);
+          if (!gain) continue;
+          const trackVolume = this.currentSong!.tracks[trackId].volume;
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.linearRampToValueAtTime(trackVolume, now + 0.5);
+        }
+      }
     // Listen for audio settings changes
     private volumeChangeHandler = () => this.updateVolume();
 
@@ -328,7 +299,17 @@ export class GameAudioController {
     this.currentSong = song;
     this.usedSongIds.add(song.id);
     this.currentTrackIds = Object.keys(song.tracks);
-    this.revealQueue = shuffle(this.currentTrackIds);
+    // Filter the queue based on our new rules
+    const tracksToQueue = this.currentTrackIds.filter((trackId) => {
+      const config = song.tracks[trackId];
+      // 1. Exclude if it's already playing (enabled by default or force-enabled this round)
+      const isPlaying = config.enabled || (config.forceEnableAtRound && roundNumber >= config.forceEnableAtRound);
+      if (isPlaying) return false;
+      // 2. Exclude if we haven't reached the minimum round for it to be randomly revealed
+      if (config.minRound && roundNumber < config.minRound) return false;
+      return true;
+    });
+    this.revealQueue = shuffle(tracksToQueue);
 
     await Promise.all(
       this.currentTrackIds.map(async (trackId) => {
@@ -371,8 +352,13 @@ export class GameAudioController {
       if (firstBuf) this.loopDuration = firstBuf.duration;
 
       this.tryBeginPlayback();
-      this.startTracks(this.pendingTrackCount > 0 ? this.pendingTrackCount : 2);
-      this.pendingTrackCount = 0;
+      // Start the manually enabled and force-enabled tracks
+      this.startEnabledTracks(roundNumber);
+      // Start any extra pending tracks (if required by round logic)
+      if (this.pendingTrackCount > 0) {
+        this.startTracks(this.pendingTrackCount);
+        this.pendingTrackCount = 0;
+      }
     };
 
     this.interactionHandler = onInteraction;
@@ -384,7 +370,12 @@ export class GameAudioController {
         | undefined;
       if (firstBuf) this.loopDuration = firstBuf.duration;
       this.tryBeginPlayback();
-      this.startTracks(2);
+      // Start the manually enabled and force-enabled tracks
+      this.startEnabledTracks(roundNumber);
+      if (this.pendingTrackCount > 0) {
+        this.startTracks(this.pendingTrackCount);
+        this.pendingTrackCount = 0;
+      }
     } else {
       window.addEventListener("pointerdown", onInteraction);
       window.addEventListener("keydown", onInteraction);
