@@ -13,37 +13,42 @@ const STAKE_PER_CLICK = 5;
 
 const KIND_COLORS: Record<
   MicroBetKind,
-  { border: string; bg: string; hover: string; badge: string }
+  { border: string; bg: string; hover: string; badge: string; activeBg: string }
 > = {
   redDamageToBlue: {
     border: "border-red-400",
     bg: "bg-red-50",
     hover: "hover:bg-red-100",
     badge: "bg-red-500",
+    activeBg: "bg-red-100",
   },
   blueDamageToRed: {
     border: "border-blue-400",
     bg: "bg-blue-50",
     hover: "hover:bg-blue-100",
     badge: "bg-blue-500",
+    activeBg: "bg-blue-100",
   },
   redWallHits: {
     border: "border-red-300",
     bg: "bg-red-50",
     hover: "hover:bg-red-100",
     badge: "bg-red-400",
+    activeBg: "bg-red-100",
   },
   blueWallHits: {
     border: "border-blue-300",
     bg: "bg-blue-50",
     hover: "hover:bg-blue-100",
     badge: "bg-blue-400",
+    activeBg: "bg-blue-100",
   },
   ballCollisions: {
     border: "border-yellow-400",
     bg: "bg-yellow-50",
     hover: "hover:bg-yellow-100",
     badge: "bg-yellow-500",
+    activeBg: "bg-yellow-100",
   },
 };
 
@@ -100,13 +105,13 @@ const MARKET_PRESETS: readonly MarketPreset[] = [
     id: "red-wall",
     kind: "redWallHits",
     outcome: true,
-    proposition: "Red gets more wall hits",
+    proposition: "Red more wall hits",
   },
   {
     id: "blue-wall",
     kind: "blueWallHits",
     outcome: true,
-    proposition: "Blue gets more wall hits",
+    proposition: "Blue more wall hits",
   },
   {
     id: "coll-hit",
@@ -118,7 +123,7 @@ const MARKET_PRESETS: readonly MarketPreset[] = [
     id: "coll-under",
     kind: "ballCollisions",
     outcome: false,
-    proposition: "Collisions stay under 10",
+    proposition: "Under 10 collisions",
   },
 ];
 
@@ -157,7 +162,6 @@ export function MicrobetsModal({
   };
 
   const handleRemoveOne = (preset: MarketPreset, e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     const matching = placedBets.filter(
       (b) => b.kind === preset.kind && b.outcome === preset.outcome,
@@ -169,6 +173,7 @@ export function MicrobetsModal({
 
   const totalStake = placedBets.reduce((s, b) => s + b.stake, 0);
   const hasBets = totalStake > 0;
+  const canAfford = bananas >= STAKE_PER_CLICK;
 
   return (
     <FullscreenModal
@@ -177,28 +182,30 @@ export function MicrobetsModal({
       zIndexClassName="z-50"
     >
       <div className="w-full bg-white">
-        <div className="p-5 sm:p-7 flex flex-col gap-5">
-          <div className="flex items-start justify-between gap-4">
+        <div className="p-4 sm:p-7 flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
                 {countdown > 0
                   ? `Microbet Market · ${countdown}s`
                   : "Microbet Market"}
               </p>
-              <h2 className="text-2xl sm:text-3xl font-black uppercase mt-1">
+              <h2 className="text-xl sm:text-3xl font-black uppercase mt-0.5">
                 Place Your Bets
               </h2>
-              <p className="text-xs font-bold text-zinc-400 mt-1 uppercase tracking-wide">
-                Each tap stakes {STAKE_PER_CLICK} bananas · right-click to undo
+              <p className="text-[10px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">
+                Tap to add {STAKE_PER_CLICK}🍌 · tap − to undo
               </p>
             </div>
             <div className="flex items-center gap-2 border-4 border-black px-3 py-2 bg-yellow-300 shrink-0">
-              <Image src="/Banana.svg" alt="Banana" width={18} height={18} />
-              <span className="text-lg font-black tabular-nums">{bananas}</span>
+              <Image src="/Banana.svg" alt="Banana" width={16} height={16} />
+              <span className="text-base font-black tabular-nums">
+                {bananas}
+              </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
             {MARKET_PRESETS.map((preset) => {
               const odds = calcOdds(preset.kind);
               const count = getCount(preset);
@@ -207,46 +214,51 @@ export function MicrobetsModal({
               const hasAny = count > 0;
 
               return (
-                <button
-                  key={preset.id}
-                  onClick={() => handleAdd(preset)}
-                  onContextMenu={(e) => handleRemoveOne(preset, e)}
-                  className={[
-                    "relative text-left p-3 border-4 transition-all",
-                    "shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
-                    "active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]",
-                    colors.border,
-                    colors.bg,
-                    colors.hover,
-                    hasAny ? "ring-2 ring-black ring-offset-1" : "",
-                  ].join(" ")}
-                >
+                <div key={preset.id} className="relative">
+                  <button
+                    onClick={() => handleAdd(preset)}
+                    disabled={!canAfford}
+                    className={[
+                      "w-full text-left p-2.5 sm:p-3 border-4 transition-all",
+                      "shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+                      "active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]",
+                      "disabled:opacity-40 disabled:cursor-not-allowed",
+                      colors.border,
+                      hasAny ? colors.activeBg : colors.bg,
+                      canAfford ? colors.hover : "",
+                      hasAny ? "ring-2 ring-black ring-offset-1" : "",
+                    ].join(" ")}
+                  >
+                    <p className="text-xs sm:text-sm font-black leading-tight pr-6">
+                      {colorizeLabel(preset.proposition)}
+                    </p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase">
+                        {odds.toFixed(2)}x
+                      </p>
+                      {hasAny && (
+                        <p className="text-[10px] font-black text-yellow-700">
+                          {stake}🍌 ×{count}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+
                   {hasAny && (
-                    <div
+                    <button
+                      onClick={(e) => handleRemoveOne(preset, e)}
                       className={[
-                        "absolute -top-2.5 -right-2.5 min-w-6 h-6 px-1.5 rounded-full",
-                        "flex items-center justify-center",
+                        "absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center",
                         "text-[11px] font-black text-white border-2 border-white",
+                        "active:scale-90 transition-transform",
                         colors.badge,
                       ].join(" ")}
+                      aria-label="Remove one bet"
                     >
-                      ×{count}
-                    </div>
+                      −
+                    </button>
                   )}
-                  <p className="text-sm font-black leading-tight pr-4">
-                    {colorizeLabel(preset.proposition)}
-                  </p>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs font-bold text-zinc-500 uppercase">
-                      {odds.toFixed(2)}x odds
-                    </p>
-                    {hasAny && (
-                      <p className="text-xs font-black text-yellow-700">
-                        {stake} staked
-                      </p>
-                    )}
-                  </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -255,25 +267,23 @@ export function MicrobetsModal({
             <p className="text-xs font-black uppercase text-zinc-400">
               {hasBets ? (
                 <>
-                  Total staked:{" "}
-                  <span className="text-yellow-700">{totalStake}</span> bananas
+                  Total: <span className="text-yellow-700">{totalStake}</span>🍌
                 </>
               ) : (
                 "No bets placed yet"
               )}
             </p>
             <div className="flex gap-2">
-              {hasBets && (
-                <BlockButton variant="ghost" size="sm" onClick={onSkip}>
-                  Skip
-                </BlockButton>
-              )}
+              <BlockButton variant="muted" size="sm" onClick={onSkip}>
+                Skip
+              </BlockButton>
               <BlockButton
                 variant={hasBets ? "success" : "ghost"}
                 size="sm"
-                onClick={hasBets ? onConfirm : onSkip}
+                disabled={!hasBets}
+                onClick={onConfirm}
               >
-                {hasBets ? "Confirm & Lock In" : "Skip"}
+                Lock In
               </BlockButton>
             </div>
           </div>

@@ -18,10 +18,14 @@ export class MitosisModifier extends BallModifier {
     const master = this.ball;
     const ghostColor = master.body.fillColor;
 
-    // Spawn ghost 80 px from master in a random direction, clamped to arena
+    const masterX: number =
+      master.body?.body?.position?.x ?? master.body.x ?? master.arenaWidth / 2;
+    const masterY: number =
+      master.body?.body?.position?.y ?? master.body.y ?? master.arenaHeight / 2;
+
     const offsetAngle = Math.random() * Math.PI * 2;
-    const rawX = master.body.x + Math.cos(offsetAngle) * 80;
-    const rawY = master.body.y + Math.sin(offsetAngle) * 80;
+    const rawX = masterX + Math.cos(offsetAngle) * 80;
+    const rawY = masterY + Math.sin(offsetAngle) * 80;
     const spawnX = Math.max(50, Math.min(master.arenaWidth - 50, rawX));
     const spawnY = Math.max(50, Math.min(master.arenaHeight - 50, rawY));
 
@@ -47,7 +51,6 @@ export class MitosisModifier extends BallModifier {
     this.ghost.enemy = master.enemy;
     this.ghost.body.setAlpha(0.72);
 
-    // Copy all existing non-Mitosis modifiers to the ghost before registering
     for (const mod of master.modifiers) {
       if (mod instanceof MitosisModifier) continue;
       const ModCtor = Object.getPrototypeOf(mod)
@@ -55,7 +58,6 @@ export class MitosisModifier extends BallModifier {
       this.ghost.addModifier(new ModCtor());
     }
 
-    // Register ghost so future addModifier calls on master propagate automatically
     master.ghostBalls.push(this.ghost);
 
     this.linkGraphics = this.scene.add.graphics();

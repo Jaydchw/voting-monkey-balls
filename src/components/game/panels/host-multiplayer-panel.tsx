@@ -398,6 +398,15 @@ export default function HostMultiplayerPanel({
   const settlePlayerMicrobets = useCallback(
     (currentTotals: StatTotals) => {
       const last = lastVoteStatsRef.current;
+      const activePlayers = Object.entries(activeMicrobetsRef.current).filter(
+        ([, bets]) => bets.length > 0,
+      );
+      console.log(
+        "[Host] settlePlayerMicrobets: activePlayers=",
+        activePlayers.map(([pid]) => pid),
+        "hasLast=",
+        !!last,
+      );
       if (!last) return;
       const delta: StatTotals = {
         redDamageTaken: currentTotals.redDamageTaken - last.redDamageTaken,
@@ -485,8 +494,30 @@ export default function HostMultiplayerPanel({
   );
 
   const closeMicrobetWindow = useCallback(() => {
+    console.log(
+      "[Host] closeMicrobetWindow: queued=",
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(queuedMicrobetsRef.current).map(([k, v]) => [
+            k,
+            v.length,
+          ]),
+        ),
+      ),
+    );
     activeMicrobetsRef.current = queuedMicrobetsRef.current;
     queuedMicrobetsRef.current = {};
+    console.log(
+      "[Host] closeMicrobetWindow: active after swap=",
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(activeMicrobetsRef.current).map(([k, v]) => [
+            k,
+            v.length,
+          ]),
+        ),
+      ),
+    );
     transitionPhase("running", 0);
   }, [transitionPhase]);
 
@@ -555,6 +586,14 @@ export default function HostMultiplayerPanel({
 
   const handleIncomingAction = useCallback(
     (playerId: string, action: PlayerAction) => {
+      console.log(
+        "[Host] handleIncomingAction playerId=",
+        playerId,
+        "kind=",
+        action.kind,
+        "phaseRef=",
+        phaseRef.current,
+      );
       if (action.kind === "set-character") {
         const svgType = isValidMonkeySvgType(action.svgType)
           ? action.svgType
@@ -627,14 +666,33 @@ export default function HostMultiplayerPanel({
             }))
             .slice(0, 8);
           const total = sanitized.reduce((s, b) => s + b.stake, 0);
+          console.log(
+            "[Host] microbet action: playerId=",
+            playerId,
+            "bets=",
+            action.bets,
+            "sanitizedTotal=",
+            total,
+            "restored=",
+            restored,
+            "sufficient=",
+            total <= restored,
+          );
           if (total > restored) return;
           queuedMicrobetsRef.current[playerId] = sanitized;
           banksRef.current[playerId] = restored - total;
+          console.log(
+            "[Host] microbet accepted: newBank=",
+            banksRef.current[playerId],
+            "queuedCount=",
+            sanitized.length,
+          );
           syncParticipantBananas();
           maybeAdvanceDecisionPhaseRef.current();
           return;
         }
         if (action.kind === "microbet-skip") {
+          console.log("[Host] microbet-skip from", playerId);
           const existing = queuedMicrobetsRef.current[playerId] ?? [];
           const refund = existing.reduce((s, b) => s + b.stake, 0);
           if (refund > 0) {
@@ -651,6 +709,11 @@ export default function HostMultiplayerPanel({
   );
 
   const resolveVoteAndOpenMicrobet = useCallback(() => {
+    console.log(
+      "[Host] resolveVoteAndOpenMicrobet: voteActions=",
+      Object.keys(voteActionsRef.current).length,
+    );
+    lastVoteStatsRef.current = { ...statsTotalsRef.current };
     let optA = 0,
       optB = 0,
       optC = 0;
@@ -898,8 +961,15 @@ export default function HostMultiplayerPanel({
         maybeAdvanceDecisionPhaseRef.current();
         return;
       }
-      if (payload.type === "player-action")
+      if (payload.type === "player-action") {
+        console.log(
+          "[Host] received player-action from",
+          payload.playerId,
+          "kind=",
+          payload.action.kind,
+        );
         handleIncomingAction(payload.playerId, payload.action);
+      }
     });
     return () => {
       socket.close();
@@ -970,6 +1040,9 @@ export default function HostMultiplayerPanel({
       });
       if (stepResult.voteWindow) {
         const cur = statsTotalsRef.current;
+        console.log(
+          "[Host] engine.step voteWindow: settling microbets then transitioning to vote",
+        );
         settlePlayerMicrobets(cur);
         lastVoteStatsRef.current = { ...cur };
         setVoteWindow(stepResult.voteWindow);
@@ -1029,7 +1102,7 @@ export default function HostMultiplayerPanel({
 
   useEffect(() => {
     publishState();
-  }, [publishState, participantBananas]);
+  }, [publishState, participantBananas, queuedVoteCount]);
 
   const totalBananasInPlay = useMemo(
     () =>

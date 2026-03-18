@@ -26,7 +26,7 @@ export function FullscreenModal({
   return (
     <div
       className={[
-        "fixed inset-0 overflow-y-auto flex items-center justify-center p-4",
+        "fixed inset-0 overflow-y-auto flex items-center justify-center p-4 pt-[25dvh] sm:pt-4",
         zIndexClassName,
         overlayClassName,
       ].join(" ")}

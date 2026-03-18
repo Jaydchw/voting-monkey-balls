@@ -8,8 +8,8 @@ import type { MicroBetKind } from "@/bots/types";
 const KIND_LABEL: Record<MicroBetKind, string> = {
   redDamageToBlue: "Red outdamages Blue",
   blueDamageToRed: "Blue outdamages Red",
-  redWallHits: "Red gets more wall hits",
-  blueWallHits: "Blue gets more wall hits",
+  redWallHits: "Red more wall hits",
+  blueWallHits: "Blue more wall hits",
   ballCollisions: "Collisions hit 10+",
 };
 
@@ -117,8 +117,8 @@ export function MicrobetSettlementModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 280, damping: 22 }}
       >
-        <div className="p-5 sm:p-7 flex flex-col gap-4">
-          <div className="flex items-center gap-4">
+        <div className="p-4 sm:p-7 flex flex-col gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <motion.div
               animate={
                 isWin
@@ -132,18 +132,18 @@ export function MicrobetSettlementModal({
               <Image
                 src={monkeyImage}
                 alt="Monkey reaction"
-                width={72}
-                height={72}
-                className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
+                width={64}
+                height={64}
+                className="w-14 h-14 sm:w-20 sm:h-20 object-contain"
               />
             </motion.div>
 
             <div className="flex-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-0.5">
                 Interval Settlement
               </p>
               <motion.h2
-                className="text-2xl sm:text-3xl font-black uppercase leading-none"
+                className="text-xl sm:text-3xl font-black uppercase leading-none"
                 style={{ color: headlineColor }}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -153,12 +153,12 @@ export function MicrobetSettlementModal({
               </motion.h2>
               {hasBets && (
                 <motion.p
-                  className="text-xs font-bold text-zinc-500 mt-1 uppercase tracking-wide"
+                  className="text-[10px] font-bold text-zinc-500 mt-0.5 uppercase tracking-wide"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
                 >
-                  {winsCount}W · {lossCount}L across {condensed.length} bet
+                  {winsCount}W · {lossCount}L · {condensed.length} bet
                   {condensed.length !== 1 ? "s" : ""}
                 </motion.p>
               )}
@@ -166,7 +166,7 @@ export function MicrobetSettlementModal({
           </div>
 
           {hasBets && (
-            <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1">
               <AnimatePresence>
                 {condensed.map((entry, i) => (
                   <motion.div
@@ -179,7 +179,7 @@ export function MicrobetSettlementModal({
                       stiffness: 300,
                       damping: 26,
                     }}
-                    className={`flex items-center justify-between px-3 py-2.5 border-l-4 ${
+                    className={`flex items-center justify-between px-3 py-2 border-l-4 ${
                       entry.won
                         ? "border-green-400 bg-green-50"
                         : "border-red-300 bg-red-50"
@@ -195,8 +195,8 @@ export function MicrobetSettlementModal({
                         )}
                       </p>
                       <p className="text-[10px] font-bold text-zinc-500 uppercase">
-                        {entry.outcome ? "YES" : "NO"} · staked{" "}
-                        {entry.totalStake}
+                        {entry.outcome ? "YES" : "NO"} · {entry.totalStake}{" "}
+                        staked
                       </p>
                     </div>
                     <motion.div
@@ -206,7 +206,7 @@ export function MicrobetSettlementModal({
                       transition={{ delay: 0.2 + i * 0.07, type: "spring" }}
                     >
                       <p
-                        className={`text-lg font-black ${
+                        className={`text-base sm:text-lg font-black ${
                           entry.won ? "text-green-700" : "text-red-500"
                         }`}
                       >
@@ -225,16 +225,16 @@ export function MicrobetSettlementModal({
           )}
 
           {!hasBets && (
-            <p className="text-sm text-zinc-500 text-center py-4 border-2 border-dashed border-zinc-200">
+            <p className="text-sm text-zinc-500 text-center py-3 border-2 border-dashed border-zinc-200">
               You didn&apos;t place any microbets last interval.
             </p>
           )}
 
           <div className="flex items-center justify-between pt-1 border-t-2 border-zinc-100">
             <div className="flex items-center gap-2">
-              <Image src="/Banana.svg" alt="Banana" width={16} height={16} />
+              <Image src="/Banana.svg" alt="Banana" width={14} height={14} />
               <span className="text-sm font-black tabular-nums">
-                {totalBananas} bananas
+                {totalBananas}
               </span>
             </div>
             <motion.button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import PartySocket from "partysocket";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,6 +34,10 @@ import {
   PARTYKIT_HOST,
   PARTYKIT_PARTY,
 } from "@/lib/multiplayer";
+import {
+  savePlayerSession,
+  clearPlayerSession,
+} from "@/lib/multiplayer-session";
 import { useMenuAudio } from "@/components/menu-audio-context";
 
 const MAIN_BET_MIN_STAKE = 20;
@@ -49,6 +53,7 @@ const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
 type JoinRemotePanelProps = {
   roomCode: string;
   playerName: string;
+  playerToken: string;
   onExit: () => void;
 };
 
@@ -135,20 +140,21 @@ function PhaseIndicator({ phase }: { phase: string }) {
 export default function JoinRemotePanel({
   roomCode,
   playerName,
+  playerToken,
   onExit,
 }: JoinRemotePanelProps) {
   const { pauseForGame, resumeFromGame } = useMenuAudio();
 
   useEffect(() => {
     pauseForGame();
+    savePlayerSession({ roomCode, playerName, playerToken });
     return () => {
       resumeFromGame();
     };
-  }, [pauseForGame, resumeFromGame]);
+  }, [pauseForGame, resumeFromGame, roomCode, playerName, playerToken]);
 
   const socketRef = useRef<PartySocket | null>(null);
   const phaseRef = useRef<HostBroadcastState["phase"] | null>(null);
-  const playerToken = useId();
 
   const [socketConnected, setSocketConnected] = useState(false);
   const [state, setState] = useState<HostBroadcastState | null>(null);
@@ -191,6 +197,7 @@ export default function JoinRemotePanel({
 
   const prematchTouchedRef = useRef(false);
   const voteTouchedRef = useRef(false);
+  const voteSubmittedRef = useRef(false);
   const microbetTouchedRef = useRef(false);
   const autoHandledPhaseRef = useRef<string | null>(null);
 
@@ -213,6 +220,8 @@ export default function JoinRemotePanel({
     !myParticipant?.characterSvg;
 
   useEffect(() => {
+    if (!roomCode || !playerName || !playerToken) return;
+
     const socket = new PartySocket({
       host: PARTYKIT_HOST,
       party: PARTYKIT_PARTY,
@@ -259,11 +268,14 @@ export default function JoinRemotePanel({
               outcome: true,
               stake: 5,
             });
+            microbetTouchedRef.current = false;
           }
           if (incoming.phase !== "vote") {
             setVotePowerStake(1);
             setVoteSelection(null);
             setPickedVoteOptionIndex(null);
+            voteTouchedRef.current = false;
+            voteSubmittedRef.current = false;
           }
           if (incoming.phase !== "prematch") {
             setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
@@ -308,6 +320,8 @@ export default function JoinRemotePanel({
               }
             }
           }
+
+          autoHandledPhaseRef.current = null;
         }
 
         phaseRef.current = incoming.phase;
@@ -358,6 +372,8 @@ export default function JoinRemotePanel({
   };
 
   const castVote = (selection: 0 | 1 | 2) => {
+    if (voteSubmittedRef.current) return;
+    voteSubmittedRef.current = true;
     setVoteSelection(selection);
     setPickedVoteOptionIndex(selection);
     sendAction({
@@ -421,12 +437,26 @@ export default function JoinRemotePanel({
 
   useEffect(() => {
     if (!state || needsCharacterSelection) return;
+
+    const noActionNeeded =
+      state.phase === "running" ||
+      state.phase === "reveal" ||
+      state.phase === "lobby" ||
+      state.phase === "finished";
+
+    if (noActionNeeded) return;
+
     const phaseToken = `${state.snapshot.roundNumber}-${state.phase}`;
-    if (state.phaseCountdown > 0) {
-      autoHandledPhaseRef.current = null;
-      return;
-    }
+
+    if (state.phaseCountdown > 0) return;
+
     if (autoHandledPhaseRef.current === phaseToken) return;
+
+    console.log("[JoinPanel] auto-submit effect firing", {
+      phase: state.phase,
+      phaseToken,
+      prematchDecisionSubmitted,
+    });
 
     if (state.phase === "prematch" && !prematchDecisionSubmitted) {
       const minStake = Math.max(
@@ -473,10 +503,15 @@ export default function JoinRemotePanel({
     }
 
     if (state.phase === "vote") {
+      if (voteSubmittedRef.current) {
+        autoHandledPhaseRef.current = phaseToken;
+        return;
+      }
       const selection = voteTouchedRef.current
         ? (voteSelection ?? (Math.floor(Math.random() * 3) as 0 | 1 | 2))
         : (Math.floor(Math.random() * 3) as 0 | 1 | 2);
       const power = voteTouchedRef.current ? votePowerStake : 1;
+      voteSubmittedRef.current = true;
       sendAction({
         type: "player-action",
         action: { kind: "vote", selection, power },
@@ -486,12 +521,18 @@ export default function JoinRemotePanel({
     }
 
     if (state.phase === "microbet") {
+      console.log("[JoinPanel] auto-submit microbet", {
+        queuedCount: queuedMicrobets.length,
+        microbetTouched: microbetTouchedRef.current,
+        bananas,
+      });
       if (queuedMicrobets.length > 0) {
         const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
           kind: bet.kind,
           outcome: bet.outcome,
           stake: bet.stake,
         }));
+        console.log("[JoinPanel] sending queued microbets", bets.length);
         window.setTimeout(() => {
           sendAction({
             type: "player-action",
@@ -511,6 +552,7 @@ export default function JoinRemotePanel({
             stake: Math.max(1, Math.min(bananas, randomDraft.stake)),
           },
         ];
+        console.log("[JoinPanel] sending random microbet", bets);
         if (bets[0].stake > 0) {
           window.setTimeout(() => {
             sendAction({
@@ -528,6 +570,7 @@ export default function JoinRemotePanel({
             ]);
           }, 0);
         } else {
+          console.log("[JoinPanel] stake=0, sending microbet-skip");
           window.setTimeout(() => {
             sendAction({
               type: "player-action",
@@ -536,6 +579,9 @@ export default function JoinRemotePanel({
           }, 0);
         }
       } else {
+        console.log(
+          "[JoinPanel] microbetTouched=true but no bets queued, sending microbet-skip",
+        );
         window.setTimeout(() => {
           sendAction({
             type: "player-action",
@@ -544,7 +590,10 @@ export default function JoinRemotePanel({
         }, 0);
       }
       autoHandledPhaseRef.current = phaseToken;
+      return;
     }
+
+    autoHandledPhaseRef.current = phaseToken;
   }, [
     bananas,
     characterSelectionSubmitted,
@@ -588,7 +637,10 @@ export default function JoinRemotePanel({
             </span>
           </div>
           <button
-            onClick={onExit}
+            onClick={() => {
+              clearPlayerSession();
+              onExit();
+            }}
             className="border-4 border-black px-4 py-2 font-black uppercase text-sm bg-zinc-100 hover:bg-zinc-200 transition-colors"
           >
             Leave Room
@@ -793,7 +845,10 @@ export default function JoinRemotePanel({
             </div>
 
             <button
-              onClick={onExit}
+              onClick={() => {
+                clearPlayerSession();
+                onExit();
+              }}
               className="self-start border-4 border-black px-4 py-2 font-black uppercase text-sm bg-white hover:bg-zinc-100 shadow-[3px_3px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0_0_rgba(0,0,0,1)] transition-all"
             >
               Leave Room

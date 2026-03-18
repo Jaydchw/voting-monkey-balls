@@ -202,10 +202,10 @@ function VoteCard({
       disabled={!revealed}
       onPick={onPick}
       back={
-        <div className="absolute inset-0 h-64 sm:h-72 border-4 border-black bg-linear-to-br from-yellow-100 to-amber-200 flex items-center justify-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <div className="absolute inset-0 h-40 sm:h-52 border-4 border-black bg-linear-to-br from-yellow-100 to-amber-200 flex items-center justify-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
           <div className="text-center">
-            <p className="text-6xl font-black opacity-40">?</p>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] mt-2 text-zinc-600">
+            <p className="text-5xl font-black opacity-40">?</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] mt-1 text-zinc-600">
               Draw Event
             </p>
           </div>
@@ -214,71 +214,64 @@ function VoteCard({
       front={
         <div
           className={[
-            "relative h-64 sm:h-72 border-4 flex flex-col overflow-hidden",
+            "relative h-40 sm:h-52 border-4 flex flex-col overflow-hidden",
             "transition-all duration-150 transform-[rotateY(180deg)] backface-hidden",
             option.selected
               ? ["border-black", style.selected].join(" ")
               : "border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5",
           ].join(" ")}
         >
-          <div
-            className={[
-              "px-3 pt-3 pb-2 flex items-center justify-between",
-              option.selected ? "bg-zinc-50" : "bg-zinc-50",
-            ].join(" ")}
-          >
+          <div className="px-2.5 pt-2.5 pb-1.5 flex items-center justify-between bg-zinc-50">
             <span
               className={[
-                "inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 border-2",
+                "inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 border-2",
                 style.badge,
               ].join(" ")}
             >
-              <CategoryIcon size={9} />
+              <CategoryIcon size={8} />
               {option.category}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               {stars.map((i) => (
-                <Star key={i} size={10} weight="fill" className={style.label} />
+                <Star key={i} size={9} weight="fill" className={style.label} />
               ))}
             </div>
           </div>
 
-          <div className="flex-1 flex flex-col gap-1.5 p-2.5">
+          <div className="flex-1 flex flex-col gap-1 p-2">
             {isArena ? (
               <div
                 className={[
-                  "flex-1 border-2 p-3 flex flex-col justify-center",
+                  "flex-1 border-2 p-2 flex flex-col justify-center",
                   style.arenaSide,
                 ].join(" ")}
               >
-                <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-1">
+                <p className="text-[9px] font-black uppercase tracking-wider text-zinc-500 mb-0.5">
                   Arena Effect
                 </p>
-                <p className="text-sm font-black leading-snug">
+                <p className="text-xs font-black leading-snug">
                   {displayText ?? "No effect"}
                 </p>
               </div>
             ) : (
               <>
                 <div
-                  className={["flex-1 border-2 p-2.5", style.blueSide].join(
-                    " ",
-                  )}
+                  className={["flex-1 border-2 p-2", style.blueSide].join(" ")}
                 >
-                  <p className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-1">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-blue-600 mb-0.5">
                     Blue Gets
                   </p>
-                  <p className="text-xs font-black text-blue-900 leading-snug">
+                  <p className="text-[11px] font-black text-blue-900 leading-snug">
                     {option.blueLabel ?? "No effect"}
                   </p>
                 </div>
                 <div
-                  className={["flex-1 border-2 p-2.5", style.redSide].join(" ")}
+                  className={["flex-1 border-2 p-2", style.redSide].join(" ")}
                 >
-                  <p className="text-[10px] font-black uppercase tracking-wider text-red-600 mb-1">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-red-600 mb-0.5">
                     Red Gets
                   </p>
-                  <p className="text-xs font-black text-red-900 leading-snug">
+                  <p className="text-[11px] font-black text-red-900 leading-snug">
                     {option.redLabel ?? "No effect"}
                   </p>
                 </div>
@@ -286,12 +279,12 @@ function VoteCard({
             )}
           </div>
 
-          <div className="px-3 pb-2.5 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase text-zinc-400">
-              {votePercent}% votes
+          <div className="px-2.5 pb-2 flex items-center justify-between">
+            <span className="text-[9px] font-black uppercase text-zinc-400">
+              {votePercent}%
             </span>
             {option.selected && (
-              <span className="text-[10px] font-black uppercase text-black bg-yellow-300 px-2 py-0.5 border-2 border-black">
+              <span className="text-[9px] font-black uppercase text-black bg-yellow-300 px-1.5 py-0.5 border-2 border-black">
                 Picked ✓
               </span>
             )}
@@ -375,27 +368,27 @@ function SharedVoteModal({
       zIndexClassName="z-50"
     >
       <div className="w-full bg-white">
-        <div className="p-5 sm:p-7 flex flex-col gap-4">
-          <div className="flex items-start justify-between gap-4">
+        <div className="p-4 sm:p-7 flex flex-col gap-3 sm:gap-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
                 {countdown > 0 ? `Event Vote · ${countdown}s` : "Event Vote"}
               </p>
-              <h2 className="text-2xl sm:text-3xl font-black uppercase mt-1">
+              <h2 className="text-xl sm:text-3xl font-black uppercase mt-0.5">
                 Draw Event Cards
               </h2>
             </div>
 
             <div className="flex flex-col items-end gap-2 shrink-0">
               <div className="flex items-center gap-2 border-4 border-black px-3 py-2 bg-yellow-300">
-                <Image src="/Banana.svg" alt="Banana" width={16} height={16} />
-                <span className="text-base font-black tabular-nums">
+                <Image src="/Banana.svg" alt="Banana" width={14} height={14} />
+                <span className="text-sm font-black tabular-nums">
                   {bananas}
                 </span>
               </div>
-              <div className="bg-zinc-50 border-2 border-zinc-200 p-2 w-36">
+              <div className="bg-zinc-50 border-2 border-zinc-200 p-2 w-32">
                 <BlockSlider
-                  label="Vote Stake"
+                  label="Vote"
                   valueLabel={String(votePower)}
                   min={1}
                   max={Math.max(1, bananas)}
@@ -416,7 +409,7 @@ function SharedVoteModal({
             shuffling={shuffling}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {options.map((option, index) => (
               <VoteCard
                 key={option.key}
@@ -573,12 +566,12 @@ export function VoteRevealModal({
       maxWidthClassName="max-w-lg"
       zIndexClassName="z-60"
     >
-      <div className="w-full bg-white p-6 text-center">
+      <div className="w-full bg-white p-5 text-center">
         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
           Vote Settled {countdown > 0 ? `· ${countdown}s` : ""}
         </p>
 
-        <div className="relative h-28 mt-2">
+        <div className="relative h-24 mt-2">
           <motion.div
             className="absolute left-1/2 top-0 -translate-x-1/2"
             animate={
@@ -591,14 +584,14 @@ export function VoteRevealModal({
             <Image
               src={monkeyImageSrc}
               alt="Monkey"
-              width={128}
-              height={128}
-              className="w-24 h-24 sm:w-28 sm:h-28 object-contain"
+              width={112}
+              height={112}
+              className="w-20 h-20 sm:w-24 sm:h-24 object-contain"
             />
           </motion.div>
         </div>
 
-        <div className="flex items-end justify-center gap-3 h-28 mt-2">
+        <div className="flex items-end justify-center gap-2 sm:gap-3 h-24 mt-1">
           {[0, 1, 2].map((cardIndex) => {
             const isPicked = cardIndex === pickedIndex;
             const isRevealed = phase === "revealed" && isPicked;
@@ -622,14 +615,14 @@ export function VoteRevealModal({
                 }
                 transition={{ duration: 0.5, ease: "easeOut" }}
                 className={[
-                  "w-16 sm:w-20 h-20 sm:h-24 border-4 flex items-center justify-center transition-colors duration-300",
+                  "w-14 sm:w-20 h-18 sm:h-24 border-4 flex items-center justify-center transition-colors duration-300",
                   isRevealed
                     ? "border-black bg-yellow-300"
                     : "border-black bg-linear-to-br from-yellow-100 to-amber-200",
                 ].join(" ")}
               >
                 {!isRevealed ? (
-                  <p className="text-2xl font-black opacity-30">?</p>
+                  <p className="text-xl font-black opacity-30">?</p>
                 ) : (
                   <motion.p
                     className="text-[10px] font-black uppercase tracking-wide px-1 text-center"
@@ -649,7 +642,7 @@ export function VoteRevealModal({
           {phase === "revealed" && (
             <motion.div
               key="revealed-text"
-              className="mt-5"
+              className="mt-4"
               initial={{ opacity: 0, y: 14, scale: 0.92 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
@@ -662,7 +655,7 @@ export function VoteRevealModal({
                 {categoryLabel}
               </motion.p>
               <motion.h3
-                className="text-xl sm:text-2xl font-black uppercase mt-1"
+                className="text-lg sm:text-2xl font-black uppercase mt-1"
                 animate={{ scale: [1, 1.06, 1] }}
                 transition={{ duration: 0.4, delay: 0.15 }}
               >
@@ -670,7 +663,7 @@ export function VoteRevealModal({
               </motion.h3>
 
               <motion.div
-                className="mt-3 flex justify-center gap-1"
+                className="mt-2 flex justify-center gap-1"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
@@ -692,16 +685,16 @@ export function VoteRevealModal({
 
         {phase === "thinking" && (
           <motion.div
-            className="mt-5"
+            className="mt-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
+            <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
               Counting votes...
             </p>
             <motion.div
-              className="flex justify-center gap-2 mt-3"
+              className="flex justify-center gap-2 mt-2"
               animate={{ opacity: [1, 0.4, 1] }}
               transition={{ duration: 0.8, repeat: Infinity }}
             >
