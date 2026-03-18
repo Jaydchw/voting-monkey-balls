@@ -70,6 +70,10 @@ import type {
 } from "@/multiplayer/protocol";
 import { GameAudioController } from "@/lib/game-audio";
 import { useMenuAudio } from "@/components/menu-audio-context";
+import {
+  TournamentLeaderboard,
+  type LeaderboardEntry,
+} from "@/components/game/tournament-leaderboard";
 
 const STARTING_HEALTH = 100;
 const DEFAULT_DECISION_TIMER_SECONDS = 12;
@@ -334,6 +338,10 @@ export default function HostMultiplayerPanel({
   const [copied, setCopied] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [socketError, setSocketError] = useState<string | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<
+    LeaderboardEntry[]
+  >([]);
 
   const [snapshot, setSnapshot] = useState<EngineSnapshot>(
     engine.getSnapshot(),
@@ -393,6 +401,9 @@ export default function HostMultiplayerPanel({
   const roomParticipantsRef = useRef<
     Array<{ id: string; name: string; token?: string; connected: boolean }>
   >([]);
+  const participantCharactersRef = useRef<
+    Record<string, { svgType: string; color: string }>
+  >({});
   const mainBetsRef = useRef<Record<string, MainBetSelection | null>>({});
   const voteActionsRef = useRef<
     Record<string, { selection: 0 | 1 | 2; power: number }>
@@ -706,6 +717,7 @@ export default function HostMultiplayerPanel({
           ...prev,
           [playerId]: { svgType, color },
         }));
+        participantCharactersRef.current[playerId] = { svgType, color };
         return;
       }
       if (phaseRef.current === "prematch") {
@@ -994,6 +1006,8 @@ export default function HostMultiplayerPanel({
     setEngine(freshEngine);
     setSnapshot(freshEngine.getSnapshot());
     setMatchStarted(true);
+    setShowLeaderboard(false);
+    setLeaderboardEntries([]);
     syncParticipantBananas();
     resetBoardForNextRound();
   }, [
@@ -1009,6 +1023,32 @@ export default function HostMultiplayerPanel({
     setSnapshot,
     setVoteActionsCount,
   ]);
+
+  const snapshotLeaderboardEntries = useCallback((): LeaderboardEntry[] => {
+    const participantEntries: LeaderboardEntry[] =
+      roomParticipantsRef.current.map((p) => {
+        const char = participantCharactersRef.current[p.id];
+        return {
+          id: p.id,
+          name: p.name,
+          bananas:
+            banksRef.current[p.id] ?? settingsRef.current.startingBananas,
+          characterSvg: char?.svgType,
+          characterColor: char?.color,
+        };
+      });
+
+    const snap = engine.getSnapshot();
+    const botEntries: LeaderboardEntry[] = snap.leaderboard.map((bot) => ({
+      id: bot.id,
+      name: bot.name,
+      bananas: bot.bananas,
+    }));
+
+    const all = [...participantEntries, ...botEntries];
+    all.sort((a, b) => b.bananas - a.bananas);
+    return all;
+  }, [engine]);
 
   const copyRoomCode = useCallback(async () => {
     await navigator.clipboard.writeText(roomCode);
@@ -1196,6 +1236,13 @@ export default function HostMultiplayerPanel({
           if (next) setSnapshot(next);
           roundAdvanceTimeoutRef.current = null;
         }, 4000);
+      }
+      if (stepResult.roundResult && stepResult.snapshot.tournamentFinished) {
+        roundAdvanceTimeoutRef.current = setTimeout(() => {
+          setLeaderboardEntries(snapshotLeaderboardEntries());
+          setShowLeaderboard(true);
+          roundAdvanceTimeoutRef.current = null;
+        }, 2500);
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -1426,230 +1473,245 @@ export default function HostMultiplayerPanel({
   }
 
   return (
-    <MatchDashboardShell
-      header={
-        <>
-          <RoundHeader
-            roundNumber={snapshot.roundNumber}
-            roundsTotal={snapshot.roundsTotal}
-            timeLeftSeconds={snapshot.timeLeftSeconds}
-          />
-          {pausePrompt && (
-            <PhaseProgressBar
-              phase={phase}
-              countdown={phaseCountdown}
-              maxSeconds={phaseMaxSeconds}
+    <>
+      {showLeaderboard && (
+        <TournamentLeaderboard
+          entries={leaderboardEntries}
+          onPlayAgain={startMatch}
+          onExit={onExit}
+        />
+      )}
+
+      <MatchDashboardShell
+        header={
+          <>
+            <RoundHeader
+              roundNumber={snapshot.roundNumber}
+              roundsTotal={snapshot.roundsTotal}
+              timeLeftSeconds={snapshot.timeLeftSeconds}
             />
-          )}
-        </>
-      }
-      overlay={
-        pausePrompt ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
-            <div className="px-6 text-center text-white">
-              <p className="text-sm font-black uppercase tracking-[0.4em] opacity-80">
-                Match Paused
-              </p>
-              <h2 className="mt-3 text-5xl font-black uppercase md:text-7xl">
-                {pausePrompt}
-              </h2>
-              {phaseCountdown > 0 && (
-                <p className="mt-3 text-3xl font-black tabular-nums">
-                  {phaseCountdown}s
+            {pausePrompt && (
+              <PhaseProgressBar
+                phase={phase}
+                countdown={phaseCountdown}
+                maxSeconds={phaseMaxSeconds}
+              />
+            )}
+          </>
+        }
+        overlay={
+          pausePrompt ? (
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70">
+              <div className="px-6 text-center text-white">
+                <p className="text-sm font-black uppercase tracking-[0.4em] opacity-80">
+                  Match Paused
                 </p>
-              )}
-              <p className="mt-5 text-lg font-bold uppercase">
-                Waiting on players...
-              </p>
+                <h2 className="mt-3 text-5xl font-black uppercase md:text-7xl">
+                  {pausePrompt}
+                </h2>
+                {phaseCountdown > 0 && (
+                  <p className="mt-3 text-3xl font-black tabular-nums">
+                    {phaseCountdown}s
+                  </p>
+                )}
+                <p className="mt-5 text-lg font-bold uppercase">
+                  Waiting on players...
+                </p>
+              </div>
             </div>
-          </div>
-        ) : null
-      }
-      leftPanel={
-        <div className="flex flex-col gap-6">
-          <section className="bg-white px-2 py-1">
-            <p className="mb-3 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
-              <Crown size={16} weight="fill" /> Leaderboard
-            </p>
-            <div className="divide-y divide-zinc-200/80 max-h-64 overflow-y-auto pr-1">
-              {participantLeaderboard.map((p, i) => {
-                const char = participantCharacters[p.id];
-                const bet = mainBets[p.id];
-                return (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    className="flex items-center gap-2 px-1 py-2.5"
-                  >
-                    <span className="text-[10px] font-black text-zinc-400 w-5">
-                      #{i + 1}
-                    </span>
-                    <CharacterAvatar
-                      svgType={char?.svgType}
-                      color={char?.color}
-                      size={36}
-                      className="shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black uppercase truncate">
-                        {p.name}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full ${p.connected ? "bg-green-400" : "bg-zinc-300"}`}
-                        />
-                        <BananaInline className="text-[10px] font-bold">
-                          {participantBananas[p.id] ?? settings.startingBananas}
-                        </BananaInline>
-                      </div>
-                    </div>
-                    {bet && (
-                      <span
-                        className={`text-[10px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${bet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
-                      >
-                        {bet.side === "red" ? "♚" : "♚"}{" "}
-                        {bet.side.toUpperCase()}
+          ) : null
+        }
+        leftPanel={
+          <div className="flex flex-col gap-6">
+            <section className="bg-white px-2 py-1">
+              <p className="mb-3 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
+                <Crown size={16} weight="fill" /> Leaderboard
+              </p>
+              <div className="divide-y divide-zinc-200/80 max-h-64 overflow-y-auto pr-1">
+                {participantLeaderboard.map((p, i) => {
+                  const char = participantCharacters[p.id];
+                  const bet = mainBets[p.id];
+                  return (
+                    <motion.div
+                      key={p.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                      className="flex items-center gap-2 px-1 py-2.5"
+                    >
+                      <span className="text-[10px] font-black text-zinc-400 w-5">
+                        #{i + 1}
                       </span>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
-          </section>
+                      <CharacterAvatar
+                        svgType={char?.svgType}
+                        color={char?.color}
+                        size={36}
+                        className="shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black uppercase truncate">
+                          {p.name}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full ${p.connected ? "bg-green-400" : "bg-zinc-300"}`}
+                          />
+                          <BananaInline className="text-[10px] font-bold">
+                            {participantBananas[p.id] ??
+                              settings.startingBananas}
+                          </BananaInline>
+                        </div>
+                      </div>
+                      {bet && (
+                        <span
+                          className={`text-[10px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${bet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
+                        >
+                          {bet.side === "red" ? "♚" : "♚"}{" "}
+                          {bet.side.toUpperCase()}
+                        </span>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </section>
 
-          <section className="bg-white px-2 py-1">
-            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
-              <Lightning size={14} weight="fill" /> Recent Bets
-            </p>
-            <div className="max-h-48 overflow-y-auto pr-1 divide-y divide-zinc-100">
-              <AnimatePresence initial={false}>
-                {recentBets.slice(0, 8).map((entry, i) => (
-                  <motion.div
-                    key={`${entry.timestamp}-${i}`}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="py-1.5 px-1"
-                  >
-                    <p className="text-[10px] font-black uppercase text-zinc-500">
-                      {entry.playerName}
-                    </p>
-                    <p className="text-xs text-zinc-800">{entry.description}</p>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {recentBets.length === 0 && (
-                <p className="text-xs text-zinc-400 py-2">No bets yet.</p>
-              )}
-            </div>
-          </section>
+            <section className="bg-white px-2 py-1">
+              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
+                <Lightning size={14} weight="fill" /> Recent Bets
+              </p>
+              <div className="max-h-48 overflow-y-auto pr-1 divide-y divide-zinc-100">
+                <AnimatePresence initial={false}>
+                  {recentBets.slice(0, 8).map((entry, i) => (
+                    <motion.div
+                      key={`${entry.timestamp}-${i}`}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="py-1.5 px-1"
+                    >
+                      <p className="text-[10px] font-black uppercase text-zinc-500">
+                        {entry.playerName}
+                      </p>
+                      <p className="text-xs text-zinc-800">
+                        {entry.description}
+                      </p>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+                {recentBets.length === 0 && (
+                  <p className="text-xs text-zinc-400 py-2">No bets yet.</p>
+                )}
+              </div>
+            </section>
 
-          {hasBots && (
-            <BotStandings
-              leaderboard={snapshot.leaderboard}
-              latestLog={snapshot.latestLog}
-            />
-          )}
-        </div>
-      }
-      centerPanel={
-        <div className="flex flex-col items-center">
-          <HealthBars
-            redHealth={redHealth}
-            blueHealth={blueHealth}
-            redModifiers={redModifiers}
-            blueModifiers={blueModifiers}
-            redWeapons={redWeapons}
-            blueWeapons={blueWeapons}
-          />
-          <ArenaBoard
-            gameKey={gameKey}
-            isCircleArena={isCircleArena}
-            onRedHealthChange={handleRedHealthChange}
-            onBlueHealthChange={handleBlueHealthChange}
-            onBallDied={handleBallDied}
-            onGameReady={handleGameReady}
-            onWallCollision={handleWallCollision}
-            onBallCollision={handleBallCollision}
-          />
-
-          <div className="mt-5 grid w-full grid-cols-1 gap-4 border-t border-zinc-200 pt-4 lg:grid-cols-3">
-            <div className="px-2 py-1">
-              <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                <Pulse size={14} weight="fill" /> Phase
-              </p>
-              <p className="text-3xl font-black tabular-nums">{phase}</p>
-              {phaseCountdown > 0 && (
-                <p className="mt-2 text-xs font-black uppercase text-zinc-700">
-                  {phaseCountdown}s remaining
-                </p>
-              )}
-            </div>
-            <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
-              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                <Users size={14} weight="fill" /> Players
-              </p>
-              <p className="text-sm font-black uppercase">
-                {roomParticipants.filter((p) => p.connected).length}/
-                {roomParticipants.length} online
-              </p>
-              <p className="mt-2 text-xs text-zinc-700">
-                Combined <BananaInline>{totalBananasInPlay}</BananaInline>
-              </p>
-            </div>
-            <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
-              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                <DiceFive size={14} weight="fill" /> Microbets
-              </p>
-              <p className="text-sm font-black uppercase">
-                {activeMicrobetCount} active
-              </p>
-              {phase === "vote" && (
-                <p className="mt-2 text-xs text-zinc-700">
-                  {voteActionsCount} votes received
-                </p>
-              )}
-            </div>
+            {hasBots && (
+              <BotStandings
+                leaderboard={snapshot.leaderboard}
+                latestLog={snapshot.latestLog}
+              />
+            )}
           </div>
+        }
+        centerPanel={
+          <div className="flex flex-col items-center">
+            <HealthBars
+              redHealth={redHealth}
+              blueHealth={blueHealth}
+              redModifiers={redModifiers}
+              blueModifiers={blueModifiers}
+              redWeapons={redWeapons}
+              blueWeapons={blueWeapons}
+            />
+            <ArenaBoard
+              gameKey={gameKey}
+              isCircleArena={isCircleArena}
+              onRedHealthChange={handleRedHealthChange}
+              onBlueHealthChange={handleBlueHealthChange}
+              onBallDied={handleBallDied}
+              onGameReady={handleGameReady}
+              onWallCollision={handleWallCollision}
+              onBallCollision={handleBallCollision}
+            />
 
-          {roundWinner && (
-            <div className="mt-5 w-full border-4 border-black py-3 text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-              <span
-                className="text-2xl font-black uppercase"
-                style={{ color: roundWinner === "red" ? "#b91c1c" : "#1d4ed8" }}
-              >
-                {roundWinner.toUpperCase()} wins this round
-              </span>
+            <div className="mt-5 grid w-full grid-cols-1 gap-4 border-t border-zinc-200 pt-4 lg:grid-cols-3">
+              <div className="px-2 py-1">
+                <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                  <Pulse size={14} weight="fill" /> Phase
+                </p>
+                <p className="text-3xl font-black tabular-nums">{phase}</p>
+                {phaseCountdown > 0 && (
+                  <p className="mt-2 text-xs font-black uppercase text-zinc-700">
+                    {phaseCountdown}s remaining
+                  </p>
+                )}
+              </div>
+              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
+                <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                  <Users size={14} weight="fill" /> Players
+                </p>
+                <p className="text-sm font-black uppercase">
+                  {roomParticipants.filter((p) => p.connected).length}/
+                  {roomParticipants.length} online
+                </p>
+                <p className="mt-2 text-xs text-zinc-700">
+                  Combined <BananaInline>{totalBananasInPlay}</BananaInline>
+                </p>
+              </div>
+              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
+                <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
+                  <DiceFive size={14} weight="fill" /> Microbets
+                </p>
+                <p className="text-sm font-black uppercase">
+                  {activeMicrobetCount} active
+                </p>
+                {phase === "vote" && (
+                  <p className="mt-2 text-xs text-zinc-700">
+                    {voteActionsCount} votes received
+                  </p>
+                )}
+              </div>
             </div>
-          )}
-          {snapshot.tournamentFinished && (
-            <div className="mt-5 w-full border-4 border-black py-3 text-center bg-yellow-300 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-              <span className="text-2xl font-black uppercase">
-                Tournament Complete
-              </span>
-            </div>
-          )}
-        </div>
-      }
-      rightPanel={
-        <div className="flex flex-col gap-6">
-          <ActivityFeed
-            latestVoteSummary={snapshot.latestVoteSummary}
-            latestMicrobetSummary={snapshot.latestMicrobetSummary}
-            appliedEffects={appliedEffects}
-          />
-          {hasBots && <BotBetsTable bots={snapshot.bots} />}
-        </div>
-      }
-      floatingAction={
-        <button
-          onClick={onExit}
-          className="fixed top-4 left-4 z-50 border-4 border-black bg-white px-4 py-2 font-black uppercase text-xs tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100 active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
-        >
-          ← Leave
-        </button>
-      }
-    />
+
+            {roundWinner && (
+              <div className="mt-5 w-full border-4 border-black py-3 text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+                <span
+                  className="text-2xl font-black uppercase"
+                  style={{
+                    color: roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
+                  }}
+                >
+                  {roundWinner.toUpperCase()} wins this round
+                </span>
+              </div>
+            )}
+            {snapshot.tournamentFinished && (
+              <div className="mt-5 w-full border-4 border-black py-3 text-center bg-yellow-300 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+                <span className="text-2xl font-black uppercase">
+                  Tournament Complete
+                </span>
+              </div>
+            )}
+          </div>
+        }
+        rightPanel={
+          <div className="flex flex-col gap-6">
+            <ActivityFeed
+              latestVoteSummary={snapshot.latestVoteSummary}
+              latestMicrobetSummary={snapshot.latestMicrobetSummary}
+              appliedEffects={appliedEffects}
+            />
+            {hasBots && <BotBetsTable bots={snapshot.bots} />}
+          </div>
+        }
+        floatingAction={
+          <button
+            onClick={onExit}
+            className="fixed top-4 left-4 z-50 border-4 border-black bg-white px-4 py-2 font-black uppercase text-xs tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-100 active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+          >
+            ← Leave
+          </button>
+        }
+      />
+    </>
   );
 }

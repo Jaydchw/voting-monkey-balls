@@ -46,6 +46,10 @@ import type {
 } from "@/components/game/modals/types";
 import { GamePanelBase } from "@/components/game/panels/game-panel-base";
 import type { GameAudioController } from "@/lib/game-audio";
+import {
+  TournamentLeaderboard,
+  type LeaderboardEntry,
+} from "@/components/game/tournament-leaderboard";
 
 const STARTING_HEALTH = 100;
 const STARTING_BANANAS = 100;
@@ -150,7 +154,18 @@ function SingleplayerPanelInner({
     characterSelectEnabled ? "character-select" : "prematch",
   );
   const [phaseCountdown, setPhaseCountdown] = useState(0);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<
+    LeaderboardEntry[]
+  >([]);
+  const [playerCharacter, setPlayerCharacter] = useState<{
+    svgType: string;
+    color: string;
+  } | null>(null);
 
+  const playerCharacterRef = useRef<{ svgType: string; color: string } | null>(
+    null,
+  );
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
   const previousHealthRef = useRef({
     red: STARTING_HEALTH,
@@ -236,6 +251,30 @@ function SingleplayerPanelInner({
     }
     prevPhaseRef.current = phase;
   }, [phase, audioCtrlRef]);
+
+  const snapshotLeaderboardEntries = useCallback((): LeaderboardEntry[] => {
+    const char = playerCharacterRef.current;
+    const playerEntry: LeaderboardEntry = {
+      id: "player",
+      name: "You",
+      bananas: playerBananasRef.current,
+      characterSvg: char?.svgType,
+      characterColor: char?.color,
+      isPlayer: true,
+    };
+
+    const botEntries: LeaderboardEntry[] = engine
+      .getSnapshot()
+      .leaderboard.map((bot) => ({
+        id: bot.id,
+        name: bot.name,
+        bananas: bot.bananas,
+      }));
+
+    const all = [playerEntry, ...botEntries];
+    all.sort((a, b) => b.bananas - a.bananas);
+    return all;
+  }, [engine]);
 
   const settlePlayerMicrobets = useCallback(
     (currentTotals: StatTotals): SettlementEntry[] => {
@@ -438,6 +477,8 @@ function SingleplayerPanelInner({
     resetBetState();
     resetVoteState();
     resetMicrobetState();
+    setShowLeaderboard(false);
+    setLeaderboardEntries([]);
     transitionPhase(
       characterSelectEnabled ? "character-select" : "prematch",
       0,
@@ -489,9 +530,14 @@ function SingleplayerPanelInner({
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
 
-  const handleCharacterConfirm = useCallback(() => {
-    transitionPhase("prematch", 0);
-  }, [transitionPhase]);
+  const handleCharacterConfirm = useCallback(
+    (value: { svgType: string; color: string }) => {
+      playerCharacterRef.current = value;
+      setPlayerCharacter(value);
+      transitionPhase("prematch", 0);
+    },
+    [transitionPhase],
+  );
 
   const handleMainBetPlace = useCallback(() => {
     if (phaseRef.current !== "prematch") return;
@@ -732,6 +778,12 @@ function SingleplayerPanelInner({
             doAdvance();
             roundAdvanceTimeoutRef.current = null;
           }, 4000);
+        } else {
+          roundAdvanceTimeoutRef.current = setTimeout(() => {
+            setLeaderboardEntries(snapshotLeaderboardEntries());
+            setShowLeaderboard(true);
+            roundAdvanceTimeoutRef.current = null;
+          }, 2000);
         }
       }
     }, 1000);
@@ -750,6 +802,14 @@ function SingleplayerPanelInner({
 
   return (
     <>
+      {showLeaderboard && (
+        <TournamentLeaderboard
+          entries={leaderboardEntries}
+          onPlayAgain={restartSingleplayerMatch}
+          onExit={() => (window.location.href = "/")}
+        />
+      )}
+
       <CharacterSelectModal
         open={phase === "character-select"}
         playerName="Player"
