@@ -13,11 +13,15 @@ import PartySocket from "partysocket";
 import {
   CopySimple,
   Crown,
-  DiceFive,
   Lightning,
   Pulse,
   ShareNetwork,
   Users,
+  Wall,
+  ArrowsLeftRight,
+  Sword,
+  Target,
+  TrendUp,
 } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BotsGameEngine } from "@/bots/engine";
@@ -31,17 +35,13 @@ import type {
 } from "@/bots/types";
 import type { GameApi } from "@/components/game/arena/game-board";
 import type { ActiveModifier } from "@/components/game/hud/battle-bar";
-import { RoundHeader } from "@/components/game/hud/round-header";
 import { HealthBars } from "@/components/game/hud/health-bars";
 import { ArenaBoard } from "@/components/game/arena/arena-board";
 import { BananaInline } from "@/components/ui/banana-inline";
 import { BotStandings } from "@/components/game/standings/bot-standings";
 import { MatchDashboardShell } from "@/components/game/layout/match-dashboard-shell";
 import { CharacterAvatar } from "@/components/game/character/character-avatar";
-import {
-  ActivityFeed,
-  type AppliedEffect,
-} from "@/components/game/standings/activity-feed";
+import { type AppliedEffect } from "@/components/game/standings/activity-feed";
 import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
 import { BlockButton } from "@/components/ui/block-button";
 import { BlockCard } from "@/components/ui/block-card";
@@ -207,35 +207,6 @@ function IconButton({
   );
 }
 
-function SectionBadge({
-  children,
-  color = "yellow",
-}: {
-  children: ReactNode;
-  color?: "yellow" | "primary" | "danger" | "success";
-}) {
-  const colorClass =
-    color === "primary"
-      ? "bg-primary text-primary-foreground"
-      : color === "danger"
-        ? "bg-destructive text-destructive-foreground"
-        : color === "success"
-          ? "bg-green-400 text-black"
-          : "bg-yellow-300 text-black";
-  return (
-    <div
-      className={[
-        "inline-block border-4 border-black px-3 py-1",
-        colorClass,
-      ].join(" ")}
-    >
-      <span className="text-xs font-black uppercase tracking-[0.3em]">
-        {children}
-      </span>
-    </div>
-  );
-}
-
 function NumberInput({
   label,
   value,
@@ -285,14 +256,52 @@ function PhaseProgressBar({
     reveal: "bg-violet-300",
     microbet: "bg-orange-400",
   };
-  const bg = colors[phase] ?? "bg-zinc-300";
   return (
     <div className="w-full h-2 bg-zinc-200 border border-black/10 overflow-hidden">
       <motion.div
-        className={`h-full ${bg}`}
+        className={`h-full ${colors[phase] ?? "bg-zinc-300"}`}
         animate={{ width: `${pct}%` }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       />
+    </div>
+  );
+}
+
+function LiveStatRow({
+  icon,
+  label,
+  redValue,
+  blueValue,
+  yellowValue,
+}: {
+  icon: ReactNode;
+  label: string;
+  redValue?: number;
+  blueValue?: number;
+  yellowValue?: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-zinc-500">
+        {icon} {label}
+      </span>
+      <div className="flex items-center gap-1.5">
+        {redValue !== undefined && (
+          <span className="text-[10px] font-black tabular-nums bg-red-100 border border-red-200 px-1.5 py-0.5 text-red-700">
+            {redValue}
+          </span>
+        )}
+        {blueValue !== undefined && (
+          <span className="text-[10px] font-black tabular-nums bg-blue-100 border border-blue-200 px-1.5 py-0.5 text-blue-700">
+            {blueValue}
+          </span>
+        )}
+        {yellowValue !== undefined && (
+          <span className="text-[10px] font-black tabular-nums bg-yellow-100 border border-yellow-200 px-1.5 py-0.5 text-yellow-700">
+            {yellowValue}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -382,6 +391,8 @@ export default function HostMultiplayerPanel({
   >({});
   const [voteActionsCount, setVoteActionsCount] = useState(0);
   const [activeMicrobetCount, setActiveMicrobetCount] = useState(0);
+
+  const [liveStats, setLiveStats] = useState<StatTotals>(createZeroTotals());
 
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
   const previousHealthRef = useRef({
@@ -516,9 +527,7 @@ export default function HostMultiplayerPanel({
         wallHitsBlue: currentTotals.wallHitsBlue - last.wallHitsBlue,
         ballCollisions: currentTotals.ballCollisions - last.ballCollisions,
       };
-
       const newSettlements: Record<string, MicrobetSettlementResult[]> = {};
-
       for (const [pid, bets] of Object.entries(activeMicrobetsRef.current)) {
         if (bets.length === 0) continue;
         const results: MicrobetSettlementResult[] = [];
@@ -546,7 +555,6 @@ export default function HostMultiplayerPanel({
             (roundPayoutRef.current[pid] ?? 0) + payout;
         }
       }
-
       microbetSettlementsRef.current = newSettlements;
       activeMicrobetsRef.current = {};
       updateMicrobetCount();
@@ -611,9 +619,7 @@ export default function HostMultiplayerPanel({
 
   const closeMicrobetWindow = useCallback(() => {
     for (const [pid, bets] of Object.entries(queuedMicrobetsRef.current)) {
-      if (bets.length > 0) {
-        activeMicrobetsRef.current[pid] = bets;
-      }
+      if (bets.length > 0) activeMicrobetsRef.current[pid] = bets;
     }
     queuedMicrobetsRef.current = {};
     updateMicrobetCount();
@@ -622,9 +628,9 @@ export default function HostMultiplayerPanel({
   }, [transitionPhase, updateMicrobetCount]);
 
   const getLiveVoteTotals = useCallback(() => {
-    let optA = 0;
-    let optB = 0;
-    let optC = 0;
+    let optA = 0,
+      optB = 0,
+      optC = 0;
     for (const vote of Object.values(voteActionsRef.current)) {
       if (vote.selection === 0) optA += vote.power;
       else if (vote.selection === 1) optB += vote.power;
@@ -663,9 +669,7 @@ export default function HostMultiplayerPanel({
         })),
       };
     });
-
     const liveTotals = phase === "vote" ? getLiveVoteTotals() : null;
-
     const state: HostBroadcastState = {
       roomCode,
       phase,
@@ -708,7 +712,6 @@ export default function HostMultiplayerPanel({
       const playerName =
         roomParticipantsRef.current.find((p) => p.id === playerId)?.name ??
         "Unknown";
-
       if (action.kind === "set-character") {
         const svgType = isValidMonkeySvgType(action.svgType)
           ? action.svgType
@@ -915,6 +918,7 @@ export default function HostMultiplayerPanel({
     healthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
     previousHealthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
     statsTotalsRef.current = createZeroTotals();
+    setLiveStats(createZeroTotals());
     forcedWinnerRef.current = undefined;
     setRoundWinner(null);
     setShowWinScreen(false);
@@ -977,23 +981,23 @@ export default function HostMultiplayerPanel({
   const handleBallCollision = useCallback(() => {
     statsTotalsRef.current.ballCollisions += 1;
   }, []);
-
   const handleBallDied = useCallback((deadBall: BallId) => {
     forcedWinnerRef.current = deadBall === "red" ? "blue" : "red";
   }, []);
 
-  const startMatch = useCallback(() => {
-    if (roomParticipants.length === 0) return;
+  const startMatch = () => {
+    if (roomParticipantsRef.current.length === 0) return;
+    const s = settingsRef.current;
     const freshEngine = new BotsGameEngine({
-      botCount: settings.botCount,
-      startingBananas: settings.startingBananas,
-      roundDurationSeconds: settings.roundTimerSeconds,
-      totalRounds: settings.roundsTotal,
+      botCount: s.botCount,
+      startingBananas: s.startingBananas,
+      roundDurationSeconds: s.roundTimerSeconds,
+      totalRounds: s.roundsTotal,
       voteIntervalSeconds: 10,
-      minMainBet: Math.max(5, Math.floor(settings.startingBananas / 10)),
+      minMainBet: Math.max(5, Math.floor(s.startingBananas / 10)),
     });
     for (const p of roomParticipantsRef.current) {
-      banksRef.current[p.id] = settings.startingBananas;
+      banksRef.current[p.id] = s.startingBananas;
       totalPayoutRef.current[p.id] = 0;
       roundPayoutRef.current[p.id] = 0;
     }
@@ -1014,19 +1018,7 @@ export default function HostMultiplayerPanel({
     setLeaderboardEntries([]);
     syncParticipantBananas();
     resetBoardForNextRound();
-  }, [
-    resetBoardForNextRound,
-    roomParticipants.length,
-    settings,
-    syncParticipantBananas,
-    updateMicrobetCount,
-    setEngine,
-    setMainBets,
-    setMatchStarted,
-    setRecentBets,
-    setSnapshot,
-    setVoteActionsCount,
-  ]);
+  };
 
   const snapshotLeaderboardEntries = useCallback((): LeaderboardEntry[] => {
     const participantEntries: LeaderboardEntry[] =
@@ -1041,14 +1033,12 @@ export default function HostMultiplayerPanel({
           characterColor: char?.color,
         };
       });
-
     const snap = engine.getSnapshot();
     const botEntries: LeaderboardEntry[] = snap.leaderboard.map((bot) => ({
       id: bot.id,
       name: bot.name,
       bananas: bot.bananas,
     }));
-
     const all = [...participantEntries, ...botEntries];
     all.sort((a, b) => b.bananas - a.bananas);
     return all;
@@ -1154,6 +1144,8 @@ export default function HostMultiplayerPanel({
   useEffect(() => {
     if (!matchStarted) return;
     const interval = setInterval(() => {
+      setLiveStats({ ...statsTotalsRef.current });
+
       if (phaseRef.current === "prematch") {
         if (settingsRef.current.waitForAllDecisions) return;
         const next = Math.max(0, phaseCountdownRef.current - 1);
@@ -1263,6 +1255,7 @@ export default function HostMultiplayerPanel({
     syncParticipantBananas,
     transitionPhase,
     updateMicrobetCount,
+    snapshotLeaderboardEntries,
   ]);
 
   useEffect(() => {
@@ -1277,6 +1270,7 @@ export default function HostMultiplayerPanel({
       ),
     [participantBananas, roomParticipants, settings.startingBananas],
   );
+
   const hasBots = snapshot.bots.length > 0;
   const participantLeaderboard = useMemo(
     () =>
@@ -1308,7 +1302,11 @@ export default function HostMultiplayerPanel({
         <div className="w-full max-w-3xl">
           <div className="mb-8">
             <div className="mb-3">
-              <SectionBadge color="primary">Multiplayer Host</SectionBadge>
+              <div className="inline-block border-4 border-black px-3 py-1 bg-primary text-primary-foreground">
+                <span className="text-xs font-black uppercase tracking-[0.3em]">
+                  Multiplayer Host
+                </span>
+              </div>
             </div>
             <h1 className="text-5xl font-black uppercase leading-none tracking-tight">
               Room <span className="text-primary">{roomCode}</span>
@@ -1482,7 +1480,6 @@ export default function HostMultiplayerPanel({
           onExit={onExit}
         />
       )}
-
       {showWinScreen && !showLeaderboard && (
         <RoundWinScreen
           winner={roundWinner}
@@ -1494,12 +1491,45 @@ export default function HostMultiplayerPanel({
 
       <MatchDashboardShell
         header={
-          <>
-            <RoundHeader
-              roundNumber={snapshot.roundNumber}
-              roundsTotal={snapshot.roundsTotal}
-              timeLeftSeconds={snapshot.timeLeftSeconds}
-            />
+          <div className="pt-10 mb-6">
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
+                  Round {snapshot.roundNumber} of {snapshot.roundsTotal}
+                </p>
+                {(() => {
+                  const t = snapshot.timeLeftSeconds;
+                  const isUrgent = t <= 30 && t > 0;
+                  const isCritical = t <= 10 && t > 0;
+                  const mm = Math.floor(t / 60)
+                    .toString()
+                    .padStart(2, "0");
+                  const ss = (t % 60).toString().padStart(2, "0");
+                  return (
+                    <motion.div
+                      key={`${isCritical}-${isUrgent}`}
+                      className={`font-black tabular-nums text-3xl sm:text-4xl leading-none px-5 py-1.5 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${isCritical ? "bg-red-500 text-white" : isUrgent ? "bg-orange-400 text-black" : "bg-yellow-300 text-black"}`}
+                      animate={
+                        isCritical
+                          ? { scale: [1, 1.07, 1] }
+                          : isUrgent
+                            ? { scale: [1, 1.03, 1] }
+                            : { scale: 1 }
+                      }
+                      transition={
+                        isCritical
+                          ? { duration: 0.42, repeat: Infinity }
+                          : isUrgent
+                            ? { duration: 0.85, repeat: Infinity }
+                            : {}
+                      }
+                    >
+                      {mm}:{ss}
+                    </motion.div>
+                  );
+                })()}
+              </div>
+            </div>
             {phaseScreenActive && (
               <PhaseProgressBar
                 phase={phase}
@@ -1507,7 +1537,7 @@ export default function HostMultiplayerPanel({
                 maxSeconds={phaseMaxSeconds}
               />
             )}
-          </>
+          </div>
         }
         overlay={
           phaseScreenActive ? (
@@ -1528,12 +1558,15 @@ export default function HostMultiplayerPanel({
           ) : null
         }
         leftPanel={
-          <div className="flex flex-col gap-6">
-            <section className="bg-white px-2 py-1">
-              <p className="mb-3 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
-                <Crown size={16} weight="fill" /> Leaderboard
-              </p>
-              <div className="divide-y divide-zinc-200/80 max-h-64 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-4">
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-black text-white flex items-center gap-2">
+                <Crown size={14} weight="fill" className="text-yellow-400" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Leaderboard
+                </p>
+              </div>
+              <div className="divide-y divide-zinc-100 max-h-64 overflow-y-auto">
                 {participantLeaderboard.map((p, i) => {
                   const char = participantCharacters[p.id];
                   const bet = mainBets[p.id];
@@ -1543,17 +1576,22 @@ export default function HostMultiplayerPanel({
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.04 }}
-                      className="flex items-center gap-2 px-1 py-2.5"
+                      className="flex items-center gap-2 px-3 py-2.5"
                     >
                       <span className="text-[10px] font-black text-zinc-400 w-5">
                         #{i + 1}
                       </span>
-                      <CharacterAvatar
-                        svgType={char?.svgType}
-                        color={char?.color}
-                        size={36}
-                        className="shrink-0"
-                      />
+                      {char?.svgType ? (
+                        <div className="border-2 border-black shrink-0">
+                          <CharacterAvatar
+                            svgType={char.svgType}
+                            color={char.color}
+                            size={32}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 border-2 border-zinc-200 bg-zinc-100 shrink-0" />
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-black uppercase truncate">
                           {p.name}
@@ -1570,9 +1608,8 @@ export default function HostMultiplayerPanel({
                       </div>
                       {bet && (
                         <span
-                          className={`text-[10px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${bet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
+                          className={`text-[9px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${bet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
                         >
-                          {bet.side === "red" ? "♚" : "♚"}{" "}
                           {bet.side.toUpperCase()}
                         </span>
                       )}
@@ -1580,20 +1617,90 @@ export default function HostMultiplayerPanel({
                   );
                 })}
               </div>
-            </section>
+            </div>
 
-            <section className="bg-white px-2 py-1">
-              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
-                <Lightning size={14} weight="fill" /> Recent Bets
-              </p>
-              <div className="max-h-48 overflow-y-auto pr-1 divide-y divide-zinc-100">
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-zinc-900 text-white flex items-center gap-2">
+                <Target size={14} weight="fill" className="text-orange-400" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Live Round Stats
+                </p>
+              </div>
+              <div className="p-3 flex flex-col gap-2.5">
+                <LiveStatRow
+                  icon={
+                    <Sword size={10} weight="fill" className="text-red-500" />
+                  }
+                  label="Red Dmg"
+                  redValue={Math.round(liveStats.redDamageTaken)}
+                />
+                <LiveStatRow
+                  icon={
+                    <Sword size={10} weight="fill" className="text-blue-500" />
+                  }
+                  label="Blue Dmg"
+                  blueValue={Math.round(liveStats.blueDamageTaken)}
+                />
+                <LiveStatRow
+                  icon={
+                    <Wall size={10} weight="fill" className="text-zinc-500" />
+                  }
+                  label="Wall Hits"
+                  redValue={liveStats.wallHitsRed}
+                  blueValue={liveStats.wallHitsBlue}
+                />
+                <LiveStatRow
+                  icon={
+                    <ArrowsLeftRight
+                      size={10}
+                      weight="fill"
+                      className="text-yellow-500"
+                    />
+                  }
+                  label="Collisions"
+                  yellowValue={liveStats.ballCollisions}
+                />
+                <div className="border-t-2 border-zinc-100 pt-2 flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-zinc-500 flex items-center gap-1">
+                    <TrendUp
+                      size={10}
+                      weight="fill"
+                      className="text-orange-500"
+                    />{" "}
+                    Microbets
+                  </span>
+                  <span className="text-xs font-black bg-orange-100 border border-orange-200 px-1.5 py-0.5 text-orange-700">
+                    {activeMicrobetCount} active
+                  </span>
+                </div>
+                {phase === "vote" && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-zinc-500">
+                      Votes in
+                    </span>
+                    <span className="text-xs font-black bg-violet-100 border border-violet-200 px-1.5 py-0.5 text-violet-700">
+                      {voteActionsCount}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-yellow-400 flex items-center gap-2">
+                <Lightning size={14} weight="fill" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Recent Bets
+                </p>
+              </div>
+              <div className="max-h-48 overflow-y-auto divide-y divide-zinc-100">
                 <AnimatePresence initial={false}>
                   {recentBets.slice(0, 8).map((entry, i) => (
                     <motion.div
                       key={`${entry.timestamp}-${i}`}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="py-1.5 px-1"
+                      initial={{ opacity: 0, x: -8, height: 0 }}
+                      animate={{ opacity: 1, x: 0, height: "auto" }}
+                      className="px-3 py-2"
                     >
                       <p className="text-[10px] font-black uppercase text-zinc-500">
                         {entry.playerName}
@@ -1605,10 +1712,12 @@ export default function HostMultiplayerPanel({
                   ))}
                 </AnimatePresence>
                 {recentBets.length === 0 && (
-                  <p className="text-xs text-zinc-400 py-2">No bets yet.</p>
+                  <p className="text-xs text-zinc-400 px-3 py-3">
+                    No bets yet.
+                  </p>
                 )}
               </div>
-            </section>
+            </div>
 
             {hasBots && (
               <BotStandings
@@ -1628,64 +1737,162 @@ export default function HostMultiplayerPanel({
               redWeapons={redWeapons}
               blueWeapons={blueWeapons}
             />
-            <ArenaBoard
-              gameKey={gameKey}
-              isCircleArena={isCircleArena}
-              onRedHealthChange={handleRedHealthChange}
-              onBlueHealthChange={handleBlueHealthChange}
-              onBallDied={handleBallDied}
-              onGameReady={handleGameReady}
-              onWallCollision={handleWallCollision}
-              onBallCollision={handleBallCollision}
-            />
-
-            <div className="mt-5 grid w-full grid-cols-1 gap-4 border-t border-zinc-200 pt-4 lg:grid-cols-3">
-              <div className="px-2 py-1">
-                <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                  <Pulse size={14} weight="fill" /> Phase
-                </p>
-                <p className="text-3xl font-black tabular-nums">{phase}</p>
-                {phaseCountdown > 0 && (
-                  <p className="mt-2 text-xs font-black uppercase text-zinc-700">
-                    {phaseCountdown}s remaining
-                  </p>
-                )}
-              </div>
-              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
-                <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                  <Users size={14} weight="fill" /> Players
-                </p>
-                <p className="text-sm font-black uppercase">
-                  {roomParticipants.filter((p) => p.connected).length}/
-                  {roomParticipants.length} online
-                </p>
-                <p className="mt-2 text-xs text-zinc-700">
-                  Combined <BananaInline>{totalBananasInPlay}</BananaInline>
-                </p>
-              </div>
-              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
-                <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                  <DiceFive size={14} weight="fill" /> Microbets
-                </p>
-                <p className="text-sm font-black uppercase">
-                  {activeMicrobetCount} active
-                </p>
-                {phase === "vote" && (
-                  <p className="mt-2 text-xs text-zinc-700">
-                    {voteActionsCount} votes received
-                  </p>
-                )}
-              </div>
+            <div className="mt-6">
+              <ArenaBoard
+                gameKey={gameKey}
+                isCircleArena={isCircleArena}
+                onRedHealthChange={handleRedHealthChange}
+                onBlueHealthChange={handleBlueHealthChange}
+                onBallDied={handleBallDied}
+                onGameReady={handleGameReady}
+                onWallCollision={handleWallCollision}
+                onBallCollision={handleBallCollision}
+              />
             </div>
           </div>
         }
         rightPanel={
-          <div className="flex flex-col gap-6">
-            <ActivityFeed
-              latestVoteSummary={snapshot.latestVoteSummary}
-              latestMicrobetSummary={snapshot.latestMicrobetSummary}
-              appliedEffects={appliedEffects}
-            />
+          <div className="flex flex-col gap-4">
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-zinc-900 text-white flex items-center gap-2">
+                <Pulse size={14} weight="fill" className="text-green-400" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Match Status
+                </p>
+              </div>
+              <div className="grid grid-cols-3 divide-x-4 divide-black border-b-4 border-black">
+                <div className="p-2.5 text-center">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 mb-1">
+                    Phase
+                  </p>
+                  <p className="text-xs font-black uppercase truncate">
+                    {phase}
+                  </p>
+                  {phaseCountdown > 0 && (
+                    <p className="text-[9px] font-black text-zinc-400 mt-0.5">
+                      {phaseCountdown}s
+                    </p>
+                  )}
+                </div>
+                <div className="p-2.5 text-center">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-zinc-400 mb-1 flex items-center justify-center gap-0.5">
+                    <Users size={8} weight="fill" /> Players
+                  </p>
+                  <p className="text-sm font-black">
+                    {roomParticipants.filter((p) => p.connected).length}/
+                    {roomParticipants.length}
+                  </p>
+                  <p className="text-[9px] font-black text-zinc-400">online</p>
+                </div>
+                <div className="p-2.5 text-center bg-yellow-300">
+                  <p className="text-[8px] font-black uppercase tracking-widest text-yellow-900 mb-1">
+                    Pool
+                  </p>
+                  <p className="text-sm font-black tabular-nums">
+                    {totalBananasInPlay}
+                  </p>
+                  <p className="text-[9px] font-black text-yellow-800">🍌</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-violet-500 text-white flex items-center gap-2">
+                <Lightning size={14} weight="fill" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Latest Vote
+                </p>
+              </div>
+              <div className="p-3">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={snapshot.latestVoteSummary ?? "no-vote"}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-xs text-zinc-700 leading-relaxed"
+                  >
+                    {snapshot.latestVoteSummary ?? "Voting starts at 01:50."}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {microbetInsights.length > 0 && (
+              <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+                <div className="px-3 py-2 border-b-4 border-black bg-orange-400 flex items-center gap-2">
+                  <TrendUp size={14} weight="fill" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">
+                    Open Microbets
+                  </p>
+                </div>
+                <div className="p-2 flex flex-col gap-1">
+                  {microbetInsights.map((insight, i) => {
+                    const kindLabels: Record<string, string> = {
+                      redDamageToBlue: "Red outdmg Blue",
+                      blueDamageToRed: "Blue outdmg Red",
+                      redWallHits: "Red wall hits",
+                      blueWallHits: "Blue wall hits",
+                      ballCollisions: "Collisions 10+",
+                    };
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-2 py-1.5 border-l-4 border-orange-300 bg-orange-50"
+                      >
+                        <span className="text-[10px] font-black uppercase text-zinc-700">
+                          {kindLabels[insight.kind] ?? insight.kind}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9px] font-black text-zinc-500">
+                            {insight.count} bet{insight.count !== 1 ? "s" : ""}
+                          </span>
+                          <span className="text-[10px] font-black bg-orange-200 border border-orange-300 px-1.5 py-0.5 text-orange-800">
+                            {insight.totalStake}🍌
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {appliedEffects.length > 0 && (
+              <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+                <div className="px-3 py-2 border-b-4 border-black bg-cyan-400 flex items-center gap-2">
+                  <Target size={14} weight="fill" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">
+                    Applied Effects
+                  </p>
+                </div>
+                <div className="p-2 flex flex-col gap-1">
+                  <AnimatePresence initial={false}>
+                    {appliedEffects.map((effect, i) => (
+                      <motion.div
+                        key={`${effect.label}-${i}`}
+                        initial={{ opacity: 0, x: -8, height: 0 }}
+                        animate={{ opacity: 1, x: 0, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center gap-2 px-2 py-1.5 border-l-4 border-cyan-400 bg-cyan-50"
+                      >
+                        <div className="flex items-center gap-1 shrink-0">
+                          {effect.icons.map((IconComp, j) => (
+                            <IconComp key={j} size={12} weight="bold" />
+                          ))}
+                        </div>
+                        <span className="text-xs font-black uppercase text-zinc-700 truncate">
+                          {effect.label}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
             {hasBots && <BotBetsTable bots={snapshot.bots} />}
           </div>
         }

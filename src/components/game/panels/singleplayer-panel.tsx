@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Gear, TrendUp } from "@phosphor-icons/react";
+import {
+  Gear,
+  Lightning,
+  Wall,
+  ArrowsLeftRight,
+  Sword,
+  Target,
+  ArrowCounterClockwise,
+  TrendUp,
+} from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BotsGameEngine } from "@/bots/engine";
 import type {
@@ -15,14 +24,10 @@ import type {
 } from "@/bots/types";
 import type { GameApi } from "@/components/game/arena/game-board";
 import type { ActiveModifier } from "@/components/game/hud/battle-bar";
-import { RoundHeader } from "@/components/game/hud/round-header";
 import { HealthBars } from "@/components/game/hud/health-bars";
 import { ArenaBoard } from "@/components/game/arena/arena-board";
 import { BotStandings } from "@/components/game/standings/bot-standings";
-import {
-  ActivityFeed,
-  type AppliedEffect,
-} from "@/components/game/standings/activity-feed";
+import { type AppliedEffect } from "@/components/game/standings/activity-feed";
 import { BotBetsTable } from "@/components/game/standings/bot-bets-table";
 import { Button } from "@/components/ui/button";
 import { BananaInline } from "@/components/ui/banana-inline";
@@ -38,6 +43,7 @@ import {
   type SettlementEntry,
 } from "@/components/game/modals/microbet-settlement-modal";
 import { CharacterSelectModal } from "@/components/game/modals/character-select-modal";
+import { CharacterAvatar } from "@/components/game/character/character-avatar";
 import type {
   MainBetSelection,
   MicrobetDraft,
@@ -126,6 +132,41 @@ export default function SingleplayerPanel(props: SingleplayerPanelProps) {
   );
 }
 
+function StatBar({
+  label,
+  value,
+  max,
+  color,
+  icon,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color: string;
+  icon: React.ReactNode;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="flex items-center gap-1 text-[10px] font-black uppercase text-zinc-500">
+          {icon} {label}
+        </span>
+        <span className="text-[10px] font-black tabular-nums">
+          {Math.round(value)}
+        </span>
+      </div>
+      <div className="h-2 bg-zinc-200 border-2 border-black overflow-hidden">
+        <motion.div
+          className={`h-full ${color}`}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.4 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SingleplayerPanelInner({
   initialBotCount = DEFAULT_SINGLEPLAYER_BOTS,
   characterSelectEnabled = true,
@@ -161,9 +202,15 @@ function SingleplayerPanelInner({
   >([]);
   const [showWinScreen, setShowWinScreen] = useState(false);
 
+  const [liveStats, setLiveStats] = useState<StatTotals>(createZeroTotals());
+
   const playerCharacterRef = useRef<{ svgType: string; color: string } | null>(
     null,
   );
+  const [playerCharacter, setPlayerCharacter] = useState<{
+    svgType: string;
+    color: string;
+  } | null>(null);
 
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
   const previousHealthRef = useRef({
@@ -261,7 +308,6 @@ function SingleplayerPanelInner({
       characterColor: char?.color,
       isPlayer: true,
     };
-
     const botEntries: LeaderboardEntry[] = engine
       .getSnapshot()
       .leaderboard.map((bot) => ({
@@ -269,7 +315,6 @@ function SingleplayerPanelInner({
         name: bot.name,
         bananas: bot.bananas,
       }));
-
     const all = [playerEntry, ...botEntries];
     all.sort((a, b) => b.bananas - a.bananas);
     return all;
@@ -403,11 +448,9 @@ function SingleplayerPanelInner({
     setRedHealth(STARTING_HEALTH);
     setBlueHealth(STARTING_HEALTH);
     healthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
-    previousHealthRef.current = {
-      red: STARTING_HEALTH,
-      blue: STARTING_HEALTH,
-    };
+    previousHealthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
     statsTotalsRef.current = createZeroTotals();
+    setLiveStats(createZeroTotals());
     forcedWinnerRef.current = undefined;
     setRoundWinner(null);
     setShowWinScreen(false);
@@ -533,6 +576,7 @@ function SingleplayerPanelInner({
   const handleCharacterConfirm = useCallback(
     (value: { svgType: string; color: string }) => {
       playerCharacterRef.current = value;
+      setPlayerCharacter(value);
       transitionPhase("prematch", 0);
     },
     [transitionPhase],
@@ -565,7 +609,6 @@ function SingleplayerPanelInner({
         playerBananasRef.current -= spend;
         setPlayerBananas(playerBananasRef.current);
       }
-
       setPickedVoteOptionIndex(selection);
       const resolved = engine.resolvePendingVote(selection, spend);
       if (resolved.application) {
@@ -695,6 +738,8 @@ function SingleplayerPanelInner({
 
   useEffect(() => {
     const interval = setInterval(() => {
+      setLiveStats({ ...statsTotalsRef.current });
+
       if (phaseRef.current !== "running") return;
 
       const stepResult = engine.step({
@@ -712,9 +757,7 @@ function SingleplayerPanelInner({
           (sum, e) => sum + (e.won ? e.stake : -e.stake),
           0,
         );
-
         lastVoteStatsRef.current = { ...currentTotals };
-
         setSettlementEntries(entries);
         setSettlementNet(net);
         setVoteWindow(stepResult.voteWindow);
@@ -722,26 +765,20 @@ function SingleplayerPanelInner({
         setVotePowerStake(1);
         setPickedVoteOptionIndex(null);
         setRevealedVoteOption(null);
-
-        if (entries.length > 0) {
-          transitionPhase("settlement", 0);
-        } else {
-          transitionPhase("vote", 0);
-        }
+        if (entries.length > 0) transitionPhase("settlement", 0);
+        else transitionPhase("vote", 0);
       }
 
       setSnapshot(stepResult.snapshot);
 
       if (stepResult.roundResult && !roundBetSettledRef.current) {
         roundBetSettledRef.current = true;
-
         const currentTotals = statsTotalsRef.current;
         const entries = settlePlayerMicrobets(currentTotals);
         const net = entries.reduce(
           (sum, e) => sum + (e.won ? e.stake : -e.stake),
           0,
         );
-
         setRoundWinner(stepResult.roundResult.winner);
         setShowWinScreen(true);
 
@@ -801,12 +838,229 @@ function SingleplayerPanelInner({
     transitionPhase,
   ]);
 
-  const queuedStakeTotal = queuedMicrobets.reduce(
-    (sum, bet) => sum + bet.stake,
-    0,
-  );
   const hasBots = snapshot.bots.length > 0;
-  const bananaDiff = playerBananas - prevPlayerBananas;
+  const maxDamage = Math.max(
+    liveStats.redDamageTaken,
+    liveStats.blueDamageTaken,
+    1,
+  );
+
+  const leftPanelContent = (
+    <div className="flex flex-col gap-4">
+      <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+        <div className="bg-black text-white px-3 py-2 flex items-center gap-2">
+          {playerCharacter ? (
+            <div className="border-2 border-white/30 shrink-0">
+              <CharacterAvatar
+                svgType={playerCharacter.svgType}
+                color={playerCharacter.color}
+                size={36}
+              />
+            </div>
+          ) : (
+            <div className="w-9 h-9 bg-zinc-700 border-2 border-zinc-600 shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+              You
+            </p>
+            <p className="text-sm font-black uppercase truncate">Player</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 divide-x-4 divide-black border-t-4 border-black">
+          <div className="p-2.5 bg-yellow-300 text-center">
+            <p className="text-[8px] font-black uppercase tracking-widest text-yellow-900 mb-0.5">
+              Bank
+            </p>
+            <motion.p
+              key={playerBananas}
+              className="text-lg font-black tabular-nums"
+              initial={{ scale: 1.15 }}
+              animate={{ scale: 1 }}
+            >
+              {playerBananas}
+            </motion.p>
+            <p className="text-[8px] font-bold text-yellow-800">🍌</p>
+          </div>
+          <div className="p-2.5 text-center">
+            <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">
+              Phase
+            </p>
+            <p className="text-xs font-black uppercase truncate">{phase}</p>
+          </div>
+          <div className="p-2.5 text-center">
+            <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">
+              Round
+            </p>
+            <p className="text-lg font-black">
+              {snapshot.roundNumber}/{snapshot.roundsTotal}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+        <div className="px-3 py-2 border-b-4 border-black bg-zinc-50 flex items-center gap-2">
+          <Target size={14} weight="fill" className="text-zinc-600" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">
+            Live Round Stats
+          </p>
+        </div>
+        <div className="p-3 flex flex-col gap-2.5">
+          <StatBar
+            label="Red Dmg Taken"
+            value={liveStats.redDamageTaken}
+            max={maxDamage}
+            color="bg-red-500"
+            icon={<Sword size={9} weight="fill" className="text-red-500" />}
+          />
+          <StatBar
+            label="Blue Dmg Taken"
+            value={liveStats.blueDamageTaken}
+            max={maxDamage}
+            color="bg-primary"
+            icon={<Sword size={9} weight="fill" className="text-blue-600" />}
+          />
+          <div className="border-t-2 border-zinc-100 pt-2.5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[10px] font-black uppercase text-zinc-500">
+                <Wall size={9} weight="fill" className="text-red-400" /> Red
+                Walls
+              </span>
+              <span className="text-xs font-black tabular-nums bg-red-100 border border-red-200 px-1.5 py-0.5">
+                {liveStats.wallHitsRed}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[10px] font-black uppercase text-zinc-500">
+                <Wall size={9} weight="fill" className="text-blue-400" /> Blue
+                Walls
+              </span>
+              <span className="text-xs font-black tabular-nums bg-blue-100 border border-blue-200 px-1.5 py-0.5">
+                {liveStats.wallHitsBlue}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-[10px] font-black uppercase text-zinc-500">
+                <ArrowsLeftRight
+                  size={9}
+                  weight="fill"
+                  className="text-yellow-500"
+                />{" "}
+                Collisions
+              </span>
+              <span className="text-xs font-black tabular-nums bg-yellow-100 border border-yellow-200 px-1.5 py-0.5">
+                {liveStats.ballCollisions}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {currentBet && (
+        <div
+          className={`border-4 border-black shadow-[4px_4px_0_0_rgba(0,0,0,1)] overflow-hidden`}
+        >
+          <div
+            className={`px-3 py-2 border-b-4 border-black ${currentBet.side === "red" ? "bg-red-500" : "bg-primary"}`}
+          >
+            <p className="text-[9px] font-black uppercase tracking-widest text-white/80">
+              Main Bet
+            </p>
+          </div>
+          <div className="p-3 bg-white">
+            <p
+              className={`text-lg font-black uppercase ${currentBet.side === "red" ? "text-red-600" : "text-blue-600"}`}
+            >
+              {currentBet.side.toUpperCase()}
+            </p>
+            <BananaInline className="text-sm font-black">
+              {currentBet.stake}
+            </BananaInline>
+            <AnimatePresence mode="wait">
+              {mainBetResult && (
+                <motion.div
+                  key={mainBetResult.won ? "win" : "loss"}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mt-2 px-2 py-1.5 border-4 border-black text-center font-black uppercase text-sm ${mainBetResult.won ? "bg-green-400 text-black" : "bg-red-200 text-black"}`}
+                >
+                  {mainBetResult.won
+                    ? `WIN +${mainBetResult.pnl} 🍌`
+                    : `LOSS -${mainBetResult.pnl}`}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+
+      {activeMicrobets.length > 0 && (
+        <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] overflow-hidden">
+          <div className="px-3 py-2 border-b-4 border-black bg-orange-400">
+            <p className="text-[9px] font-black uppercase tracking-widest">
+              Active Microbets ({activeMicrobets.length})
+            </p>
+          </div>
+          <div className="p-2 flex flex-col gap-1">
+            {activeMicrobets.slice(0, 4).map((bet, i) => (
+              <div
+                key={i}
+                className={`flex items-center justify-between px-2 py-1 border-l-4 text-[9px] font-black uppercase ${bet.outcome ? "border-green-400 bg-green-50" : "border-red-300 bg-red-50"}`}
+              >
+                <span className="truncate">
+                  {MICROBET_KIND_LABEL[bet.kind]}
+                </span>
+                <span className="shrink-0 ml-1">
+                  {bet.outcome ? "YES" : "NO"} · {bet.stake}🍌
+                </span>
+              </div>
+            ))}
+            {activeMicrobets.length > 4 && (
+              <p className="text-[9px] font-black uppercase text-zinc-400 text-center">
+                +{activeMicrobets.length - 4} more
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {lastMicrobetSettlements.length > 0 && (
+        <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] overflow-hidden">
+          <div className="px-3 py-2 border-b-4 border-black bg-zinc-100">
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 flex items-center gap-1">
+              <Lightning size={9} weight="fill" /> Last Settlement
+            </p>
+          </div>
+          <div className="p-2 flex flex-col gap-1">
+            <AnimatePresence initial={false}>
+              {lastMicrobetSettlements.map((entry, i) => (
+                <motion.div
+                  key={`${entry.label}-${i}`}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className={`flex items-center justify-between px-2 py-1 border-l-4 text-[9px] font-black ${entry.won ? "border-green-400 bg-green-50 text-green-800" : "border-red-300 bg-red-50 text-red-700"}`}
+                >
+                  <span className="truncate">
+                    {entry.label.split(":")[1]?.trim() ?? entry.label}
+                  </span>
+                  <span>{entry.won ? `+${entry.payout}🍌` : "✗"}</span>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+
+      {hasBots && (
+        <BotStandings
+          leaderboard={snapshot.leaderboard}
+          latestLog={snapshot.latestLog}
+        />
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -834,22 +1088,49 @@ function SingleplayerPanelInner({
       />
 
       <MatchDashboardShell
-        reserveLeftSpace
         header={
-          <RoundHeader
-            roundNumber={snapshot.roundNumber}
-            roundsTotal={snapshot.roundsTotal}
-            timeLeftSeconds={snapshot.timeLeftSeconds}
-          />
+          <div className="pt-10 mb-6">
+            <div className="flex items-center justify-center">
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">
+                  Round {snapshot.roundNumber} of {snapshot.roundsTotal}
+                </p>
+                {(() => {
+                  const t = snapshot.timeLeftSeconds;
+                  const isUrgent = t <= 30 && t > 0;
+                  const isCritical = t <= 10 && t > 0;
+                  const mm = Math.floor(t / 60)
+                    .toString()
+                    .padStart(2, "0");
+                  const ss = (t % 60).toString().padStart(2, "0");
+                  return (
+                    <motion.div
+                      key={`${isCritical}-${isUrgent}`}
+                      className={`font-black tabular-nums text-3xl sm:text-4xl leading-none px-5 py-1.5 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${isCritical ? "bg-red-500 text-white" : isUrgent ? "bg-orange-400 text-black" : "bg-yellow-300 text-black"}`}
+                      animate={
+                        isCritical
+                          ? { scale: [1, 1.07, 1] }
+                          : isUrgent
+                            ? { scale: [1, 1.03, 1] }
+                            : { scale: 1 }
+                      }
+                      transition={
+                        isCritical
+                          ? { duration: 0.42, repeat: Infinity }
+                          : isUrgent
+                            ? { duration: 0.85, repeat: Infinity }
+                            : {}
+                      }
+                    >
+                      {mm}:{ss}
+                    </motion.div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
         }
-        leftPanel={
-          hasBots ? (
-            <BotStandings
-              leaderboard={snapshot.leaderboard}
-              latestLog={snapshot.latestLog}
-            />
-          ) : undefined
-        }
+        leftPanel={leftPanelContent}
         centerPanel={
           <div className="flex flex-col items-center">
             <HealthBars
@@ -860,188 +1141,159 @@ function SingleplayerPanelInner({
               redWeapons={redWeapons}
               blueWeapons={blueWeapons}
             />
-            <ArenaBoard
-              gameKey={gameKey}
-              isCircleArena={isCircleArena}
-              onRedHealthChange={handleRedHealthChange}
-              onBlueHealthChange={handleBlueHealthChange}
-              onBallDied={handleBallDied}
-              onGameReady={handleGameReady}
-              onWallCollision={handleWallCollision}
-              onBallCollision={handleBallCollision}
-            />
-
-            <div className="mt-5 grid w-full grid-cols-1 gap-4 border-t border-zinc-200 pt-4 lg:ml-20 lg:grid-cols-3">
-              <div className="px-2 py-1">
-                <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                  Your <BananaInline>Bananas</BananaInline>
-                </p>
-                <div className="relative inline-block">
-                  <motion.p
-                    key={playerBananas}
-                    className="text-3xl font-black tabular-nums"
-                    initial={{
-                      scale: 1.2,
-                      color:
-                        bananaDiff > 0
-                          ? "#16a34a"
-                          : bananaDiff < 0
-                            ? "#dc2626"
-                            : "#000",
-                    }}
-                    animate={{ scale: 1, color: "#000" }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                  >
-                    <BananaInline iconSize={18}>{playerBananas}</BananaInline>
-                  </motion.p>
-                  <AnimatePresence>
-                    {bananaDiff !== 0 && (
-                      <motion.span
-                        key={`diff-${playerBananas}`}
-                        className="absolute -top-5 right-0 text-sm font-black pointer-events-none select-none"
-                        style={{
-                          color: bananaDiff > 0 ? "#16a34a" : "#dc2626",
-                        }}
-                        initial={{ opacity: 1, y: 0 }}
-                        animate={{ opacity: 0, y: -18 }}
-                        exit={{}}
-                        transition={{ duration: 0.9, ease: "easeOut" }}
-                      >
-                        {bananaDiff > 0 ? "+" : ""}
-                        {bananaDiff}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </div>
-                <p className="mt-2 text-xs font-black uppercase text-zinc-700">
-                  Phase: {phase}
-                </p>
-              </div>
-
-              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
-                <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                  Main Bet
-                </p>
-                {currentBet ? (
-                  <p className="text-sm font-black uppercase">
-                    {currentBet.side} —{" "}
-                    <BananaInline>{currentBet.stake}</BananaInline>
-                  </p>
-                ) : (
-                  <p className="text-sm text-zinc-600">
-                    No main bet this round.
-                  </p>
-                )}
-                <AnimatePresence mode="wait">
-                  {mainBetResult && (
-                    <motion.div
-                      key={mainBetResult.won ? "win" : "loss"}
-                      initial={{ opacity: 0, scale: 0.6, y: 6 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.8, y: -6 }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 340,
-                        damping: 22,
-                      }}
-                      className={`mt-2 px-3 py-2 border-4 border-black font-black uppercase tracking-widest text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${mainBetResult.won ? "bg-green-400 text-black" : "bg-red-200 text-black"}`}
-                    >
-                      <motion.span
-                        className="block"
-                        animate={
-                          mainBetResult.won
-                            ? { scale: [1, 1.18, 1, 1.1, 1] }
-                            : { scale: [1, 0.92, 1] }
-                        }
-                        transition={{ duration: 0.5 }}
-                      >
-                        {mainBetResult.won
-                          ? `WIN +${mainBetResult.pnl} 🍌`
-                          : `LOSS -${mainBetResult.pnl}`}
-                      </motion.span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
-                <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                  Active Microbets
-                </p>
-                <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-zinc-700">
-                  <TrendUp size={14} weight="fill" /> Live
-                </p>
-                <p className="text-sm font-black uppercase">
-                  {activeMicrobets.length} running
-                </p>
-                {lastMicrobetSettlements.length > 0 ? (
-                  <motion.p
-                    key={lastMicrobetSettlements.length}
-                    className="mt-2 text-xs text-zinc-700"
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    Last interval:{" "}
-                    <span
-                      className={
-                        lastMicrobetSettlements.filter((s) => s.won).length > 0
-                          ? "text-green-700 font-black"
-                          : "text-red-600 font-black"
-                      }
-                    >
-                      {lastMicrobetSettlements.filter((s) => s.won).length}/
-                      {lastMicrobetSettlements.length} won
-                    </span>
-                  </motion.p>
-                ) : null}
-              </div>
+            <div className="mt-6">
+              <ArenaBoard
+                gameKey={gameKey}
+                isCircleArena={isCircleArena}
+                onRedHealthChange={handleRedHealthChange}
+                onBlueHealthChange={handleBlueHealthChange}
+                onBallDied={handleBallDied}
+                onGameReady={handleGameReady}
+                onWallCollision={handleWallCollision}
+                onBallCollision={handleBallCollision}
+              />
             </div>
 
-            {snapshot.tournamentFinished ? (
+            {snapshot.tournamentFinished && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring", stiffness: 220, damping: 18 }}
-                className="mt-5 w-full rounded-2xl border border-amber-900/20 bg-yellow-200/90 py-3 text-center"
+                className="mt-5 w-full border-4 border-black bg-yellow-300 py-3 text-center shadow-[6px_6px_0_0_rgba(0,0,0,1)]"
               >
                 <span className="text-2xl font-black uppercase">
                   Tournament Complete
                 </span>
               </motion.div>
-            ) : null}
+            )}
           </div>
         }
         rightPanel={
-          <div className="flex flex-col gap-6">
-            <div className="border-t border-zinc-200 px-2 pt-4">
-              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                <Gear size={14} weight="fill" /> Match Controls
-              </p>
-              <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-4">
+            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-zinc-900 text-white flex items-center gap-2">
+                <Gear size={14} weight="fill" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Match Controls
+                </p>
+              </div>
+              <div className="p-3 flex flex-wrap gap-2">
                 <Link href="/singleplayer">
                   <Button
                     variant="outline"
-                    className="rounded-xl border-black/15 font-semibold uppercase"
+                    className="border-4 border-black rounded-none font-black uppercase text-xs shadow-[3px_3px_0_0_rgba(0,0,0,1)]"
                   >
-                    Match Settings
+                    Settings
                   </Button>
                 </Link>
                 <Button
                   variant="outline"
-                  className="rounded-xl border-black/15 font-semibold uppercase"
+                  className="border-4 border-black rounded-none font-black uppercase text-xs shadow-[3px_3px_0_0_rgba(0,0,0,1)] flex items-center gap-1"
                   onClick={restartSingleplayerMatch}
                 >
-                  Restart Match
+                  <ArrowCounterClockwise size={12} weight="fill" /> Restart
                 </Button>
               </div>
             </div>
-            <ActivityFeed
-              latestVoteSummary={snapshot.latestVoteSummary}
-              latestMicrobetSummary={snapshot.latestMicrobetSummary}
-              appliedEffects={appliedEffects}
-            />
-            {hasBots ? <BotBetsTable bots={snapshot.bots} /> : null}
+
+            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+              <div className="px-3 py-2 border-b-4 border-black bg-violet-500 text-white flex items-center gap-2">
+                <Lightning size={14} weight="fill" />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Latest Vote
+                </p>
+              </div>
+              <div className="p-3">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={snapshot.latestVoteSummary ?? "no-vote"}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-xs text-zinc-700 leading-relaxed"
+                  >
+                    {snapshot.latestVoteSummary ?? "Voting starts at 01:50."}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {microbetInsights.length > 0 && (
+              <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+                <div className="px-3 py-2 border-b-4 border-black bg-orange-400 flex items-center gap-2">
+                  <TrendUp size={14} weight="fill" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">
+                    Open Microbets
+                  </p>
+                </div>
+                <div className="p-2 flex flex-col gap-1">
+                  {microbetInsights.map((insight, i) => {
+                    const kindLabels: Record<string, string> = {
+                      redDamageToBlue: "Red outdmg Blue",
+                      blueDamageToRed: "Blue outdmg Red",
+                      redWallHits: "Red wall hits",
+                      blueWallHits: "Blue wall hits",
+                      ballCollisions: "Collisions 10+",
+                    };
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-2 py-1.5 border-l-4 border-orange-300 bg-orange-50"
+                      >
+                        <span className="text-[10px] font-black uppercase text-zinc-700">
+                          {kindLabels[insight.kind] ?? insight.kind}
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9px] font-black text-zinc-500">
+                            {insight.count} bet{insight.count !== 1 ? "s" : ""}
+                          </span>
+                          <span className="text-[10px] font-black bg-orange-200 border border-orange-300 px-1.5 py-0.5 text-orange-800">
+                            {insight.totalStake}🍌
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {appliedEffects.length > 0 && (
+              <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] overflow-hidden">
+                <div className="px-3 py-2 border-b-4 border-black bg-cyan-400 flex items-center gap-2">
+                  <Target size={14} weight="fill" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">
+                    Applied Effects
+                  </p>
+                </div>
+                <div className="p-2 flex flex-col gap-1">
+                  <AnimatePresence initial={false}>
+                    {appliedEffects.map((effect, i) => (
+                      <motion.div
+                        key={`${effect.label}-${i}`}
+                        initial={{ opacity: 0, x: -8, height: 0 }}
+                        animate={{ opacity: 1, x: 0, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center gap-2 px-2 py-1.5 border-l-4 border-cyan-400 bg-cyan-50"
+                      >
+                        <div className="flex items-center gap-1 shrink-0">
+                          {effect.icons.map((IconComp, j) => (
+                            <IconComp key={j} size={12} weight="bold" />
+                          ))}
+                        </div>
+                        <span className="text-xs font-black uppercase text-zinc-700 truncate">
+                          {effect.label}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
+            {hasBots && <BotBetsTable bots={snapshot.bots} />}
           </div>
         }
       />
@@ -1109,65 +1361,6 @@ function SingleplayerPanelInner({
         onConfirm={handleMicrobetConfirm}
         onSkip={handleMicrobetSkip}
       />
-
-      <div className="mx-auto mt-6 max-w-475 px-6 md:px-10">
-        <div className="border-t border-zinc-200 p-4">
-          <p className="text-xs font-black uppercase tracking-widest mb-2">
-            Recent microbet results
-          </p>
-          <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-            <AnimatePresence initial={false}>
-              {lastMicrobetSettlements.map((entry, index) => (
-                <motion.div
-                  key={`${entry.label}-${index}`}
-                  initial={{
-                    opacity: 0,
-                    x: entry.won ? -14 : 14,
-                    scale: 0.92,
-                  }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{
-                    delay: index * 0.07,
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 24,
-                  }}
-                  className={`flex items-center justify-between px-2.5 py-1.5 border-l-4 ${entry.won ? "border-green-400 bg-green-50" : "border-red-300 bg-red-50"}`}
-                >
-                  <p className="text-xs font-bold text-zinc-800 truncate">
-                    {entry.label}
-                  </p>
-                  <motion.p
-                    className={`text-xs font-black ml-2 shrink-0 ${entry.won ? "text-green-700" : "text-red-600"}`}
-                    initial={{ scale: 1.4 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: index * 0.07 + 0.1, duration: 0.25 }}
-                  >
-                    {entry.won ? `+${entry.payout}` : "✗"}
-                  </motion.p>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            {lastMicrobetSettlements.length === 0 && (
-              <p className="text-xs text-zinc-600">
-                Place interval microbets to see settlement results here.
-              </p>
-            )}
-          </div>
-          {phase === "microbet" && queuedStakeTotal > 0 && (
-            <motion.p
-              key={queuedStakeTotal}
-              className="text-xs font-black uppercase mt-3"
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              Queued stake total:{" "}
-              <BananaInline>{queuedStakeTotal}</BananaInline>
-            </motion.p>
-          )}
-        </div>
-      </div>
     </>
   );
 }
