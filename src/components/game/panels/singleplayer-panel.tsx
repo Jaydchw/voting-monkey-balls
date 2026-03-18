@@ -50,6 +50,7 @@ import {
   TournamentLeaderboard,
   type LeaderboardEntry,
 } from "@/components/game/tournament-leaderboard";
+import { RoundWinScreen } from "@/components/game/round-win-screen";
 
 const STARTING_HEALTH = 100;
 const STARTING_BANANAS = 100;
@@ -158,6 +159,7 @@ function SingleplayerPanelInner({
   const [leaderboardEntries, setLeaderboardEntries] = useState<
     LeaderboardEntry[]
   >([]);
+  const [showWinScreen, setShowWinScreen] = useState(false);
   const [playerCharacter, setPlayerCharacter] = useState<{
     svgType: string;
     color: string;
@@ -411,6 +413,7 @@ function SingleplayerPanelInner({
     statsTotalsRef.current = createZeroTotals();
     forcedWinnerRef.current = undefined;
     setRoundWinner(null);
+    setShowWinScreen(false);
     setIsCircleArena(false);
     setAppliedEffects([]);
     setRedModifiers([]);
@@ -744,6 +747,7 @@ function SingleplayerPanelInner({
         );
 
         setRoundWinner(stepResult.roundResult.winner);
+        setShowWinScreen(true);
 
         if (currentBetRef.current) {
           const bet = currentBetRef.current;
@@ -770,20 +774,22 @@ function SingleplayerPanelInner({
           setSettlementNet(net);
           pendingRoundAdvanceRef.current = doAdvance;
           roundAdvanceTimeoutRef.current = setTimeout(() => {
+            setShowWinScreen(false);
             transitionPhase("round-end-settlement", 0);
             roundAdvanceTimeoutRef.current = null;
-          }, 2000);
+          }, 2500);
         } else if (!stepResult.snapshot.tournamentFinished) {
           roundAdvanceTimeoutRef.current = setTimeout(() => {
             doAdvance();
             roundAdvanceTimeoutRef.current = null;
-          }, 4000);
+          }, 2500);
         } else {
           roundAdvanceTimeoutRef.current = setTimeout(() => {
+            setShowWinScreen(false);
             setLeaderboardEntries(snapshotLeaderboardEntries());
             setShowLeaderboard(true);
             roundAdvanceTimeoutRef.current = null;
-          }, 2000);
+          }, 2500);
         }
       }
     }, 1000);
@@ -807,6 +813,15 @@ function SingleplayerPanelInner({
           entries={leaderboardEntries}
           onPlayAgain={restartSingleplayerMatch}
           onExit={() => (window.location.href = "/")}
+        />
+      )}
+
+      {showWinScreen && !showLeaderboard && (
+        <RoundWinScreen
+          winner={roundWinner}
+          roundNumber={snapshot.roundNumber}
+          roundsTotal={snapshot.roundsTotal}
+          isFinal={snapshot.tournamentFinished}
         />
       )}
 
@@ -980,24 +995,6 @@ function SingleplayerPanelInner({
                 ) : null}
               </div>
             </div>
-
-            {roundWinner ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.85, y: 8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                className="mt-5 w-full rounded-2xl border border-black/15 bg-white/90 py-3 text-center shadow-[0_14px_32px_-20px_rgba(0,0,0,0.45)]"
-              >
-                <span
-                  className="text-2xl font-black uppercase"
-                  style={{
-                    color: roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
-                  }}
-                >
-                  {roundWinner.toUpperCase()} wins this round
-                </span>
-              </motion.div>
-            ) : null}
 
             {snapshot.tournamentFinished ? (
               <motion.div

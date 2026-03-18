@@ -74,6 +74,7 @@ import {
   TournamentLeaderboard,
   type LeaderboardEntry,
 } from "@/components/game/tournament-leaderboard";
+import { RoundWinScreen } from "@/components/game/round-win-screen";
 
 const STARTING_HEALTH = 100;
 const DEFAULT_DECISION_TIMER_SECONDS = 12;
@@ -342,6 +343,7 @@ export default function HostMultiplayerPanel({
   const [leaderboardEntries, setLeaderboardEntries] = useState<
     LeaderboardEntry[]
   >([]);
+  const [showWinScreen, setShowWinScreen] = useState(false);
 
   const [snapshot, setSnapshot] = useState<EngineSnapshot>(
     engine.getSnapshot(),
@@ -914,6 +916,7 @@ export default function HostMultiplayerPanel({
     statsTotalsRef.current = createZeroTotals();
     forcedWinnerRef.current = undefined;
     setRoundWinner(null);
+    setShowWinScreen(false);
     setIsCircleArena(false);
     setAppliedEffects([]);
     setRedModifiers([]);
@@ -1203,6 +1206,7 @@ export default function HostMultiplayerPanel({
       if (stepResult.roundResult) {
         settlePlayerMicrobets(statsTotalsRef.current);
         setRoundWinner(stepResult.roundResult.winner);
+        setShowWinScreen(true);
         for (const [pid, bet] of Object.entries(mainBetsRef.current)) {
           if (!bet) continue;
           if (bet.side === stepResult.roundResult.winner) {
@@ -1235,10 +1239,11 @@ export default function HostMultiplayerPanel({
           resetBoardForNextRound();
           if (next) setSnapshot(next);
           roundAdvanceTimeoutRef.current = null;
-        }, 4000);
+        }, 2500);
       }
       if (stepResult.roundResult && stepResult.snapshot.tournamentFinished) {
         roundAdvanceTimeoutRef.current = setTimeout(() => {
+          setShowWinScreen(false);
           setLeaderboardEntries(snapshotLeaderboardEntries());
           setShowLeaderboard(true);
           roundAdvanceTimeoutRef.current = null;
@@ -1482,6 +1487,15 @@ export default function HostMultiplayerPanel({
         />
       )}
 
+      {showWinScreen && !showLeaderboard && (
+        <RoundWinScreen
+          winner={roundWinner}
+          roundNumber={snapshot.roundNumber}
+          roundsTotal={snapshot.roundsTotal}
+          isFinal={snapshot.tournamentFinished}
+        />
+      )}
+
       <MatchDashboardShell
         header={
           <>
@@ -1671,26 +1685,6 @@ export default function HostMultiplayerPanel({
                 )}
               </div>
             </div>
-
-            {roundWinner && (
-              <div className="mt-5 w-full border-4 border-black py-3 text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-                <span
-                  className="text-2xl font-black uppercase"
-                  style={{
-                    color: roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
-                  }}
-                >
-                  {roundWinner.toUpperCase()} wins this round
-                </span>
-              </div>
-            )}
-            {snapshot.tournamentFinished && (
-              <div className="mt-5 w-full border-4 border-black py-3 text-center bg-yellow-300 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-                <span className="text-2xl font-black uppercase">
-                  Tournament Complete
-                </span>
-              </div>
-            )}
           </div>
         }
         rightPanel={
