@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { Crown } from "@phosphor-icons/react";
 import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
 import type { MicroBetKind } from "@/bots/types";
 
@@ -55,12 +56,45 @@ function condenseEntries(
   return Array.from(map.values());
 }
 
+function colorizeKindLabel(
+  label: string,
+  playerBetSide?: "red" | "blue" | null,
+) {
+  return label.split(/(Red|Blue)/g).map((part, i) => {
+    if (part === "Red") {
+      return (
+        <span key={i} className="text-red-600 inline-flex items-center gap-0.5">
+          {part}
+          {playerBetSide === "red" && (
+            <Crown size={9} weight="fill" className="text-yellow-500" />
+          )}
+        </span>
+      );
+    }
+    if (part === "Blue") {
+      return (
+        <span
+          key={i}
+          className="text-blue-600 inline-flex items-center gap-0.5"
+        >
+          {part}
+          {playerBetSide === "blue" && (
+            <Crown size={9} weight="fill" className="text-yellow-500" />
+          )}
+        </span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 type MicrobetSettlementModalProps = {
   open: boolean;
   settlements: SettlementEntry[];
   netChange: number;
   totalBananas: number;
   onContinue: () => void;
+  playerBetSide?: "red" | "blue" | null;
 };
 
 const MONKEY_WIN = "/monkey%20reactions/thinking_nobg/ahaha.png";
@@ -73,6 +107,7 @@ export function MicrobetSettlementModal({
   netChange,
   totalBananas,
   onContinue,
+  playerBetSide,
 }: MicrobetSettlementModalProps) {
   if (!open) return null;
 
@@ -162,6 +197,28 @@ export function MicrobetSettlementModal({
                   {condensed.length !== 1 ? "s" : ""}
                 </motion.p>
               )}
+              {playerBetSide && (
+                <motion.p
+                  className="text-[10px] font-black uppercase tracking-wide mt-1 inline-flex items-center gap-1"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.35 }}
+                >
+                  <Crown size={10} weight="fill" className="text-yellow-500" />
+                  <span>
+                    Your bet:{" "}
+                    <span
+                      className={
+                        playerBetSide === "red"
+                          ? "text-red-600"
+                          : "text-blue-600"
+                      }
+                    >
+                      {playerBetSide.toUpperCase()}
+                    </span>
+                  </span>
+                </motion.p>
+              )}
             </div>
           </div>
 
@@ -187,7 +244,10 @@ export function MicrobetSettlementModal({
                   >
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <p className="text-xs font-black uppercase text-zinc-800 truncate">
-                        {KIND_LABEL[entry.kind]}
+                        {colorizeKindLabel(
+                          KIND_LABEL[entry.kind],
+                          playerBetSide,
+                        )}
                         {entry.count > 1 && (
                           <span className="ml-1.5 text-zinc-500 font-bold">
                             ×{entry.count}

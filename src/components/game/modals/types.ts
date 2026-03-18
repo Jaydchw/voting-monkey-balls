@@ -98,6 +98,7 @@ export type VoteEventModalProps = {
   onConfirm: (option: 0 | 1 | 2) => void;
   confirmLabel?: string;
   isRemote?: boolean;
+  playerBetSide?: "red" | "blue" | null;
 };
 
 export type RevealedVoteOption = {
@@ -120,4 +121,5 @@ export type MicrobetsModalProps = {
   onRemoveBet: (id: string) => void;
   onConfirm: () => void;
   onSkip: () => void;
+  playerBetSide?: "red" | "blue" | null;
 };

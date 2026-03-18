@@ -99,6 +99,33 @@ const PHASE_CONFIG: Record<
   finished: { label: "Finished", color: "text-white", bg: "bg-zinc-500" },
 };
 
+type CondensedMicrobet = {
+  kind: MicroBetKind;
+  outcome: boolean;
+  totalStake: number;
+  count: number;
+};
+
+function condenseMicrobets(bets: PendingPlayerMicrobet[]): CondensedMicrobet[] {
+  const map = new Map<string, CondensedMicrobet>();
+  for (const bet of bets) {
+    const key = `${bet.kind}::${String(bet.outcome)}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.totalStake += bet.stake;
+      existing.count += 1;
+    } else {
+      map.set(key, {
+        kind: bet.kind,
+        outcome: bet.outcome,
+        totalStake: bet.stake,
+        count: 1,
+      });
+    }
+  }
+  return Array.from(map.values());
+}
+
 export default function JoinRemotePanel({
   roomCode,
   playerName,
@@ -135,6 +162,10 @@ export default function JoinRemotePanel({
   const [prematchDecision, setPrematchDecision] = useState<
     "red" | "blue" | "skip" | null
   >(null);
+
+  // Persists for the whole round so modals always have it even after phase changes
+  const [roundBetSide, setRoundBetSide] = useState<"red" | "blue" | null>(null);
+
   const [voteSelection, setVoteSelection] = useState<0 | 1 | 2 | null>(null);
   const [votePowerStake, setVotePowerStake] = useState(1);
   const [microbetDraft, setMicrobetDraft] = useState<MicrobetDraft>({
@@ -242,10 +273,13 @@ export default function JoinRemotePanel({
             setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
             setPrematchDecisionSubmitted(false);
             setPrematchDecision(null);
+            // roundBetSide intentionally NOT cleared here — persists for the round
           }
           if (incoming.phase === "prematch") {
             setPrematchDecisionSubmitted(false);
             setPrematchDecision(null);
+            // Reset the round bet side at the start of a new prematch phase
+            setRoundBetSide(null);
             prematchTouchedRef.current = false;
           }
           autoHandledPhaseRef.current = null;
@@ -317,6 +351,7 @@ export default function JoinRemotePanel({
       },
     });
     setPrematchDecision(mainBetSelection.side);
+    setRoundBetSide(mainBetSelection.side);
     setPrematchDecisionSubmitted(true);
   };
 
@@ -324,6 +359,7 @@ export default function JoinRemotePanel({
     if (prematchDecisionSubmitted) return;
     sendAction({ type: "player-action", action: { kind: "main-bet-skip" } });
     setPrematchDecision("skip");
+    setRoundBetSide(null);
     setPrematchDecisionSubmitted(true);
   };
 
@@ -427,6 +463,7 @@ export default function JoinRemotePanel({
             },
           });
           setPrematchDecision(mainBetSelection.side);
+          setRoundBetSide(mainBetSelection.side);
           setPrematchDecisionSubmitted(true);
         }, 0);
       } else if (bananas >= minStake) {
@@ -439,6 +476,7 @@ export default function JoinRemotePanel({
             action: { kind: "main-bet", side: randomSide, stake: randomStake },
           });
           setPrematchDecision(randomSide);
+          setRoundBetSide(randomSide);
           setPrematchDecisionSubmitted(true);
         }, 0);
       } else {
@@ -448,6 +486,7 @@ export default function JoinRemotePanel({
             action: { kind: "main-bet-skip" },
           });
           setPrematchDecision("skip");
+          setRoundBetSide(null);
           setPrematchDecisionSubmitted(true);
         }, 0);
       }
@@ -621,6 +660,9 @@ export default function JoinRemotePanel({
     bg: "bg-zinc-100",
   };
   const activeMicrobets = myParticipant?.activeMicrobets ?? [];
+  const condensedActiveMicrobets = condenseMicrobets(
+    activeMicrobets.map((b) => ({ ...b, id: "", odds: 2 })),
+  );
   const mainBet = myParticipant?.activeMainBet;
   const bananaDiff = myParticipant?.roundPayout ?? 0;
 
@@ -810,7 +852,7 @@ export default function JoinRemotePanel({
             </div>
           </div>
 
-          {activeMicrobets.length > 0 && (
+          {condensedActiveMicrobets.length > 0 && (
             <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-3">
               <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1">
                 <Lightning
@@ -821,7 +863,7 @@ export default function JoinRemotePanel({
                 Active Microbets ({activeMicrobets.length})
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {activeMicrobets.map((bet, i) => (
+                {condensedActiveMicrobets.map((bet, i) => (
                   <div
                     key={i}
                     className={`flex items-center gap-1 px-2 py-1 border-2 border-black text-[9px] font-black uppercase ${bet.outcome ? "bg-green-100" : "bg-red-100"}`}
@@ -832,7 +874,10 @@ export default function JoinRemotePanel({
                     <span>{bet.outcome ? "YES" : "NO"}</span>
                     <span className="text-zinc-500">·</span>
                     <Image src="/Banana.svg" alt="" width={8} height={8} />
-                    <span>{bet.stake}</span>
+                    <span>{bet.totalStake}</span>
+                    {bet.count > 1 && (
+                      <span className="text-zinc-400">×{bet.count}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -971,6 +1016,7 @@ export default function JoinRemotePanel({
         }}
         onConfirm={castVote}
         isRemote
+        playerBetSide={roundBetSide}
       />
 
       <VoteRevealModal
@@ -997,6 +1043,7 @@ export default function JoinRemotePanel({
           setSettlementEntries([]);
           setSettlementNet(0);
         }}
+        playerBetSide={roundBetSide}
       />
 
       <MicrobetsModal
@@ -1020,6 +1067,7 @@ export default function JoinRemotePanel({
         onRemoveBet={removeMicrobet}
         onConfirm={confirmMicrobets}
         onSkip={skipMicrobets}
+        playerBetSide={roundBetSide}
       />
 
       {state.phase === "microbet" && microbetDecisionMade && (

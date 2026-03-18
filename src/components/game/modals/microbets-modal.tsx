@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Crown } from "@phosphor-icons/react";
 import { BlockButton } from "@/components/ui/block-button";
 import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
 import type { MicroBetKind } from "@/bots/types";
@@ -52,20 +53,31 @@ const KIND_COLORS: Record<
   },
 };
 
-function colorizeLabel(text: string) {
+function colorizeLabel(text: string, playerBetSide?: "red" | "blue" | null) {
   return text.split(/(Red|Blue)/g).map((part, i) => {
-    if (part === "Red")
+    if (part === "Red") {
       return (
-        <span key={i} className="text-red-600">
+        <span key={i} className="text-red-600 inline-flex items-center gap-0.5">
           {part}
+          {playerBetSide === "red" && (
+            <Crown size={9} weight="fill" className="text-yellow-500" />
+          )}
         </span>
       );
-    if (part === "Blue")
+    }
+    if (part === "Blue") {
       return (
-        <span key={i} className="text-blue-600">
+        <span
+          key={i}
+          className="text-blue-600 inline-flex items-center gap-0.5"
+        >
           {part}
+          {playerBetSide === "blue" && (
+            <Crown size={9} weight="fill" className="text-yellow-500" />
+          )}
         </span>
       );
+    }
     return <span key={i}>{part}</span>;
   });
 }
@@ -137,6 +149,7 @@ export function MicrobetsModal({
   onRemoveBet,
   onConfirm,
   onSkip,
+  playerBetSide,
 }: MicrobetsModalProps) {
   if (!open) return null;
 
@@ -196,6 +209,23 @@ export function MicrobetsModal({
               <p className="text-[10px] font-bold text-zinc-400 mt-0.5 uppercase tracking-wide">
                 Tap to add {STAKE_PER_CLICK}🍌 · tap − to undo
               </p>
+              {playerBetSide && (
+                <p className="text-[10px] font-black uppercase tracking-wide mt-1 inline-flex items-center gap-1">
+                  <Crown size={10} weight="fill" className="text-yellow-500" />
+                  <span>
+                    You bet on{" "}
+                    <span
+                      className={
+                        playerBetSide === "red"
+                          ? "text-red-600"
+                          : "text-blue-600"
+                      }
+                    >
+                      {playerBetSide.toUpperCase()}
+                    </span>
+                  </span>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 border-4 border-black px-3 py-2 bg-yellow-300 shrink-0">
               <Image src="/Banana.svg" alt="Banana" width={16} height={16} />
@@ -230,7 +260,7 @@ export function MicrobetsModal({
                     ].join(" ")}
                   >
                     <p className="text-xs sm:text-sm font-black leading-tight pr-6">
-                      {colorizeLabel(preset.proposition)}
+                      {colorizeLabel(preset.proposition, playerBetSide)}
                     </p>
                     <div className="flex items-center justify-between mt-1.5">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase">

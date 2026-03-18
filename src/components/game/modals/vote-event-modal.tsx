@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Mountains, Sparkle, Sword, Star } from "@phosphor-icons/react";
+import { Mountains, Sparkle, Sword, Star, Crown } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BlockSlider } from "@/components/ui/block-slider";
 import { FullscreenModal } from "@/components/game/modals/fullscreen-modal";
@@ -76,30 +76,47 @@ const QUALITY_STARS = (score: number) => {
   return Array.from({ length: capped }, (_, i) => i);
 };
 
-function colorizeKeywords(text: string): ReactNode {
+function colorizeKeywords(
+  text: string,
+  playerBetSide?: "red" | "blue" | null,
+): ReactNode {
   return text.split(/(Blue|Red)/g).map((part, i) => {
-    if (part === "Blue")
+    if (part === "Blue") {
       return (
-        <span key={i} className="text-blue-600">
+        <span
+          key={i}
+          className="text-blue-600 inline-flex items-center gap-0.5"
+        >
           {part}
+          {playerBetSide === "blue" && (
+            <Crown size={10} weight="fill" className="text-yellow-500 inline" />
+          )}
         </span>
       );
-    if (part === "Red")
+    }
+    if (part === "Red") {
       return (
-        <span key={i} className="text-red-600">
+        <span key={i} className="text-red-600 inline-flex items-center gap-0.5">
           {part}
+          {playerBetSide === "red" && (
+            <Crown size={10} weight="fill" className="text-yellow-500 inline" />
+          )}
         </span>
       );
+    }
     return <span key={i}>{part}</span>;
   });
 }
 
-function getOptionMainLabel(option: {
-  label?: string;
-  option?: { label?: string };
-}): ReactNode {
+function getOptionMainLabel(
+  option: {
+    label?: string;
+    option?: { label?: string };
+  },
+  playerBetSide?: "red" | "blue" | null,
+): ReactNode {
   const raw = option.option?.label ?? option.label ?? "Unknown";
-  return colorizeKeywords(raw);
+  return colorizeKeywords(raw, playerBetSide);
 }
 
 function getOptionCategory(option: {
@@ -184,12 +201,14 @@ function VoteCard({
   revealed,
   onPick,
   index,
+  playerBetSide,
 }: {
   option: VoteCardOption;
   votePercent: number;
   revealed: boolean;
   onPick: () => void;
   index: number;
+  playerBetSide?: "red" | "blue" | null;
 }) {
   const style = CATEGORY_STYLE[option.category];
   const CategoryIcon = CATEGORY_ICON_MAP[option.category];
@@ -260,8 +279,15 @@ function VoteCard({
                 <div
                   className={["flex-1 border-2 p-2", style.blueSide].join(" ")}
                 >
-                  <p className="text-[9px] font-black uppercase tracking-wider text-blue-600 mb-0.5">
-                    Blue Gets
+                  <p className="text-[9px] font-black uppercase tracking-wider mb-0.5 inline-flex items-center gap-0.5">
+                    <span className="text-blue-600">Blue Gets</span>
+                    {playerBetSide === "blue" && (
+                      <Crown
+                        size={9}
+                        weight="fill"
+                        className="text-yellow-500"
+                      />
+                    )}
                   </p>
                   <p className="text-[11px] font-black text-blue-900 leading-snug">
                     {option.blueLabel ?? "No effect"}
@@ -270,8 +296,15 @@ function VoteCard({
                 <div
                   className={["flex-1 border-2 p-2", style.redSide].join(" ")}
                 >
-                  <p className="text-[9px] font-black uppercase tracking-wider text-red-600 mb-0.5">
-                    Red Gets
+                  <p className="text-[9px] font-black uppercase tracking-wider mb-0.5 inline-flex items-center gap-0.5">
+                    <span className="text-red-600">Red Gets</span>
+                    {playerBetSide === "red" && (
+                      <Crown
+                        size={9}
+                        weight="fill"
+                        className="text-yellow-500"
+                      />
+                    )}
                   </p>
                   <p className="text-[11px] font-black text-red-900 leading-snug">
                     {option.redLabel ?? "No effect"}
@@ -306,6 +339,7 @@ function SharedVoteModal({
   selection,
   onVotePowerChange,
   onConfirm,
+  playerBetSide,
 }: {
   open: boolean;
   countdown: number;
@@ -315,6 +349,7 @@ function SharedVoteModal({
   selection: 0 | 1 | 2 | null;
   onVotePowerChange: (amount: number) => void;
   onConfirm: (option: 0 | 1 | 2) => void;
+  playerBetSide?: "red" | "blue" | null;
 }) {
   const [monkeyImageSrc, setMonkeyImageSrc] = useState(MONKEY_THINKING_IMAGE);
   const [shuffling, setShuffling] = useState(true);
@@ -385,6 +420,23 @@ function SharedVoteModal({
               <h2 className="text-xl sm:text-3xl font-black uppercase mt-0.5">
                 Draw Event Cards
               </h2>
+              {playerBetSide && (
+                <p className="text-[10px] font-black uppercase tracking-wide mt-1 inline-flex items-center gap-1">
+                  <Crown size={10} weight="fill" className="text-yellow-500" />
+                  <span>
+                    You bet on{" "}
+                    <span
+                      className={
+                        playerBetSide === "red"
+                          ? "text-red-600"
+                          : "text-blue-600"
+                      }
+                    >
+                      {playerBetSide.toUpperCase()}
+                    </span>
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col items-end gap-2 shrink-0">
@@ -428,6 +480,7 @@ function SharedVoteModal({
                 )}
                 revealed={revealedCount > index}
                 onPick={() => pickVote(option, index as 0 | 1 | 2)}
+                playerBetSide={playerBetSide}
               />
             ))}
           </div>
@@ -447,6 +500,7 @@ export function VoteEventModal({
   onSelectOption,
   onVotePowerChange,
   onConfirm,
+  playerBetSide,
 }: VoteEventModalProps) {
   if (!open || !voteWindow) return null;
 
@@ -461,7 +515,7 @@ export function VoteEventModal({
     {
       key: "option-a",
       category: getOptionCategory(voteWindow.optionA),
-      label: getOptionMainLabel(voteWindow.optionA),
+      label: getOptionMainLabel(voteWindow.optionA, playerBetSide),
       qualityScore: getQualityScore(voteWindow.optionA),
       icons: getOptionIcons(voteWindow.optionA),
       ...getOptionDescriptions(voteWindow.optionA),
@@ -472,7 +526,7 @@ export function VoteEventModal({
     {
       key: "option-b",
       category: getOptionCategory(voteWindow.optionB),
-      label: getOptionMainLabel(voteWindow.optionB),
+      label: getOptionMainLabel(voteWindow.optionB, playerBetSide),
       qualityScore: getQualityScore(voteWindow.optionB),
       icons: getOptionIcons(voteWindow.optionB),
       ...getOptionDescriptions(voteWindow.optionB),
@@ -483,7 +537,7 @@ export function VoteEventModal({
     {
       key: "option-c",
       category: getOptionCategory(voteWindow.optionC),
-      label: getOptionMainLabel(voteWindow.optionC),
+      label: getOptionMainLabel(voteWindow.optionC, playerBetSide),
       qualityScore: getQualityScore(voteWindow.optionC),
       icons: getOptionIcons(voteWindow.optionC),
       ...getOptionDescriptions(voteWindow.optionC),
@@ -503,6 +557,7 @@ export function VoteEventModal({
       selection={selection}
       onVotePowerChange={onVotePowerChange}
       onConfirm={onConfirm}
+      playerBetSide={playerBetSide}
     />
   );
 }
