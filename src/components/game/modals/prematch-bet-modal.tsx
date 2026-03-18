@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { BlockButton } from "@/components/ui/block-button";
 import { BlockSlider } from "@/components/ui/block-slider";
@@ -22,6 +22,19 @@ export function PrematchBetModal({
   onSkip,
 }: PreMatchModalProps) {
   const [locked, setLocked] = useState(false);
+  const prevOpenRef = useRef(false);
+
+  if (!open && locked) {
+    setLocked(false);
+  }
+
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      onSelectSide("blue");
+      onSelectStake(minStake);
+    }
+    prevOpenRef.current = open;
+  }, [open, minStake, onSelectSide, onSelectStake]);
 
   if (!open) return null;
 
