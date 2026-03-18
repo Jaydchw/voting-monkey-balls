@@ -74,6 +74,14 @@ export type ParticipantPublicState = {
   connected: boolean;
 };
 
+export type MicrobetSettlementResult = {
+  kind: MicroBetKind;
+  outcome: boolean;
+  stake: number;
+  payout: number;
+  won: boolean;
+};
+
 export type HostBroadcastState = {
   roomCode: string;
   phase: MatchPhase;
@@ -87,6 +95,17 @@ export type HostBroadcastState = {
   participants: ParticipantPublicState[];
   roundWinner: BallId | null;
   settings: HostRoomSettings;
+  liveVoteTotals: {
+    optionA: number;
+    optionB: number;
+    optionC: number;
+  } | null;
+  microbetSettlements: Record<string, MicrobetSettlementResult[]>;
+  recentBets: Array<{
+    playerName: string;
+    description: string;
+    timestamp: number;
+  }>;
 };
 
 export type PendingMicrobetWire = {

@@ -42,6 +42,7 @@ export function MatchDashboardShell({
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28 }}
+              className="min-w-0"
             >
               {leftPanel}
             </motion.div>

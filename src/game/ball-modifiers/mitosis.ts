@@ -53,9 +53,16 @@ export class MitosisModifier extends BallModifier {
 
     for (const mod of master.modifiers) {
       if (mod instanceof MitosisModifier) continue;
+      if (!mod.propagateToGhosts) continue;
       const ModCtor = Object.getPrototypeOf(mod)
         .constructor as new () => typeof mod;
       this.ghost.addModifier(new ModCtor());
+    }
+
+    for (const weapon of master.weapons) {
+      const WeaponCtor = Object.getPrototypeOf(weapon)
+        .constructor as new () => typeof weapon;
+      this.ghost.addWeapon(new WeaponCtor());
     }
 
     master.ghostBalls.push(this.ghost);
@@ -69,6 +76,7 @@ export class MitosisModifier extends BallModifier {
       const idx = this.ball.ghostBalls.indexOf(this.ghost);
       if (idx !== -1) this.ball.ghostBalls.splice(idx, 1);
       this.ghost.linkedBall = null;
+      this.ghost.removeAllWeapons();
       this.ghost.removeAllModifiers();
       this.ghost.body.destroy();
       this.ghost = null;

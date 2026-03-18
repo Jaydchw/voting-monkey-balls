@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import PartySocket from "partysocket";
 import { motion, AnimatePresence } from "framer-motion";
+import { Crown } from "@phosphor-icons/react";
 import { RoundHeader } from "@/components/game/hud/round-header";
 import {
   CharacterSelectModal,
@@ -43,11 +44,11 @@ import { useMenuAudio } from "@/components/menu-audio-context";
 const MAIN_BET_MIN_STAKE = 20;
 
 const MICROBET_KIND_LABEL: Record<MicroBetKind, string> = {
-  redDamageToBlue: "Red outdamages Blue",
-  blueDamageToRed: "Blue outdamages Red",
-  redWallHits: "Red gets more wall hits",
-  blueWallHits: "Blue gets more wall hits",
-  ballCollisions: "Collisions hit 10+",
+  redDamageToBlue: "Red outdmg Blue",
+  blueDamageToRed: "Blue outdmg Red",
+  redWallHits: "Red wall hits",
+  blueWallHits: "Blue wall hits",
+  ballCollisions: "Collisions 10+",
 };
 
 type JoinRemotePanelProps = {
@@ -200,6 +201,7 @@ export default function JoinRemotePanel({
   const voteSubmittedRef = useRef(false);
   const microbetTouchedRef = useRef(false);
   const autoHandledPhaseRef = useRef<string | null>(null);
+  const lastSettlementKeyRef = useRef<string | null>(null);
 
   const myParticipant = useMemo(() => {
     if (!state) return null;
@@ -207,11 +209,6 @@ export default function JoinRemotePanel({
   }, [playerToken, state]);
 
   const bananas = myParticipant?.bananas ?? 0;
-
-  const participantLeaderboard = useMemo(() => {
-    if (!state) return [];
-    return [...state.participants].sort((a, b) => b.bananas - a.bananas);
-  }, [state]);
 
   const needsCharacterSelection =
     Boolean(myParticipant) &&
@@ -258,7 +255,6 @@ export default function JoinRemotePanel({
       if (payload.type === "room-state" && payload.state) {
         const incoming = payload.state;
         const prevPhase = phaseRef.current;
-        const currentState = stateRef.current;
 
         if (prevPhase !== incoming.phase) {
           if (incoming.phase !== "microbet") {
@@ -288,40 +284,36 @@ export default function JoinRemotePanel({
             prematchTouchedRef.current = false;
           }
 
-          if (prevPhase === "microbet" && incoming.phase === "vote") {
-            const prevParticipant = currentState?.participants.find(
-              (p) => p.token === playerToken,
-            );
-            const nextParticipant = incoming.participants.find(
-              (p) => p.token === playerToken,
-            );
-            if (prevParticipant && nextParticipant) {
-              const diff = nextParticipant.bananas - prevParticipant.bananas;
-              const prevActive = prevParticipant.activeMicrobets ?? [];
-              if (prevActive.length > 0) {
-                const entries: SettlementEntry[] = prevActive.map((bet) => {
-                  const payout = diff > 0 ? bet.stake * 2 : 0;
-                  const won = diff > 0;
-                  return {
-                    kind: bet.kind,
-                    outcome: bet.outcome,
-                    stake: bet.stake,
-                    payout,
-                    won,
-                  };
-                });
-                const net = entries.reduce(
-                  (s, e) => s + (e.won ? e.stake : -e.stake),
-                  0,
-                );
-                setSettlementEntries(entries);
-                setSettlementNet(net);
-                setShowSettlement(true);
-              }
-            }
-          }
-
           autoHandledPhaseRef.current = null;
+        }
+
+        const myPid = incoming.participants.find(
+          (p) => p.token === playerToken,
+        )?.id;
+        if (
+          myPid &&
+          incoming.microbetSettlements &&
+          incoming.microbetSettlements[myPid]
+        ) {
+          const results = incoming.microbetSettlements[myPid];
+          const key = JSON.stringify(results);
+          if (key !== lastSettlementKeyRef.current && results.length > 0) {
+            lastSettlementKeyRef.current = key;
+            const entries: SettlementEntry[] = results.map((r) => ({
+              kind: r.kind,
+              outcome: r.outcome,
+              stake: r.stake,
+              payout: r.payout,
+              won: r.won,
+            }));
+            const net = entries.reduce(
+              (s, e) => s + (e.won ? e.stake : -e.stake),
+              0,
+            );
+            setSettlementEntries(entries);
+            setSettlementNet(net);
+            setShowSettlement(true);
+          }
         }
 
         phaseRef.current = incoming.phase;
@@ -448,15 +440,9 @@ export default function JoinRemotePanel({
 
     const phaseToken = `${state.snapshot.roundNumber}-${state.phase}`;
 
-    if (state.phaseCountdown > 0) return;
+    if (state.settings.waitForAllDecisions || state.phaseCountdown > 0) return;
 
     if (autoHandledPhaseRef.current === phaseToken) return;
-
-    console.log("[JoinPanel] auto-submit effect firing", {
-      phase: state.phase,
-      phaseToken,
-      prematchDecisionSubmitted,
-    });
 
     if (state.phase === "prematch" && !prematchDecisionSubmitted) {
       const minStake = Math.max(
@@ -521,18 +507,12 @@ export default function JoinRemotePanel({
     }
 
     if (state.phase === "microbet") {
-      console.log("[JoinPanel] auto-submit microbet", {
-        queuedCount: queuedMicrobets.length,
-        microbetTouched: microbetTouchedRef.current,
-        bananas,
-      });
       if (queuedMicrobets.length > 0) {
         const bets: PendingMicrobetWire[] = queuedMicrobets.map((bet) => ({
           kind: bet.kind,
           outcome: bet.outcome,
           stake: bet.stake,
         }));
-        console.log("[JoinPanel] sending queued microbets", bets.length);
         window.setTimeout(() => {
           sendAction({
             type: "player-action",
@@ -552,7 +532,6 @@ export default function JoinRemotePanel({
             stake: Math.max(1, Math.min(bananas, randomDraft.stake)),
           },
         ];
-        console.log("[JoinPanel] sending random microbet", bets);
         if (bets[0].stake > 0) {
           window.setTimeout(() => {
             sendAction({
@@ -570,7 +549,6 @@ export default function JoinRemotePanel({
             ]);
           }, 0);
         } else {
-          console.log("[JoinPanel] stake=0, sending microbet-skip");
           window.setTimeout(() => {
             sendAction({
               type: "player-action",
@@ -579,9 +557,6 @@ export default function JoinRemotePanel({
           }, 0);
         }
       } else {
-        console.log(
-          "[JoinPanel] microbetTouched=true but no bets queued, sending microbet-skip",
-        );
         window.setTimeout(() => {
           sendAction({
             type: "player-action",
@@ -608,6 +583,21 @@ export default function JoinRemotePanel({
   ]);
 
   const revealedVoteOption = state?.revealedVoteOption ?? null;
+  const voteWindow = state?.voteWindow;
+  const liveVoteTotals = state?.liveVoteTotals;
+
+  const voteWindowWithLiveTotals = useMemo(() => {
+    if (!voteWindow) return null;
+    if (!liveVoteTotals) return voteWindow;
+    return {
+      ...voteWindow,
+      voteSplit: {
+        optionA: voteWindow.voteSplit.optionA + liveVoteTotals.optionA,
+        optionB: voteWindow.voteSplit.optionB + liveVoteTotals.optionB,
+        optionC: voteWindow.voteSplit.optionC + liveVoteTotals.optionC,
+      },
+    };
+  }, [voteWindow, liveVoteTotals]);
 
   if (!state) {
     return (
@@ -655,47 +645,46 @@ export default function JoinRemotePanel({
       ? [
           {
             id: "main",
-            label: `Main: ${myParticipant.activeMainBet.side.toUpperCase()} — ${myParticipant.activeMainBet.stake} 🍌`,
+            label: `${myParticipant.activeMainBet.side.toUpperCase()} — ${myParticipant.activeMainBet.stake} 🍌`,
             isMain: true,
+            side: myParticipant.activeMainBet.side,
           },
         ]
       : []),
     ...(myParticipant?.activeMicrobets ?? []).map((bet, i) => ({
       id: `active-${i}`,
-      label: `${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "YES" : "NO"} (${bet.stake} @ 2x)`,
+      label: `${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "Y" : "N"} (${bet.stake}@2x)`,
       isMain: false,
-    })),
-    ...(myParticipant?.queuedMicrobets ?? []).map((bet, i) => ({
-      id: `queued-${i}`,
-      label: `Queued: ${MICROBET_KIND_LABEL[bet.kind]} ${bet.outcome ? "YES" : "NO"} (${bet.stake})`,
-      isMain: false,
+      side: null as BallId | null,
     })),
   ];
 
-  const myRank =
-    participantLeaderboard.findIndex((p) => p.token === playerToken) + 1;
-
   return (
     <div className="w-screen min-h-screen bg-white text-black">
-      <div className="max-w-5xl mx-auto p-4 md:p-6">
+      <div className="max-w-lg mx-auto p-4 md:p-6">
         <RoundHeader
           roundNumber={state.snapshot.roundNumber}
           roundsTotal={state.snapshot.roundsTotal}
           timeLeftSeconds={state.snapshot.timeLeftSeconds}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
-          <div className="flex flex-col gap-4">
-            <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] p-4">
-              <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex flex-col gap-4">
+          <div className="border-4 border-black bg-white shadow-[6px_6px_0_0_rgba(0,0,0,1)] p-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                {myParticipant?.characterSvg && (
+                  <CharacterAvatar
+                    svgType={myParticipant.characterSvg}
+                    color={myParticipant.characterColor}
+                    size={44}
+                    className="border-2 border-black"
+                  />
+                )}
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">
-                    Playing as
-                  </p>
-                  <h2 className="text-2xl font-black uppercase leading-tight">
+                  <h2 className="text-xl font-black uppercase leading-tight">
                     {playerName}
                   </h2>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-0.5">
                     <div
                       className={`w-2 h-2 rounded-full ${socketConnected ? "bg-green-400" : "bg-red-400"}`}
                     />
@@ -704,242 +693,122 @@ export default function JoinRemotePanel({
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {myParticipant?.characterSvg && (
-                    <CharacterAvatar
-                      svgType={myParticipant.characterSvg}
-                      color={myParticipant.characterColor}
-                      size={52}
-                      className="border-2 border-black"
-                    />
-                  )}
-                  <PhaseIndicator phase={state.phase} />
-                </div>
               </div>
-
-              <div className="flex gap-6 mb-4">
-                <HealthMini label="Red" color="red" health={state.redHealth} />
-                <div className="flex items-center text-xl font-black text-zinc-300 self-center px-2">
-                  VS
-                </div>
-                <HealthMini
-                  label="Blue"
-                  color="blue"
-                  health={state.blueHealth}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="border-4 border-black bg-yellow-300 p-3 text-center shadow-[3px_3px_0_0_rgba(0,0,0,1)]">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-yellow-800 mb-1">
-                    Bankroll
-                  </p>
-                  <motion.p
-                    key={bananas}
-                    className="text-2xl font-black tabular-nums"
-                    initial={{ scale: 1.18 }}
-                    animate={{ scale: 1 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    {bananas}
-                  </motion.p>
-                  <p className="text-[10px] text-yellow-800">🍌</p>
-                </div>
-
-                <div className="border-4 border-black bg-green-50 p-3 text-center shadow-[3px_3px_0_0_rgba(0,0,0,1)]">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-green-700 mb-1">
-                    Round Payout
-                  </p>
-                  <motion.p
-                    key={myParticipant?.roundPayout ?? 0}
-                    className="text-2xl font-black tabular-nums text-green-700"
-                    initial={{ scale: 1.15 }}
-                    animate={{ scale: 1 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    +{myParticipant?.roundPayout ?? 0}
-                  </motion.p>
-                </div>
-
-                <div className="border-4 border-black bg-blue-50 p-3 text-center shadow-[3px_3px_0_0_rgba(0,0,0,1)]">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1">
-                    Total Payout
-                  </p>
-                  <p className="text-2xl font-black tabular-nums text-blue-700">
-                    +{myParticipant?.totalPayout ?? 0}
-                  </p>
-                </div>
-              </div>
+              <PhaseIndicator phase={state.phase} />
             </div>
 
-            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-4">
-              <p className="text-xs font-black uppercase tracking-widest mb-3 text-zinc-600">
+            <div className="flex gap-4 mb-3">
+              <HealthMini label="Red" color="red" health={state.redHealth} />
+              <div className="flex items-center text-lg font-black text-zinc-300 self-center">
+                VS
+              </div>
+              <HealthMini label="Blue" color="blue" health={state.blueHealth} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="border-4 border-black bg-yellow-300 p-2 text-center shadow-[2px_2px_0_0_rgba(0,0,0,1)]">
+                <p className="text-[9px] font-black uppercase tracking-widest text-yellow-800">
+                  Bank
+                </p>
+                <motion.p
+                  key={bananas}
+                  className="text-xl font-black tabular-nums"
+                  initial={{ scale: 1.18 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  {bananas} 🍌
+                </motion.p>
+              </div>
+
+              <div className="border-4 border-black bg-green-50 p-2 text-center shadow-[2px_2px_0_0_rgba(0,0,0,1)]">
+                <p className="text-[9px] font-black uppercase tracking-widest text-green-700">
+                  Round
+                </p>
+                <p className="text-xl font-black tabular-nums text-green-700">
+                  +{myParticipant?.roundPayout ?? 0}
+                </p>
+              </div>
+
+              <div className="border-4 border-black bg-blue-50 p-2 text-center shadow-[2px_2px_0_0_rgba(0,0,0,1)]">
+                <p className="text-[9px] font-black uppercase tracking-widest text-blue-700">
+                  Total
+                </p>
+                <p className="text-xl font-black tabular-nums text-blue-700">
+                  +{myParticipant?.totalPayout ?? 0}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {activeLedger.length > 0 && (
+            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-3">
+              <p className="text-[10px] font-black uppercase tracking-widest mb-2 text-zinc-600">
                 Active Bets
               </p>
-              {activeLedger.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  <AnimatePresence initial={false}>
-                    {activeLedger.map((entry) => (
-                      <motion.div
-                        key={entry.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 8 }}
-                        className={`flex items-center gap-3 px-3 py-2 border-l-4 ${entry.isMain ? "border-yellow-400 bg-yellow-50" : "border-zinc-300 bg-zinc-50"}`}
-                      >
-                        <span
-                          className={`text-[10px] font-black uppercase shrink-0 ${entry.isMain ? "text-yellow-700" : "text-zinc-500"}`}
-                        >
-                          {entry.isMain ? "MAIN" : "MICRO"}
-                        </span>
-                        <p className="text-xs font-bold text-zinc-800 truncate">
-                          {entry.label}
-                        </p>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              ) : (
-                <p className="text-xs text-zinc-400 italic">
-                  No active bets yet.
-                </p>
-              )}
-            </div>
-
-            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-4">
-              <p className="text-xs font-black uppercase tracking-widest mb-3 text-zinc-600">
-                Market Feed
-              </p>
-              {state.microbetInsights.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {state.microbetInsights.map((insight) => (
-                    <div
-                      key={insight.kind}
-                      className="border-2 border-zinc-200 p-2.5 bg-zinc-50"
+              <div className="flex flex-col gap-1.5">
+                <AnimatePresence initial={false}>
+                  {activeLedger.map((entry) => (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 8 }}
+                      className={`flex items-center gap-2 px-2 py-1.5 border-l-4 ${entry.isMain ? "border-yellow-400 bg-yellow-50" : "border-zinc-300 bg-zinc-50"}`}
                     >
-                      <p className="text-xs font-black text-zinc-800">
-                        {MICROBET_KIND_LABEL[insight.kind]}
-                      </p>
-                      <div className="flex items-center justify-between mt-1 gap-2">
-                        <div className="flex-1 h-1.5 bg-zinc-200 overflow-hidden rounded-full">
-                          <div
-                            className="h-full bg-violet-400"
-                            style={{ width: `${insight.averageTarget}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-black text-zinc-500 shrink-0">
-                          {insight.averageTarget.toFixed(0)}% yes
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">
-                        {insight.count} bets · {insight.totalStake} staked
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-zinc-400 italic">
-                  No market insights yet.
-                </p>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                clearPlayerSession();
-                onExit();
-              }}
-              className="self-start border-4 border-black px-4 py-2 font-black uppercase text-sm bg-white hover:bg-zinc-100 shadow-[3px_3px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0_0_rgba(0,0,0,1)] transition-all"
-            >
-              Leave Room
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <div className="border-4 border-black bg-white shadow-[4px_4px_0_0_rgba(0,0,0,1)] p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-black uppercase tracking-widest text-zinc-600">
-                  Leaderboard
-                </p>
-                {myRank > 0 && (
-                  <span className="text-[10px] font-black uppercase text-zinc-400">
-                    You: #{myRank}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
-                <AnimatePresence>
-                  {participantLeaderboard.map((participant, index) => {
-                    const isMe = participant.token === playerToken;
-                    return (
-                      <motion.div
-                        key={participant.id}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.04 }}
-                        className={`flex items-center gap-2 p-2 border-2 ${isMe ? "border-yellow-400 bg-yellow-50" : "border-zinc-100 bg-zinc-50"}`}
-                      >
-                        <span className="text-[10px] font-black text-zinc-400 w-5">
-                          #{index + 1}
-                        </span>
-                        <CharacterAvatar
-                          svgType={participant.characterSvg}
-                          color={participant.characterColor}
-                          size={36}
-                          className="shrink-0"
+                      {entry.isMain && entry.side && (
+                        <Crown
+                          size={14}
+                          weight="fill"
+                          className={
+                            entry.side === "red"
+                              ? "text-red-600"
+                              : "text-blue-600"
+                          }
                         />
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className={`text-xs font-black uppercase truncate ${isMe ? "text-yellow-800" : "text-zinc-800"}`}
-                          >
-                            {participant.name} {isMe && "★"}
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <div
-                              className={`w-1.5 h-1.5 rounded-full ${participant.connected ? "bg-green-400" : "bg-zinc-300"}`}
-                            />
-                            <p className="text-[10px] font-bold text-zinc-400 tabular-nums">
-                              {participant.bananas} 🍌
-                            </p>
-                          </div>
-                        </div>
-                        {participant.activeMainBet && (
-                          <span
-                            className={`text-[10px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${participant.activeMainBet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
-                          >
-                            {participant.activeMainBet.side.toUpperCase()}
-                          </span>
-                        )}
-                      </motion.div>
-                    );
-                  })}
+                      )}
+                      <span
+                        className={`text-[10px] font-black uppercase shrink-0 ${entry.isMain ? "text-yellow-700" : "text-zinc-500"}`}
+                      >
+                        {entry.isMain ? "MAIN" : "MICRO"}
+                      </span>
+                      <p className="text-xs font-bold text-zinc-800 truncate">
+                        {entry.label}
+                      </p>
+                    </motion.div>
+                  ))}
                 </AnimatePresence>
-                {participantLeaderboard.length === 0 && (
-                  <p className="text-xs text-zinc-400 italic text-center py-4">
-                    No players yet
-                  </p>
-                )}
               </div>
             </div>
+          )}
 
-            {state.roundWinner && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="border-4 border-black p-3 text-center font-black uppercase tracking-widest shadow-[4px_4px_0_0_rgba(0,0,0,1)] bg-yellow-200"
+          {state.roundWinner && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="border-4 border-black p-3 text-center font-black uppercase tracking-widest shadow-[4px_4px_0_0_rgba(0,0,0,1)] bg-yellow-200"
+            >
+              <p className="text-xs text-zinc-500 mb-1">Round Winner</p>
+              <p
+                className="text-xl"
+                style={{
+                  color: state.roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
+                }}
               >
-                <p className="text-xs text-zinc-500 mb-1">Round Winner</p>
-                <p
-                  className="text-xl"
-                  style={{
-                    color: state.roundWinner === "red" ? "#b91c1c" : "#1d4ed8",
-                  }}
-                >
-                  {state.roundWinner.toUpperCase()}
-                </p>
-              </motion.div>
-            )}
-          </div>
+                {state.roundWinner.toUpperCase()}
+              </p>
+            </motion.div>
+          )}
+
+          <button
+            onClick={() => {
+              clearPlayerSession();
+              onExit();
+            }}
+            className="self-start border-4 border-black px-4 py-2 font-black uppercase text-sm bg-white hover:bg-zinc-100 shadow-[3px_3px_0_0_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0_0_rgba(0,0,0,1)] transition-all"
+          >
+            Leave Room
+          </button>
         </div>
       </div>
 
@@ -998,10 +867,24 @@ export default function JoinRemotePanel({
             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 mt-3">
               Decision Locked
             </p>
-            <h3 className="text-2xl font-black uppercase mt-1">
-              {prematchDecision === "skip"
-                ? "Sitting this one out"
-                : `${(prematchDecision ?? "red").toUpperCase()} — ${mainBetSelection.stake} 🍌`}
+            <h3 className="text-2xl font-black uppercase mt-1 flex items-center justify-center gap-2">
+              {prematchDecision === "skip" ? (
+                "Sitting this one out"
+              ) : (
+                <>
+                  <Crown
+                    size={20}
+                    weight="fill"
+                    className={
+                      prematchDecision === "red"
+                        ? "text-red-600"
+                        : "text-blue-600"
+                    }
+                  />
+                  {(prematchDecision ?? "red").toUpperCase()} —{" "}
+                  {mainBetSelection.stake} 🍌
+                </>
+              )}
             </h3>
             <p className="text-xs font-bold text-zinc-400 mt-2">
               Waiting for all players...
@@ -1016,7 +899,7 @@ export default function JoinRemotePanel({
         redHealth={state.redHealth}
         blueHealth={state.blueHealth}
         bananas={bananas}
-        voteWindow={state.voteWindow}
+        voteWindow={voteWindowWithLiveTotals}
         selection={voteSelection}
         votePower={votePowerStake}
         onSelectOption={(value: 0 | 1 | 2) => {

@@ -12,11 +12,14 @@ import {
 import PartySocket from "partysocket";
 import {
   CopySimple,
+  Crown,
+  DiceFive,
+  Lightning,
   Pulse,
   ShareNetwork,
-  Trophy,
   Users,
 } from "@phosphor-icons/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { BotsGameEngine } from "@/bots/engine";
 import type {
   BallId,
@@ -58,6 +61,7 @@ import type {
   HostBroadcastState,
   HostRoomSettings,
   MatchPhase,
+  MicrobetSettlementResult,
   ParticipantPublicState,
   PendingMicrobetWire,
   PlayerAction,
@@ -69,18 +73,26 @@ import { useMenuAudio } from "@/components/menu-audio-context";
 
 const STARTING_HEALTH = 100;
 const DEFAULT_DECISION_TIMER_SECONDS = 12;
+const PITY_THRESHOLD = 5;
+const PITY_GRANT = 20;
 
 const DEFAULT_SETTINGS: HostRoomSettings = {
   botCount: 0,
   startingBananas: 100,
   decisionTimerSeconds: DEFAULT_DECISION_TIMER_SECONDS,
-  waitForAllDecisions: false,
+  waitForAllDecisions: true,
   roundTimerSeconds: 120,
   roundsTotal: 3,
 };
 
 type MainBetSelection = { side: BallId; stake: number };
 type PendingPlayerMicrobet = PendingMicrobetWire & { id: string; odds: number };
+
+type RecentBetEntry = {
+  playerName: string;
+  description: string;
+  timestamp: number;
+};
 
 function createZeroTotals(): StatTotals {
   return {
@@ -250,6 +262,35 @@ function NumberInput({
   );
 }
 
+function PhaseProgressBar({
+  phase,
+  countdown,
+  maxSeconds,
+}: {
+  phase: MatchPhase;
+  countdown: number;
+  maxSeconds: number;
+}) {
+  if (maxSeconds <= 0 || countdown <= 0) return null;
+  const pct = Math.max(0, Math.min(100, (countdown / maxSeconds) * 100));
+  const colors: Record<string, string> = {
+    prematch: "bg-yellow-400",
+    vote: "bg-violet-400",
+    reveal: "bg-violet-300",
+    microbet: "bg-orange-400",
+  };
+  const bg = colors[phase] ?? "bg-zinc-300";
+  return (
+    <div className="w-full h-2 bg-zinc-200 border border-black/10 overflow-hidden">
+      <motion.div
+        className={`h-full ${bg}`}
+        animate={{ width: `${pct}%` }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      />
+    </div>
+  );
+}
+
 type HostMultiplayerPanelProps = { roomCode: string; onExit: () => void };
 
 export default function HostMultiplayerPanel({
@@ -275,9 +316,20 @@ export default function HostMultiplayerPanel({
     };
   }, [pauseForGame, resumeFromGame]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (matchStarted) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  });
+
   const [matchStarted, setMatchStarted] = useState(false);
   const [phase, setPhase] = useState<MatchPhase>("lobby");
   const [phaseCountdown, setPhaseCountdown] = useState(0);
+  const [phaseMaxSeconds, setPhaseMaxSeconds] = useState(0);
   const [settings, setSettings] = useState<HostRoomSettings>(DEFAULT_SETTINGS);
   const [copied, setCopied] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
@@ -309,10 +361,16 @@ export default function HostMultiplayerPanel({
   const [participantBananas, setParticipantBananas] = useState<
     Record<string, number>
   >({});
-  const [queuedVoteCount, setQueuedVoteCount] = useState(0);
   const [participantCharacters, setParticipantCharacters] = useState<
     Record<string, { svgType: string; color: string }>
   >({});
+  const [recentBets, setRecentBets] = useState<RecentBetEntry[]>([]);
+
+  const [mainBets, setMainBets] = useState<
+    Record<string, MainBetSelection | null>
+  >({});
+  const [voteActionsCount, setVoteActionsCount] = useState(0);
+  const [activeMicrobetCount, setActiveMicrobetCount] = useState(0);
 
   const healthRef = useRef({ red: STARTING_HEALTH, blue: STARTING_HEALTH });
   const previousHealthRef = useRef({
@@ -326,6 +384,7 @@ export default function HostMultiplayerPanel({
   );
   const phaseRef = useRef<MatchPhase>("lobby");
   const phaseCountdownRef = useRef(0);
+  const phaseMaxSecondsRef = useRef(0);
   const lastVoteStatsRef = useRef<StatTotals | null>(null);
 
   const banksRef = useRef<Record<string, number>>({});
@@ -344,7 +403,16 @@ export default function HostMultiplayerPanel({
   const activeMicrobetsRef = useRef<Record<string, PendingPlayerMicrobet[]>>(
     {},
   );
+  const microbetSettlementsRef = useRef<
+    Record<string, MicrobetSettlementResult[]>
+  >({});
+  const recentBetsRef = useRef<RecentBetEntry[]>([]);
   const maybeAdvanceDecisionPhaseRef = useRef<() => void>(() => {});
+  const settingsRef = useRef<HostRoomSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     if (snapshot.roundNumber > 1) {
@@ -366,13 +434,18 @@ export default function HostMultiplayerPanel({
   const transitionPhase = useCallback((next: MatchPhase, seconds: number) => {
     phaseRef.current = next;
     phaseCountdownRef.current = seconds;
+    phaseMaxSecondsRef.current = seconds;
     setPhase(next);
     setPhaseCountdown(seconds);
+    setPhaseMaxSeconds(seconds);
   }, []);
 
   const getDecisionWindowSeconds = useCallback(
-    () => (settings.waitForAllDecisions ? 0 : settings.decisionTimerSeconds),
-    [settings.waitForAllDecisions, settings.decisionTimerSeconds],
+    () =>
+      settingsRef.current.waitForAllDecisions
+        ? 0
+        : settingsRef.current.decisionTimerSeconds,
+    [],
   );
 
   const haveAllConnectedPlayersDecided = useCallback(
@@ -389,24 +462,38 @@ export default function HostMultiplayerPanel({
       const source = participants ?? roomParticipantsRef.current;
       const next: Record<string, number> = {};
       for (const p of source)
-        next[p.id] = banksRef.current[p.id] ?? settings.startingBananas;
+        next[p.id] =
+          banksRef.current[p.id] ?? settingsRef.current.startingBananas;
       setParticipantBananas(next);
     },
-    [settings.startingBananas],
+    [],
   );
+
+  const addRecentBet = useCallback(
+    (playerName: string, description: string) => {
+      const entry: RecentBetEntry = {
+        playerName,
+        description,
+        timestamp: Date.now(),
+      };
+      recentBetsRef.current = [entry, ...recentBetsRef.current].slice(0, 20);
+      setRecentBets([...recentBetsRef.current]);
+    },
+    [],
+  );
+
+  const updateMicrobetCount = useCallback(() => {
+    let count = 0;
+    for (const bets of Object.values(activeMicrobetsRef.current))
+      count += bets.length;
+    for (const bets of Object.values(queuedMicrobetsRef.current))
+      count += bets.length;
+    setActiveMicrobetCount(count);
+  }, []);
 
   const settlePlayerMicrobets = useCallback(
     (currentTotals: StatTotals) => {
       const last = lastVoteStatsRef.current;
-      const activePlayers = Object.entries(activeMicrobetsRef.current).filter(
-        ([, bets]) => bets.length > 0,
-      );
-      console.log(
-        "[Host] settlePlayerMicrobets: activePlayers=",
-        activePlayers.map(([pid]) => pid),
-        "hasLast=",
-        !!last,
-      );
       if (!last) return;
       const delta: StatTotals = {
         redDamageTaken: currentTotals.redDamageTaken - last.redDamageTaken,
@@ -415,28 +502,43 @@ export default function HostMultiplayerPanel({
         wallHitsBlue: currentTotals.wallHitsBlue - last.wallHitsBlue,
         ballCollisions: currentTotals.ballCollisions - last.ballCollisions,
       };
-      let anyPayout = false;
+
+      const newSettlements: Record<string, MicrobetSettlementResult[]> = {};
+
       for (const [pid, bets] of Object.entries(activeMicrobetsRef.current)) {
         if (bets.length === 0) continue;
+        const results: MicrobetSettlementResult[] = [];
         let payout = 0;
         for (const bet of bets) {
-          if (didMicrobetWin(bet.kind, bet.outcome, delta))
-            payout += Math.floor(bet.stake * bet.odds);
+          const won = didMicrobetWin(bet.kind, bet.outcome, delta);
+          const betPayout = won ? Math.floor(bet.stake * bet.odds) : 0;
+          payout += betPayout;
+          results.push({
+            kind: bet.kind,
+            outcome: bet.outcome,
+            stake: bet.stake,
+            payout: betPayout,
+            won,
+          });
         }
+        newSettlements[pid] = results;
         if (payout > 0) {
           banksRef.current[pid] =
-            (banksRef.current[pid] ?? settings.startingBananas) + payout;
+            (banksRef.current[pid] ?? settingsRef.current.startingBananas) +
+            payout;
           totalPayoutRef.current[pid] =
             (totalPayoutRef.current[pid] ?? 0) + payout;
           roundPayoutRef.current[pid] =
             (roundPayoutRef.current[pid] ?? 0) + payout;
-          anyPayout = true;
         }
       }
+
+      microbetSettlementsRef.current = newSettlements;
       activeMicrobetsRef.current = {};
-      if (anyPayout) syncParticipantBananas();
+      updateMicrobetCount();
+      syncParticipantBananas();
     },
-    [settings.startingBananas, syncParticipantBananas],
+    [syncParticipantBananas, updateMicrobetCount],
   );
 
   const applyVoteApplication = useCallback(
@@ -494,32 +596,28 @@ export default function HostMultiplayerPanel({
   );
 
   const closeMicrobetWindow = useCallback(() => {
-    console.log(
-      "[Host] closeMicrobetWindow: queued=",
-      JSON.stringify(
-        Object.fromEntries(
-          Object.entries(queuedMicrobetsRef.current).map(([k, v]) => [
-            k,
-            v.length,
-          ]),
-        ),
-      ),
-    );
-    activeMicrobetsRef.current = queuedMicrobetsRef.current;
+    for (const [pid, bets] of Object.entries(queuedMicrobetsRef.current)) {
+      if (bets.length > 0) {
+        activeMicrobetsRef.current[pid] = bets;
+      }
+    }
     queuedMicrobetsRef.current = {};
-    console.log(
-      "[Host] closeMicrobetWindow: active after swap=",
-      JSON.stringify(
-        Object.fromEntries(
-          Object.entries(activeMicrobetsRef.current).map(([k, v]) => [
-            k,
-            v.length,
-          ]),
-        ),
-      ),
-    );
+    updateMicrobetCount();
+    lastVoteStatsRef.current = { ...statsTotalsRef.current };
     transitionPhase("running", 0);
-  }, [transitionPhase]);
+  }, [transitionPhase, updateMicrobetCount]);
+
+  const getLiveVoteTotals = useCallback(() => {
+    let optA = 0;
+    let optB = 0;
+    let optC = 0;
+    for (const vote of Object.values(voteActionsRef.current)) {
+      if (vote.selection === 0) optA += vote.power;
+      else if (vote.selection === 1) optB += vote.power;
+      else optC += vote.power;
+    }
+    return { optionA: optA, optionB: optB, optionC: optC };
+  }, []);
 
   const publishState = useCallback(() => {
     const socket = socketRef.current;
@@ -551,6 +649,9 @@ export default function HostMultiplayerPanel({
         })),
       };
     });
+
+    const liveTotals = phase === "vote" ? getLiveVoteTotals() : null;
+
     const state: HostBroadcastState = {
       roomCode,
       phase,
@@ -564,12 +665,16 @@ export default function HostMultiplayerPanel({
       participants,
       roundWinner,
       settings,
+      liveVoteTotals: liveTotals,
+      microbetSettlements: microbetSettlementsRef.current,
+      recentBets: recentBetsRef.current.slice(0, 10),
     };
     socket.send(
       JSON.stringify({ type: "host-state", state } satisfies ClientEnvelope),
     );
   }, [
     blueHealth,
+    getLiveVoteTotals,
     microbetInsights,
     phase,
     phaseCountdown,
@@ -586,14 +691,10 @@ export default function HostMultiplayerPanel({
 
   const handleIncomingAction = useCallback(
     (playerId: string, action: PlayerAction) => {
-      console.log(
-        "[Host] handleIncomingAction playerId=",
-        playerId,
-        "kind=",
-        action.kind,
-        "phaseRef=",
-        phaseRef.current,
-      );
+      const playerName =
+        roomParticipantsRef.current.find((p) => p.id === playerId)?.name ??
+        "Unknown";
+
       if (action.kind === "set-character") {
         const svgType = isValidMonkeySvgType(action.svgType)
           ? action.svgType
@@ -611,16 +712,19 @@ export default function HostMultiplayerPanel({
         if (action.kind === "main-bet") {
           const minStake = Math.max(
             5,
-            Math.floor(settings.startingBananas / 10),
+            Math.floor(settingsRef.current.startingBananas / 10),
           );
           const stake = Math.max(minStake, Math.floor(action.stake));
           const side: BallId = action.side === "blue" ? "blue" : "red";
-          const cur = banksRef.current[playerId] ?? settings.startingBananas;
+          const cur =
+            banksRef.current[playerId] ?? settingsRef.current.startingBananas;
           const existing = mainBetsRef.current[playerId];
           const restored = cur + (existing ? existing.stake : 0);
           if (restored < stake) return;
           banksRef.current[playerId] = restored - stake;
           mainBetsRef.current[playerId] = { side, stake };
+          setMainBets((prev) => ({ ...prev, [playerId]: { side, stake } }));
+          addRecentBet(playerName, `Bet ${stake} on ${side.toUpperCase()}`);
           syncParticipantBananas();
           maybeAdvanceDecisionPhaseRef.current();
           return;
@@ -629,15 +733,19 @@ export default function HostMultiplayerPanel({
           const existing = mainBetsRef.current[playerId];
           if (existing) {
             banksRef.current[playerId] =
-              (banksRef.current[playerId] ?? settings.startingBananas) +
-              existing.stake;
+              (banksRef.current[playerId] ??
+                settingsRef.current.startingBananas) + existing.stake;
             mainBetsRef.current[playerId] = null;
+            setMainBets((prev) => ({ ...prev, [playerId]: null }));
             syncParticipantBananas();
           }
           if (
             !Object.prototype.hasOwnProperty.call(mainBetsRef.current, playerId)
-          )
+          ) {
             mainBetsRef.current[playerId] = null;
+            setMainBets((prev) => ({ ...prev, [playerId]: null }));
+          }
+          addRecentBet(playerName, "Skipped main bet");
           maybeAdvanceDecisionPhaseRef.current();
         }
         return;
@@ -647,13 +755,19 @@ export default function HostMultiplayerPanel({
           selection: action.selection,
           power: Math.max(0, Math.floor(action.power)),
         };
-        setQueuedVoteCount(Object.keys(voteActionsRef.current).length);
+        setVoteActionsCount(Object.keys(voteActionsRef.current).length);
+        const optionLabels = ["Option A", "Option B", "Option C"];
+        addRecentBet(
+          playerName,
+          `Voted ${optionLabels[action.selection]} (${action.power} power)`,
+        );
         maybeAdvanceDecisionPhaseRef.current();
         return;
       }
       if (phaseRef.current === "microbet") {
         if (action.kind === "microbet") {
-          const cur = banksRef.current[playerId] ?? settings.startingBananas;
+          const cur =
+            banksRef.current[playerId] ?? settingsRef.current.startingBananas;
           const existing = queuedMicrobetsRef.current[playerId] ?? [];
           const restored = cur + existing.reduce((s, b) => s + b.stake, 0);
           const sanitized: PendingPlayerMicrobet[] = action.bets
@@ -666,60 +780,44 @@ export default function HostMultiplayerPanel({
             }))
             .slice(0, 8);
           const total = sanitized.reduce((s, b) => s + b.stake, 0);
-          console.log(
-            "[Host] microbet action: playerId=",
-            playerId,
-            "bets=",
-            action.bets,
-            "sanitizedTotal=",
-            total,
-            "restored=",
-            restored,
-            "sufficient=",
-            total <= restored,
-          );
           if (total > restored) return;
           queuedMicrobetsRef.current[playerId] = sanitized;
+          updateMicrobetCount();
           banksRef.current[playerId] = restored - total;
-          console.log(
-            "[Host] microbet accepted: newBank=",
-            banksRef.current[playerId],
-            "queuedCount=",
-            sanitized.length,
+          addRecentBet(
+            playerName,
+            `Placed ${sanitized.length} microbet${sanitized.length !== 1 ? "s" : ""} (${total} staked)`,
           );
           syncParticipantBananas();
           maybeAdvanceDecisionPhaseRef.current();
           return;
         }
         if (action.kind === "microbet-skip") {
-          console.log("[Host] microbet-skip from", playerId);
           const existing = queuedMicrobetsRef.current[playerId] ?? [];
           const refund = existing.reduce((s, b) => s + b.stake, 0);
           if (refund > 0) {
             banksRef.current[playerId] =
-              (banksRef.current[playerId] ?? settings.startingBananas) + refund;
+              (banksRef.current[playerId] ??
+                settingsRef.current.startingBananas) + refund;
             syncParticipantBananas();
           }
           queuedMicrobetsRef.current[playerId] = [];
+          updateMicrobetCount();
           maybeAdvanceDecisionPhaseRef.current();
         }
       }
     },
-    [settings.startingBananas, syncParticipantBananas],
+    [addRecentBet, syncParticipantBananas, updateMicrobetCount],
   );
 
   const resolveVoteAndOpenMicrobet = useCallback(() => {
-    console.log(
-      "[Host] resolveVoteAndOpenMicrobet: voteActions=",
-      Object.keys(voteActionsRef.current).length,
-    );
     lastVoteStatsRef.current = { ...statsTotalsRef.current };
     let optA = 0,
       optB = 0,
       optC = 0;
     let anySpend = false;
     for (const [pid, vote] of Object.entries(voteActionsRef.current)) {
-      const cur = banksRef.current[pid] ?? settings.startingBananas;
+      const cur = banksRef.current[pid] ?? settingsRef.current.startingBananas;
       const spend = Math.min(cur, vote.power);
       if (spend <= 0) continue;
       banksRef.current[pid] = cur - spend;
@@ -729,7 +827,7 @@ export default function HostMultiplayerPanel({
       anySpend = true;
     }
     voteActionsRef.current = {};
-    setQueuedVoteCount(0);
+    setVoteActionsCount(0);
     const resolved = engine.resolvePendingVoteTotals(optA, optB, optC);
     if (resolved.application) {
       applyVoteApplication(resolved.application);
@@ -742,13 +840,18 @@ export default function HostMultiplayerPanel({
     setSnapshot(engine.getSnapshot());
     setVoteWindow(null);
     transitionPhase("reveal", 3);
-  }, [
-    applyVoteApplication,
-    engine,
-    settings.startingBananas,
-    syncParticipantBananas,
-    transitionPhase,
-  ]);
+  }, [applyVoteApplication, engine, syncParticipantBananas, transitionPhase]);
+
+  const applyPityRewards = useCallback(() => {
+    for (const p of roomParticipantsRef.current) {
+      const current = banksRef.current[p.id] ?? 0;
+      if (current < PITY_THRESHOLD) {
+        banksRef.current[p.id] = current + PITY_GRANT;
+        addRecentBet(p.name ?? "Player", `Received ${PITY_GRANT} pity bananas`);
+      }
+    }
+    syncParticipantBananas();
+  }, [addRecentBet, syncParticipantBananas]);
 
   const maybeAdvanceDecisionPhase = useCallback(() => {
     if (!matchStarted) return;
@@ -809,16 +912,25 @@ export default function HostMultiplayerPanel({
     setRevealedVoteOption(null);
     setMicrobetInsights([]);
     mainBetsRef.current = {};
+    setMainBets({});
     voteActionsRef.current = {};
-    setQueuedVoteCount(0);
+    setVoteActionsCount(0);
     queuedMicrobetsRef.current = {};
     activeMicrobetsRef.current = {};
+    updateMicrobetCount();
+    microbetSettlementsRef.current = {};
     for (const pid of Object.keys(roundPayoutRef.current))
       roundPayoutRef.current[pid] = 0;
     lastVoteStatsRef.current = null;
     gameApiRef.current = null;
+    applyPityRewards();
     transitionPhase("prematch", getDecisionWindowSeconds());
-  }, [getDecisionWindowSeconds, transitionPhase]);
+  }, [
+    applyPityRewards,
+    getDecisionWindowSeconds,
+    transitionPhase,
+    updateMicrobetCount,
+  ]);
 
   const handleGameReady = useCallback((api: GameApi) => {
     gameApiRef.current = api;
@@ -870,10 +982,15 @@ export default function HostMultiplayerPanel({
       roundPayoutRef.current[p.id] = 0;
     }
     mainBetsRef.current = {};
+    setMainBets({});
     voteActionsRef.current = {};
+    setVoteActionsCount(0);
     queuedMicrobetsRef.current = {};
     activeMicrobetsRef.current = {};
-    setQueuedVoteCount(0);
+    updateMicrobetCount();
+    microbetSettlementsRef.current = {};
+    recentBetsRef.current = [];
+    setRecentBets([]);
     setEngine(freshEngine);
     setSnapshot(freshEngine.getSnapshot());
     setMatchStarted(true);
@@ -884,6 +1001,13 @@ export default function HostMultiplayerPanel({
     roomParticipants.length,
     settings,
     syncParticipantBananas,
+    updateMicrobetCount,
+    setEngine,
+    setMainBets,
+    setMatchStarted,
+    setRecentBets,
+    setSnapshot,
+    setVoteActionsCount,
   ]);
 
   const copyRoomCode = useCallback(async () => {
@@ -950,7 +1074,7 @@ export default function HostMultiplayerPanel({
         }));
         for (const p of next) {
           if (banksRef.current[p.id] === undefined) {
-            banksRef.current[p.id] = settings.startingBananas;
+            banksRef.current[p.id] = settingsRef.current.startingBananas;
             totalPayoutRef.current[p.id] = 0;
             roundPayoutRef.current[p.id] = 0;
           }
@@ -962,12 +1086,6 @@ export default function HostMultiplayerPanel({
         return;
       }
       if (payload.type === "player-action") {
-        console.log(
-          "[Host] received player-action from",
-          payload.playerId,
-          "kind=",
-          payload.action.kind,
-        );
         handleIncomingAction(payload.playerId, payload.action);
       }
     });
@@ -975,12 +1093,7 @@ export default function HostMultiplayerPanel({
       socket.close();
       socketRef.current = null;
     };
-  }, [
-    handleIncomingAction,
-    roomCode,
-    settings.startingBananas,
-    syncParticipantBananas,
-  ]);
+  }, [handleIncomingAction, roomCode, syncParticipantBananas]);
 
   useEffect(() => {
     if (!matchStarted || !gameApiRef.current) return;
@@ -998,7 +1111,7 @@ export default function HostMultiplayerPanel({
     if (!matchStarted) return;
     const interval = setInterval(() => {
       if (phaseRef.current === "prematch") {
-        if (settings.waitForAllDecisions) return;
+        if (settingsRef.current.waitForAllDecisions) return;
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
@@ -1006,7 +1119,7 @@ export default function HostMultiplayerPanel({
         return;
       }
       if (phaseRef.current === "vote") {
-        if (settings.waitForAllDecisions) return;
+        if (settingsRef.current.waitForAllDecisions) return;
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
@@ -1018,13 +1131,14 @@ export default function HostMultiplayerPanel({
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
         if (next === 0) {
+          microbetSettlementsRef.current = {};
           setMicrobetInsights(engine.getPendingMicrobetInsights());
           transitionPhase("microbet", getDecisionWindowSeconds());
         }
         return;
       }
       if (phaseRef.current === "microbet") {
-        if (settings.waitForAllDecisions) return;
+        if (settingsRef.current.waitForAllDecisions) return;
         const next = Math.max(0, phaseCountdownRef.current - 1);
         phaseCountdownRef.current = next;
         setPhaseCountdown(next);
@@ -1040,11 +1154,7 @@ export default function HostMultiplayerPanel({
       });
       if (stepResult.voteWindow) {
         const cur = statsTotalsRef.current;
-        console.log(
-          "[Host] engine.step voteWindow: settling microbets then transitioning to vote",
-        );
         settlePlayerMicrobets(cur);
-        lastVoteStatsRef.current = { ...cur };
         setVoteWindow(stepResult.voteWindow);
         setRevealedVoteOption(null);
         transitionPhase("vote", getDecisionWindowSeconds());
@@ -1058,7 +1168,8 @@ export default function HostMultiplayerPanel({
           if (bet.side === stepResult.roundResult.winner) {
             const payout = bet.stake * 2;
             banksRef.current[pid] =
-              (banksRef.current[pid] ?? settings.startingBananas) + payout;
+              (banksRef.current[pid] ?? settingsRef.current.startingBananas) +
+              payout;
             totalPayoutRef.current[pid] =
               (totalPayoutRef.current[pid] ?? 0) + payout;
             roundPayoutRef.current[pid] =
@@ -1066,10 +1177,12 @@ export default function HostMultiplayerPanel({
           }
         }
         mainBetsRef.current = {};
+        setMainBets({});
         voteActionsRef.current = {};
-        setQueuedVoteCount(0);
+        setVoteActionsCount(0);
         queuedMicrobetsRef.current = {};
         activeMicrobetsRef.current = {};
+        updateMicrobetCount();
         syncParticipantBananas();
       }
       if (
@@ -1092,17 +1205,16 @@ export default function HostMultiplayerPanel({
     matchStarted,
     resetBoardForNextRound,
     resolveVoteAndOpenMicrobet,
-    settings.waitForAllDecisions,
-    settings.startingBananas,
     settlePlayerMicrobets,
     closeMicrobetWindow,
     syncParticipantBananas,
     transitionPhase,
+    updateMicrobetCount,
   ]);
 
   useEffect(() => {
     publishState();
-  }, [publishState, participantBananas, queuedVoteCount]);
+  }, [publishState, participantBananas, phase, phaseCountdown]);
 
   const totalBananasInPlay = useMemo(
     () =>
@@ -1122,6 +1234,7 @@ export default function HostMultiplayerPanel({
       ),
     [participantBananas, roomParticipants, settings.startingBananas],
   );
+
   const pausePrompt =
     phase === "prematch"
       ? "Make your bets!"
@@ -1314,13 +1427,21 @@ export default function HostMultiplayerPanel({
 
   return (
     <MatchDashboardShell
-      reserveLeftSpace
       header={
-        <RoundHeader
-          roundNumber={snapshot.roundNumber}
-          roundsTotal={snapshot.roundsTotal}
-          timeLeftSeconds={snapshot.timeLeftSeconds}
-        />
+        <>
+          <RoundHeader
+            roundNumber={snapshot.roundNumber}
+            roundsTotal={snapshot.roundsTotal}
+            timeLeftSeconds={snapshot.timeLeftSeconds}
+          />
+          {pausePrompt && (
+            <PhaseProgressBar
+              phase={phase}
+              countdown={phaseCountdown}
+              maxSeconds={phaseMaxSeconds}
+            />
+          )}
+        </>
       }
       overlay={
         pausePrompt ? (
@@ -1329,9 +1450,14 @@ export default function HostMultiplayerPanel({
               <p className="text-sm font-black uppercase tracking-[0.4em] opacity-80">
                 Match Paused
               </p>
-              <h2 className="mt-3 text-7xl font-black uppercase md:text-8xl">
+              <h2 className="mt-3 text-5xl font-black uppercase md:text-7xl">
                 {pausePrompt}
               </h2>
+              {phaseCountdown > 0 && (
+                <p className="mt-3 text-3xl font-black tabular-nums">
+                  {phaseCountdown}s
+                </p>
+              )}
               <p className="mt-5 text-lg font-bold uppercase">
                 Waiting on players...
               </p>
@@ -1340,12 +1466,92 @@ export default function HostMultiplayerPanel({
         ) : null
       }
       leftPanel={
-        hasBots ? (
-          <BotStandings
-            leaderboard={snapshot.leaderboard}
-            latestLog={snapshot.latestLog}
-          />
-        ) : undefined
+        <div className="flex flex-col gap-6">
+          <section className="bg-white px-2 py-1">
+            <p className="mb-3 inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
+              <Crown size={16} weight="fill" /> Leaderboard
+            </p>
+            <div className="divide-y divide-zinc-200/80 max-h-64 overflow-y-auto pr-1">
+              {participantLeaderboard.map((p, i) => {
+                const char = participantCharacters[p.id];
+                const bet = mainBets[p.id];
+                return (
+                  <motion.div
+                    key={p.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className="flex items-center gap-2 px-1 py-2.5"
+                  >
+                    <span className="text-[10px] font-black text-zinc-400 w-5">
+                      #{i + 1}
+                    </span>
+                    <CharacterAvatar
+                      svgType={char?.svgType}
+                      color={char?.color}
+                      size={36}
+                      className="shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black uppercase truncate">
+                        {p.name}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full ${p.connected ? "bg-green-400" : "bg-zinc-300"}`}
+                        />
+                        <BananaInline className="text-[10px] font-bold">
+                          {participantBananas[p.id] ?? settings.startingBananas}
+                        </BananaInline>
+                      </div>
+                    </div>
+                    {bet && (
+                      <span
+                        className={`text-[10px] font-black uppercase px-1.5 py-0.5 border-2 border-black ${bet.side === "red" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}
+                      >
+                        {bet.side === "red" ? "♚" : "♚"}{" "}
+                        {bet.side.toUpperCase()}
+                      </span>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="bg-white px-2 py-1">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-700">
+              <Lightning size={14} weight="fill" /> Recent Bets
+            </p>
+            <div className="max-h-48 overflow-y-auto pr-1 divide-y divide-zinc-100">
+              <AnimatePresence initial={false}>
+                {recentBets.slice(0, 8).map((entry, i) => (
+                  <motion.div
+                    key={`${entry.timestamp}-${i}`}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="py-1.5 px-1"
+                  >
+                    <p className="text-[10px] font-black uppercase text-zinc-500">
+                      {entry.playerName}
+                    </p>
+                    <p className="text-xs text-zinc-800">{entry.description}</p>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {recentBets.length === 0 && (
+                <p className="text-xs text-zinc-400 py-2">No bets yet.</p>
+              )}
+            </div>
+          </section>
+
+          {hasBots && (
+            <BotStandings
+              leaderboard={snapshot.leaderboard}
+              latestLog={snapshot.latestLog}
+            />
+          )}
+        </div>
       }
       centerPanel={
         <div className="flex flex-col items-center">
@@ -1374,16 +1580,19 @@ export default function HostMultiplayerPanel({
                 <Pulse size={14} weight="fill" /> Phase
               </p>
               <p className="text-3xl font-black tabular-nums">{phase}</p>
-              <p className="mt-2 text-xs font-black uppercase text-zinc-700">
-                Countdown: {phaseCountdown}s
-              </p>
+              {phaseCountdown > 0 && (
+                <p className="mt-2 text-xs font-black uppercase text-zinc-700">
+                  {phaseCountdown}s remaining
+                </p>
+              )}
             </div>
             <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
               <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
                 <Users size={14} weight="fill" /> Players
               </p>
               <p className="text-sm font-black uppercase">
-                {roomParticipants.length} connected
+                {roomParticipants.filter((p) => p.connected).length}/
+                {roomParticipants.length} online
               </p>
               <p className="mt-2 text-xs text-zinc-700">
                 Combined <BananaInline>{totalBananasInPlay}</BananaInline>
@@ -1391,14 +1600,15 @@ export default function HostMultiplayerPanel({
             </div>
             <div className="px-2 py-1 lg:border-l lg:border-zinc-200">
               <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-                <Pulse size={14} weight="fill" /> Live Votes
+                <DiceFive size={14} weight="fill" /> Microbets
               </p>
-              {phase === "vote" ? (
-                <p className="text-sm font-black uppercase">
-                  {queuedVoteCount} player votes queued
+              <p className="text-sm font-black uppercase">
+                {activeMicrobetCount} active
+              </p>
+              {phase === "vote" && (
+                <p className="mt-2 text-xs text-zinc-700">
+                  {voteActionsCount} votes received
                 </p>
-              ) : (
-                <p className="text-sm text-zinc-600">No active vote window.</p>
               )}
             </div>
           </div>
@@ -1430,42 +1640,6 @@ export default function HostMultiplayerPanel({
             appliedEffects={appliedEffects}
           />
           {hasBots && <BotBetsTable bots={snapshot.bots} />}
-          <section className="border-t border-zinc-200 px-2 pt-4">
-            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-zinc-600">
-              <Trophy size={14} weight="fill" /> Player Wallets
-            </p>
-            <div className="max-h-80 divide-y divide-zinc-200/80 overflow-y-auto pr-1">
-              {participantLeaderboard.map((p, i) => {
-                const char = participantCharacters[p.id];
-                return (
-                  <div key={p.id} className="px-1 py-2.5">
-                    <p className="text-[10px] font-black uppercase text-zinc-500">
-                      #{i + 1}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <CharacterAvatar
-                        svgType={char?.svgType}
-                        color={char?.color}
-                        size={44}
-                        className="bg-transparent"
-                      />
-                      <p className="text-xs font-semibold uppercase">
-                        {p.name}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-xs font-semibold uppercase">
-                      <BananaInline>
-                        {participantBananas[p.id] ?? settings.startingBananas}
-                      </BananaInline>
-                    </p>
-                  </div>
-                );
-              })}
-              {roomParticipants.length === 0 && (
-                <p className="text-xs text-zinc-600">No participants joined.</p>
-              )}
-            </div>
-          </section>
         </div>
       }
       floatingAction={
