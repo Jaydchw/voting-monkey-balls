@@ -322,14 +322,12 @@ export default function HostMultiplayerPanel({
   useEffect(() => {
     const ctrl = new GameAudioController();
     audioCtrlRef.current = ctrl;
-    pauseForGame();
-    void ctrl.loadRound(1);
     return () => {
       ctrl.dispose();
       audioCtrlRef.current = null;
       resumeFromGame();
     };
-  }, [pauseForGame, resumeFromGame]);
+  }, [resumeFromGame]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -987,6 +985,8 @@ export default function HostMultiplayerPanel({
 
   const startMatch = () => {
     if (roomParticipantsRef.current.length === 0) return;
+    pauseForGame();
+    void audioCtrlRef.current?.loadRound(1);
     const s = settingsRef.current;
     const freshEngine = new BotsGameEngine({
       botCount: s.botCount,

@@ -19,6 +19,44 @@ function pickRandom<T>(arr: readonly T[], count: number): T[] {
 }
 
 export function MenuArenaPreview() {
+    // Helper to detect mobile view
+    function isMobileView() {
+      if (typeof window === "undefined") return false;
+      return window.innerWidth <= 640;
+    }
+
+    // Mute music in mobile view
+    useEffect(() => {
+      if (isMobileView()) {
+        // Set music volume to 0
+        try {
+          const settings = JSON.parse(
+            window.localStorage.getItem("vmb.audio-settings") || "{}"
+          );
+          const prevVolume = settings.musicVolume ?? 1;
+          window.localStorage.setItem(
+            "vmb.audio-settings",
+            JSON.stringify({ ...settings, musicVolume: 0, _prevMusicVolume: prevVolume })
+          );
+          window.dispatchEvent(new CustomEvent("vmb:audio-settings-changed", { detail: { ...settings, musicVolume: 0 } }));
+        } catch {}
+      }
+      return () => {
+        // Restore previous music volume
+        try {
+          const settings = JSON.parse(
+            window.localStorage.getItem("vmb.audio-settings") || "{}"
+          );
+          if (typeof settings._prevMusicVolume === "number") {
+            window.localStorage.setItem(
+              "vmb.audio-settings",
+              JSON.stringify({ ...settings, musicVolume: settings._prevMusicVolume, _prevMusicVolume: undefined })
+            );
+            window.dispatchEvent(new CustomEvent("vmb:audio-settings-changed", { detail: { ...settings, musicVolume: settings._prevMusicVolume } }));
+          }
+        } catch {}
+      };
+    }, []);
   const gameApiRef = useRef<GameApi | null>(null);
   const [gameKey, setGameKey] = useState(0);
   const [redHealth, setRedHealth] = useState(100);
@@ -30,8 +68,13 @@ export function MenuArenaPreview() {
       MODIFIER_CATALOG,
       Math.floor(Math.random() * 2) + 1,
     );
+    // Filter out music weapons (Eighth Note, Treble Clef)
+    const musicWeaponNames = ["Eighth Note", "Treble Clef"];
+    const filteredWeapons = WEAPON_CATALOG.filter(
+      (w) => !musicWeaponNames.includes(w.label)
+    );
     const weapons = pickRandom(
-      WEAPON_CATALOG,
+      filteredWeapons,
       Math.floor(Math.random() * 2) + 1,
     );
     const arenas = pickRandom(

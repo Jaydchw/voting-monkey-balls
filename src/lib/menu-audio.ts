@@ -77,6 +77,14 @@ const CONGA_TRACKS: Record<string, TrackState> = {
 };
 
 export class MenuAudioController {
+    // Listen for audio settings changes
+    private volumeChangeHandler = () => this.updateVolume();
+
+    constructor() {
+      if (typeof window !== "undefined") {
+        window.addEventListener("vmb:audio-settings-changed", this.volumeChangeHandler);
+      }
+    }
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
 
@@ -262,6 +270,9 @@ export class MenuAudioController {
   }
 
   dispose(): void {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("vmb:audio-settings-changed", this.volumeChangeHandler);
+    }
     if (this.interactionHandler) {
       window.removeEventListener("pointerdown", this.interactionHandler);
       window.removeEventListener("keydown", this.interactionHandler);

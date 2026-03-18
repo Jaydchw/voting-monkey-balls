@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useMenuAudio } from "@/components/menu-audio-context";
 
 const SONGS = {
   mirage: {
@@ -119,6 +121,18 @@ function buildSongPath(songId: SongId, file: SoundFile) {
 }
 
 export default function AudioTestPage() {
+
+  // Import menu audio hook
+  const { pauseForGame, resumeFromGame } = useMenuAudio();
+
+  // Mute menu music on mount, resume on unmount
+  useEffect(() => {
+    pauseForGame();
+    return () => {
+      resumeFromGame();
+    };
+  }, [pauseForGame, resumeFromGame]);
+
   const [song, setSong] = useState<SongId>(DEFAULT_SONG);
   const [sequences, setSequences] = useState<AllSequencesState>(() => getInitialSequences(DEFAULT_SONG));
   const [activeSequence, setActiveSequence] = useState<'A' | 'B' | 'C' | 'D' | null>('A');
@@ -584,22 +598,43 @@ export default function AudioTestPage() {
               </div>
 
               <div className="flex gap-2 items-center">
-                {SEQUENCE_BUTTONS.map(({ id, activeColor, inactiveColor }) => {
-                  const isActive = activeSequence === id;
-                  return (
-                    <Button 
-                      key={id}
-                      className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black transition-all ${
-                        isActive 
-                          ? `${activeColor} shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-1 scale-105 z-10` 
-                          : `${inactiveColor} opacity-60 hover:opacity-100 hover:-translate-y-0.5 px-3`
-                      }`} 
-                      onClick={() => applySequence(sequences[id as keyof AllSequencesState], id as keyof AllSequencesState)}
-                    >
-                      Seq {id}
-                    </Button>
-                  );
-                })}
+                {/* On mobile, split C and D to a new row */}
+                <div className="flex gap-2 items-center w-full flex-wrap sm:flex-nowrap">
+                  {SEQUENCE_BUTTONS.slice(0,2).map(({ id, activeColor, inactiveColor }) => {
+                    const isActive = activeSequence === id;
+                    return (
+                      <Button 
+                        key={id}
+                        className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black transition-all ${
+                          isActive 
+                            ? `${activeColor} shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-1 scale-105 z-10` 
+                            : `${inactiveColor} opacity-60 hover:opacity-100 hover:-translate-y-0.5 px-3`
+                        }`} 
+                        onClick={() => applySequence(sequences[id as keyof AllSequencesState], id as keyof AllSequencesState)}
+                      >
+                        Seq {id}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2 items-center w-full flex-wrap sm:flex-nowrap mt-2 sm:mt-0">
+                  {SEQUENCE_BUTTONS.slice(2).map(({ id, activeColor, inactiveColor }) => {
+                    const isActive = activeSequence === id;
+                    return (
+                      <Button 
+                        key={id}
+                        className={`border-4 border-black rounded-none uppercase font-black tracking-widest text-black transition-all ${
+                          isActive 
+                            ? `${activeColor} shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] -translate-y-1 scale-105 z-10` 
+                            : `${inactiveColor} opacity-60 hover:opacity-100 hover:-translate-y-0.5 px-3`
+                        }`} 
+                        onClick={() => applySequence(sequences[id as keyof AllSequencesState], id as keyof AllSequencesState)}
+                      >
+                        Seq {id}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

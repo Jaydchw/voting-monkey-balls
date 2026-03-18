@@ -175,6 +175,14 @@ function pickSongForRound(
 }
 
 export class GameAudioController {
+    // Listen for audio settings changes
+    private volumeChangeHandler = () => this.updateVolume();
+
+    constructor() {
+      if (typeof window !== "undefined") {
+        window.addEventListener("vmb:audio-settings-changed", this.volumeChangeHandler);
+      }
+    }
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private filter: BiquadFilterNode | null = null;
@@ -407,6 +415,9 @@ export class GameAudioController {
 
   dispose(): void {
     this.stopCurrentSources();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("vmb:audio-settings-changed", this.volumeChangeHandler);
+    }
     if (this.interactionHandler) {
       window.removeEventListener("pointerdown", this.interactionHandler);
       window.removeEventListener("keydown", this.interactionHandler);
