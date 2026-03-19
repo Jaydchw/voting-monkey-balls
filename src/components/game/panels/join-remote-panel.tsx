@@ -154,6 +154,11 @@ export default function JoinRemotePanel({
   }, [state]);
 
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
+      // Add this ref to track the selection synchronously
+      const mainBetSelectionRef = useRef<MainBetSelection>({
+        side: "blue",
+        stake: MAIN_BET_MIN_STAKE,
+      });
     side: "blue",
     stake: MAIN_BET_MIN_STAKE,
   });
@@ -270,7 +275,9 @@ export default function JoinRemotePanel({
             voteSubmittedRef.current = false;
           }
           if (incoming.phase !== "prematch") {
-            setMainBetSelection({ side: "blue", stake: MAIN_BET_MIN_STAKE });
+            const defaultBet: MainBetSelection = { side: "blue", stake: MAIN_BET_MIN_STAKE };
+            setMainBetSelection(defaultBet);
+            mainBetSelectionRef.current = { ...defaultBet }; // Sync the ref
             setPrematchDecisionSubmitted(false);
             setPrematchDecision(null);
             // roundBetSide intentionally NOT cleared here — persists for the round
@@ -342,16 +349,18 @@ export default function JoinRemotePanel({
 
   const placeMainBet = () => {
     if (prematchDecisionSubmitted) return;
+    // Pull from the synchronous ref
+    const selection = mainBetSelectionRef.current;
     sendAction({
       type: "player-action",
       action: {
         kind: "main-bet",
-        side: mainBetSelection.side,
-        stake: mainBetSelection.stake,
+        side: selection.side,
+        stake: selection.stake,
       },
     });
-    setPrematchDecision(mainBetSelection.side);
-    setRoundBetSide(mainBetSelection.side);
+    setPrematchDecision(selection.side);
+    setRoundBetSide(selection.side);
     setPrematchDecisionSubmitted(true);
   };
 
@@ -928,10 +937,14 @@ export default function JoinRemotePanel({
         )}
         onSelectSide={(side: BallId) => {
           prematchTouchedRef.current = true;
+          // Sync the ref synchronously before state update
+          mainBetSelectionRef.current = { ...mainBetSelectionRef.current, side };
           setMainBetSelection((prev) => ({ ...prev, side }));
         }}
         onSelectStake={(stake: number) => {
           prematchTouchedRef.current = true;
+          // Sync the ref synchronously before state update
+          mainBetSelectionRef.current = { ...mainBetSelectionRef.current, stake };
           setMainBetSelection((prev) => ({ ...prev, stake }));
         }}
         onConfirm={placeMainBet}

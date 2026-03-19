@@ -238,6 +238,11 @@ function SingleplayerPanelInner({
     side: "blue",
     stake: MAIN_BET_MIN_STAKE,
   });
+  // Add this ref to track the selection synchronously
+  const mainBetSelectionRef = useRef<MainBetSelection>({
+    side: "blue",
+    stake: MAIN_BET_MIN_STAKE,
+  });
   const [currentBet, setCurrentBet] = useState<MainBetSelection | null>(null);
   const [mainBetResult, setMainBetResult] = useState<BetResult | null>(null);
   const currentBetRef = useRef<MainBetSelection | null>(null);
@@ -448,6 +453,10 @@ function SingleplayerPanelInner({
     setRedHealth(STARTING_HEALTH);
     setBlueHealth(STARTING_HEALTH);
     healthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
+    // Create a default bet variable to sync both state and ref
+    const defaultBet: MainBetSelection = { side: "blue", stake: MAIN_BET_MIN_STAKE };
+    setMainBetSelection(defaultBet);
+    mainBetSelectionRef.current = { ...defaultBet };
     previousHealthRef.current = { red: STARTING_HEALTH, blue: STARTING_HEALTH };
     statsTotalsRef.current = createZeroTotals();
     setLiveStats(createZeroTotals());
@@ -584,16 +593,18 @@ function SingleplayerPanelInner({
 
   const handleMainBetPlace = useCallback(() => {
     if (phaseRef.current !== "prematch") return;
-    if (mainBetSelection.stake < MAIN_BET_MIN_STAKE) return;
-    if (playerBananasRef.current < mainBetSelection.stake) return;
+    // Pull the absolute latest selection from the ref, NOT the state
+    const selection = mainBetSelectionRef.current;
+    if (selection.stake < MAIN_BET_MIN_STAKE) return;
+    if (playerBananasRef.current < selection.stake) return;
     setPrevPlayerBananas(playerBananasRef.current);
-    playerBananasRef.current -= mainBetSelection.stake;
+    playerBananasRef.current -= selection.stake;
     setPlayerBananas(playerBananasRef.current);
-    const bet: MainBetSelection = { ...mainBetSelection };
+    const bet: MainBetSelection = { ...selection };
     currentBetRef.current = bet;
     setCurrentBet(bet);
     transitionPhase("running", 0);
-  }, [mainBetSelection, transitionPhase]);
+  }, [transitionPhase]);
 
   const handleMainBetSkip = useCallback(() => {
     if (phaseRef.current !== "prematch") return;
@@ -1306,12 +1317,18 @@ function SingleplayerPanelInner({
         bananas={playerBananas}
         selected={mainBetSelection}
         minStake={MAIN_BET_MIN_STAKE}
-        onSelectSide={(side) =>
-          setMainBetSelection((prev) => ({ ...prev, side }))
-        }
-        onSelectStake={(stake) =>
-          setMainBetSelection((prev) => ({ ...prev, stake }))
-        }
+        onSelectSide={(side) => {
+          // Update the synchronous ref first
+          mainBetSelectionRef.current = { ...mainBetSelectionRef.current, side };
+          // Then update the UI state
+          setMainBetSelection((prev) => ({ ...prev, side }));
+        }}
+        onSelectStake={(stake) => {
+          // Update the synchronous ref first
+          mainBetSelectionRef.current = { ...mainBetSelectionRef.current, stake };
+          // Then update the UI state
+          setMainBetSelection((prev) => ({ ...prev, stake }));
+        }}
         onConfirm={handleMainBetPlace}
         onSkip={handleMainBetSkip}
       />
