@@ -154,14 +154,15 @@ export default function JoinRemotePanel({
   }, [state]);
 
   const [mainBetSelection, setMainBetSelection] = useState<MainBetSelection>({
-      // Add this ref to track the selection synchronously
-      const mainBetSelectionRef = useRef<MainBetSelection>({
-        side: "blue",
-        stake: MAIN_BET_MIN_STAKE,
-      });
     side: "blue",
     stake: MAIN_BET_MIN_STAKE,
   });
+
+    // Track the selection synchronously (properly declared outside useState)
+    const mainBetSelectionRef = useRef<MainBetSelection>({
+      side: "blue",
+      stake: MAIN_BET_MIN_STAKE,
+    });
   const [prematchDecisionSubmitted, setPrematchDecisionSubmitted] =
     useState(false);
   const [prematchDecision, setPrematchDecision] = useState<
