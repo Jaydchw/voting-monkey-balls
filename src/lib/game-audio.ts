@@ -1,3 +1,4 @@
+// src/lib/game-audio.ts
 import { getAudioSettings } from "@/lib/audio-settings";
 
 type TrackConfig = {
@@ -120,32 +121,37 @@ function pickSongForRound(
   roundNumber: number,
   usedSongIds: Set<string>,
 ): SongConfig {
-  const available = SONGS.filter((s) => !usedSongIds.has(s.id));
-  const pool = available.length > 0 ? available : SONGS;
   void roundNumber;
-  return pool[Math.floor(Math.random() * pool.length)];
+  void usedSongIds;
+  
+  // Find the groova song configuration in the SONGS array
+  const groovaSong = SONGS.find((s) => s.id === "groova");
+  
+  // Fallback to the first song if 'groova' isn't found for some reason, 
+  // otherwise always return groova.
+  return groovaSong || SONGS[0];
 }
 
 export class GameAudioController {
-      // Start enabled and force-enabled tracks
-      private startEnabledTracks(currentRound: number): void {
-        if (!this.ctx || !this.playbackScheduled || !this.currentSong) return;
-        const now = this.ctx.currentTime;
-        // Find all tracks that are enabled by default OR have reached their forceEnable round
-        const enabledTracks = this.currentTrackIds.filter((trackId) => {
-          const config = this.currentSong!.tracks[trackId];
-          return config.enabled || (config.forceEnableAtRound && currentRound >= config.forceEnableAtRound);
-        });
-        for (const trackId of enabledTracks) {
-          if (this.unlockedTracks.has(trackId)) continue;
-          this.unlockedTracks.add(trackId);
-          const gain = this.gains.get(trackId);
-          if (!gain) continue;
-          const trackVolume = this.currentSong!.tracks[trackId].volume;
-          gain.gain.cancelScheduledValues(now);
-          gain.gain.linearRampToValueAtTime(trackVolume, now + 0.5);
-        }
+    // Start enabled and force-enabled tracks
+    private startEnabledTracks(currentRound: number): void {
+      if (!this.ctx || !this.playbackScheduled || !this.currentSong) return;
+      const now = this.ctx.currentTime;
+      // Find all tracks that are enabled by default OR have reached their forceEnable round
+      const enabledTracks = this.currentTrackIds.filter((trackId) => {
+        const config = this.currentSong!.tracks[trackId];
+        return config.enabled || (config.forceEnableAtRound && currentRound >= config.forceEnableAtRound);
+      });
+      for (const trackId of enabledTracks) {
+        if (this.unlockedTracks.has(trackId)) continue;
+        this.unlockedTracks.add(trackId);
+        const gain = this.gains.get(trackId);
+        if (!gain) continue;
+        const trackVolume = this.currentSong!.tracks[trackId].volume;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.linearRampToValueAtTime(trackVolume, now + 0.5);
       }
+    }
     // Listen for audio settings changes
     private volumeChangeHandler = () => this.updateVolume();
 
