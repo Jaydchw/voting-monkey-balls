@@ -30,11 +30,11 @@ export function PrematchBetModal({
 
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      onSelectSide("blue");
+      // onSelectSide("blue");
       onSelectStake(minStake);
     }
     prevOpenRef.current = open;
-  }, [open, minStake, onSelectSide, onSelectStake]);
+  }, [open, minStake, onSelectStake]);
 
   if (!open) return null;
 
